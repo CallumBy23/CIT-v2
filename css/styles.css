@@ -1,102 +1,127 @@
 /* Absolute Lock: Prevents Safari from bouncing/expanding the viewport */
 html, body {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    margin: 0; padding: 0;
-    background-color: #f9fafb;
-    overflow: hidden;
-    overscroll-behavior-y: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  margin: 0; padding: 0;
+  background-color: #f9fafb;
+  overflow: hidden;
+  overscroll-behavior-y: none;
 }
 
 @media print {
-    html, body {
-        position: static;
-        height: auto;
-        overflow: visible;
-    }
+  html, body {
+      position: static;
+      height: auto;
+      overflow: visible;
+  }
 }
 
 /* Native scrolling designated to internal containers */
 .scrollable-area {
-    flex: 1 1 auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* THE IRON LOCK: Absolute fixed sidebar widths for Desktop */
 @media (min-width: 768px) {
-  #intelLogSidebar, #conceptLogSidebar, #dictSidebar {
-    flex: 0 0 340px !important; 
-    width: 340px !important; 
-    min-width: 340px !important; 
-    max-width: 340px !important;
-  }
-  #dossierSidebar {
-    flex: 0 0 300px !important; 
-    width: 300px !important; 
-    min-width: 300px !important; 
-    max-width: 300px !important;
-  }
+#intelLogSidebar, #conceptLogSidebar, #dictSidebar {
+  flex: 0 0 340px !important; 
+  width: 340px !important; 
+  min-width: 340px !important; 
+  max-width: 340px !important;
+}
+#dossierSidebar {
+  flex: 0 0 300px !important; 
+  width: 300px !important; 
+  min-width: 300px !important; 
+  max-width: 300px !important;
+}
 }
 @media (min-width: 1024px) {
-  #intelLogSidebar, #conceptLogSidebar, #dictSidebar {
-    flex: 0 0 380px !important; 
-    width: 380px !important; 
-    min-width: 380px !important; 
-    max-width: 380px !important;
-  }
-  #dossierSidebar {
-    flex: 0 0 320px !important; 
-    width: 320px !important; 
-    min-width: 320px !important; 
-    max-width: 320px !important;
-  }
+#intelLogSidebar, #conceptLogSidebar, #dictSidebar {
+  flex: 0 0 380px !important; 
+  width: 380px !important; 
+  min-width: 380px !important; 
+  max-width: 380px !important;
+}
+#dossierSidebar {
+  flex: 0 0 320px !important; 
+  width: 320px !important; 
+  min-width: 320px !important; 
+  max-width: 320px !important;
+}
 }
 
 .tab-draggable {
-    cursor: grab;
-    user-select: none;
+  cursor: grab;
+  user-select: none;
 }
 .tab-draggable:active {
-    cursor: grabbing;
+  cursor: grabbing;
 }
 .tab-drag-over {
-    border-color: #4f46e5 !important;
-    transform: scale(1.05);
-    box-shadow: 0 0 10px rgba(79, 70, 229, 0.3);
+  border-color: #4f46e5 !important;
+  transform: scale(1.05);
+  box-shadow: 0 0 10px rgba(79, 70, 229, 0.3);
 }
 
 /* Quill Overrides for Clean UI */
 .ql-toolbar.ql-snow { 
-    border-top-left-radius: 0.5rem; 
-    border-top-right-radius: 0.5rem; 
-    border-color: #d1d5db; 
-    background: #f9fafb; 
+  border-top-left-radius: 0.5rem; 
+  border-top-right-radius: 0.5rem; 
+  border-color: #d1d5db; 
+  background: #f9fafb; 
 }
 .ql-container.ql-snow { 
-    border-bottom-left-radius: 0.5rem; 
-    border-bottom-right-radius: 0.5rem; 
-    border-color: #d1d5db; 
-    background: #ffffff; 
+  border-bottom-left-radius: 0.5rem; 
+  border-bottom-right-radius: 0.5rem; 
+  border-color: #d1d5db; 
+  background: #ffffff; 
 }
 .ql-editor { 
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
-    font-size: 0.875rem; 
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+  font-size: 0.875rem; 
 }
 
 /* Dictionary Highlight Engine */
 .dict-term { 
-    border-bottom: 2px dotted #3b82f6; 
-    cursor: pointer; 
-    color: #1e40af; 
-    font-weight: 600; 
-    transition: color 0.2s; 
+  border-bottom: 2px dotted #3b82f6; 
+  cursor: pointer; 
+  color: #1e40af; 
+  font-weight: 600; 
+  transition: color 0.2s; 
 }
 .dict-term:hover { 
-    color: #1d4ed8; 
-    background-color: #eff6ff; 
+  color: #1d4ed8; 
+  background-color: #eff6ff; 
 }
 
 /* iOS Safe Areas */
 .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 16px) !important; }
 .pt-safe { padding-top: max(env(safe-area-inset-top), 16px) !important; }
+
+/* ========================================= */
+/* DARK MODE OVERRIDES                       */
+/* ========================================= */
+.dark body {
+  background-color: #111827;
+}
+.dark .ql-toolbar.ql-snow {
+  background: #1f2937;
+  border-color: #374151;
+  color: #f3f4f6;
+}
+.dark .ql-container.ql-snow {
+  background: #111827;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+.dark .dict-term {
+  color: #60a5fa;
+  border-bottom-color: #3b82f6;
+}
+.dark .dict-term:hover {
+  color: #93c5fd;
+  background-color: #1e3a8a;
+}

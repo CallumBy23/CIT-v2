@@ -1,14 +1,17 @@
 // GLOBAL OMNIBAR & SHORTCUT ENGINE
 // ==========================================
+
+// Track the current playbook drawing tool state
+window.pbCurrentMode = null; 
+
 function initOmnibarListener() {
+    // { capture: true } intercepts keys before Chrome/Gemini extensions steal them
     window.addEventListener('keydown', (e) => {
         const isMod = e.metaKey || e.ctrlKey;
         const key = e.key ? e.key.toLowerCase() : '';
 
-        // 1. OMNIBAR: Cmd/Ctrl + K OR Cmd/Ctrl + Shift + Z
-        const isOmnibarKey = (isMod && key === 'k') || (isMod && e.shiftKey && key === 'z');
-
-        if (isOmnibarKey) {
+        // 1. OMNIBAR: Cmd/Ctrl + Shift + Z
+        if (isMod && e.shiftKey && key === 'z') {
             e.preventDefault();
             e.stopImmediatePropagation();
             toggleOmnibar();
@@ -24,11 +27,43 @@ function initOmnibarListener() {
             return;
         }
 
-        // 3. SMART SAVE (Cmd/Ctrl + Enter)
+        // 3. PLAYBOOK SHORTCUTS (Cmd/Ctrl + I for Node, Cmd/Ctrl + E for Edge)
+        if (isMod && !e.shiftKey && key === 'i') {
+            if (appState === 'PLAYBOOKS' && typeof playbookNetwork !== 'undefined' && playbookNetwork) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if (window.pbCurrentMode === 'node') {
+                    playbookNetwork.enableEditMode(); // Resets to default toolbar state
+                    window.pbCurrentMode = null;
+                } else {
+                    playbookNetwork.addNodeMode();
+                    window.pbCurrentMode = 'node';
+                }
+                return;
+            }
+        }
+        
+        if (isMod && !e.shiftKey && key === 'e') {
+            if (appState === 'PLAYBOOKS' && typeof playbookNetwork !== 'undefined' && playbookNetwork) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                if (window.pbCurrentMode === 'edge') {
+                    playbookNetwork.enableEditMode(); // Cancels drawing edge
+                    window.pbCurrentMode = null;
+                } else {
+                    playbookNetwork.addEdgeMode();
+                    window.pbCurrentMode = 'edge';
+                }
+                return;
+            }
+        }
+
+        // 4. SMART SAVE (Cmd/Ctrl + Enter)
         if (isMod && e.key === 'Enter') {
             e.preventDefault();
             e.stopImmediatePropagation();
             
+            // Priority A: Is a specific editing drawer or modal open?
             if (document.getElementById('playbookDrawer') && !document.getElementById('playbookDrawer').classList.contains('translate-x-full')) return saveNodeData();
             if (document.getElementById('editModalContainer') && !document.getElementById('editModalContainer').classList.contains('hidden')) return saveEdit();
             if (document.getElementById('editConceptModalContainer') && !document.getElementById('editConceptModalContainer').classList.contains('hidden')) return window.saveConceptEditFn();
@@ -40,6 +75,7 @@ function initOmnibarListener() {
                 if (btn) return btn.click();
             }
 
+            // Priority B: No modals open, trigger default save for the active app state
             if (typeof appState !== 'undefined') {
                 if (appState === 'INTELLIGENCE' && typeof saveManualFactor === 'function') saveManualFactor();
                 else if (appState === 'CONCEPTS' && typeof saveConcept === 'function') saveConcept();
@@ -49,21 +85,29 @@ function initOmnibarListener() {
             return;
         }
 
-        // 4. QUICK NAVIGATION (Cmd/Ctrl + 1 through 6)
+        // 5. QUICK NAVIGATION (Cmd/Ctrl + 1 through 6)
         if (isMod && !e.shiftKey && ['1','2','3','4','5','6'].includes(key)) {
             e.preventDefault();
             e.stopImmediatePropagation();
-            const states = ['INTELLIGENCE', 'CONCEPTS', 'DOSSIERS', 'PLAYBOOKS', 'DICTIONARY', 'GRAPH'];
+            const states = ['INTELLIGENCE', 'CONCEPTS', 'DOSSIERS', 'DICTIONARY', 'PLAYBOOKS', 'GRAPH'];
             const targetState = states[parseInt(key) - 1];
             if (typeof switchState === 'function') switchState(targetState);
             return;
         }
 
-        // 5. ESCAPE
+        // 6. ESCAPE (Close Modals, Drawers, and Drawing Modes)
         if (e.key === 'Escape') {
             closeOmnibar();
+            
             if (typeof closePlaybookDrawer === 'function') closePlaybookDrawer();
             
+            // Cleanly exit playbook drawing modes on Escape
+            if (appState === 'PLAYBOOKS' && typeof playbookNetwork !== 'undefined' && playbookNetwork) {
+                playbookNetwork.enableEditMode();
+                window.pbCurrentMode = null;
+            }
+            
+            // Close mobile sidebars if open
             ["intelLogSidebar", "conceptLogSidebar", "dictSidebar", "playbooksSidebar"].forEach(id => {
                 const el = document.getElementById(id);
                 if (el && window.innerWidth < 768) el.classList.add('-translate-x-full');

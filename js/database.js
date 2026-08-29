@@ -17,7 +17,7 @@ async function loadDatabase() {
           if (parsed.targetFirms) db.targetFirms = parsed.targetFirms;
           if (parsed.dictCategories) db.dictCategories = parsed.dictCategories; 
           if (parsed.macroMetrics) db.macroMetrics = parsed.macroMetrics; 
-          if (parsed.playbooks) db.playbooks = parsed.playbooks; // NEW
+          if (parsed.playbooks) db.playbooks = parsed.playbooks;
           db.lastUpdated = localLastUpdated;
       } catch (e) {
           console.warn("Local cache parsing failed.", e);
@@ -42,7 +42,7 @@ async function loadDatabase() {
         if (db.dossiers[firm].applied === undefined) db.dossiers[firm].applied = false;
     }
 
-    db.playbooks = db.playbooks || {}; // NEW
+    db.playbooks = db.playbooks || {}; 
 
     updateNexusDropdowns();
     if(appState === "INTELLIGENCE") { document.getElementById("sortFeed").value = uiPrefs.intelSort; renderTabs(); renderFeed(); }
@@ -77,7 +77,7 @@ async function loadDatabase() {
                     dictionary: loadedDb.dictionary || [],
                     targetFirms: loadedDb.targetFirms || [],
                     macroMetrics: loadedDb.macroMetrics || {}, 
-                    playbooks: loadedDb.playbooks || db.playbooks || {} || {}, // NEW
+                    playbooks: loadedDb.playbooks || db.playbooks || {},
                     lastUpdated: serverLastUpdated > 0 ? serverLastUpdated : new Date().getTime()
                 };
                 if (!db.conceptCategories.includes("Interview Vault")) db.conceptCategories.push("Interview Vault");
@@ -204,11 +204,11 @@ function checkDailyBriefing(isManual = false) {
     
     if (urgentFirms.length > 0) {
         hasAlerts = true;
-        briefingHTML += `<h4 class="font-bold text-gray-900 mb-2 border-b pb-1 flex items-center gap-2"><span>🚨</span> Approaching Deadlines</h4><ul class="space-y-2 mb-6">`;
+        briefingHTML += `<h4 class="font-bold text-gray-900 dark:text-white mb-2 border-b border-gray-200 dark:border-slate-700 pb-1 flex items-center gap-2"><span>🚨</span> Approaching Deadlines</h4><ul class="space-y-2 mb-6">`;
         urgentFirms.sort((a,b)=>a.diff-b.diff).forEach(f => {
-            briefingHTML += `<li class="text-sm flex justify-between items-center bg-white border border-gray-200 p-2 rounded shadow-sm cursor-pointer hover:border-indigo-400 transition" onclick="routeToFirm('${f.firm.replace(/'/g, "\\'")}'); document.getElementById('dailyBriefingModal').classList.add('hidden');">
-                <span class="truncate pr-2"><strong>${f.firm}</strong> <span class="text-gray-500">(${f.scheme || 'Application'})</span></span> 
-                <span class="text-red-600 font-bold shrink-0">${f.isRollingOpen ? 'Rolling (Act Now!)' : (f.diff === 0 ? 'Today!' : f.diff + ' Days')}</span>
+            briefingHTML += `<li class="text-sm flex justify-between items-center bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 p-2 rounded shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition" onclick="routeToFirm('${f.firm.replace(/'/g, "\\'")}'); document.getElementById('dailyBriefingModal').classList.add('hidden');">
+                <span class="truncate pr-2 dark:text-slate-200"><strong>${f.firm}</strong> <span class="text-gray-500 dark:text-slate-400">(${f.scheme || 'Application'})</span></span> 
+                <span class="text-red-600 dark:text-red-400 font-bold shrink-0">${f.isRollingOpen ? 'Rolling (Act Now!)' : (f.diff === 0 ? 'Today!' : f.diff + ' Days')}</span>
             </li>`;
         });
         briefingHTML += `</ul>`;
@@ -220,20 +220,20 @@ function checkDailyBriefing(isManual = false) {
 
     if (totalDue > 0) {
         hasAlerts = true;
-        briefingHTML += `<h4 class="font-bold text-gray-900 mb-3 border-b pb-1 flex items-center gap-2"><span>🧠</span> Spaced Repetition Due</h4>`;
+        briefingHTML += `<h4 class="font-bold text-gray-900 dark:text-white mb-3 border-b border-gray-200 dark:border-slate-700 pb-1 flex items-center gap-2"><span>🧠</span> Spaced Repetition Due</h4>`;
         briefingHTML += `<div class="flex flex-col gap-3">`;
 
         if (dueConcepts.length > 0) {
-            briefingHTML += `<div class="bg-blue-50 border border-blue-200 p-3 rounded-lg shadow-sm">
-                <p class="text-sm text-blue-900 mb-2">You have <strong>${dueConcepts.length}</strong> core concepts due for memory review.</p>
-                <button onclick="switchState('CONCEPTS'); document.getElementById('dailyBriefingModal').classList.add('hidden'); setTimeout(() => startFlashcardSession('concepts'), 300);" class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2 rounded transition shadow-md w-full">Review Concepts</button>
+            briefingHTML += `<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 rounded-lg shadow-sm">
+                <p class="text-sm text-blue-900 dark:text-blue-200 mb-2">You have <strong>${dueConcepts.length}</strong> core concepts due for memory review.</p>
+                <button onclick="switchState('CONCEPTS'); document.getElementById('dailyBriefingModal').classList.add('hidden'); setTimeout(() => startFlashcardSession('concepts'), 300);" class="text-xs bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-bold px-3 py-2 rounded transition shadow-md w-full">Review Concepts</button>
             </div>`;
         }
 
         if (dueDictTerms.length > 0) {
-            briefingHTML += `<div class="bg-purple-50 border border-purple-200 p-3 rounded-lg shadow-sm">
-                <p class="text-sm text-purple-900 mb-2">You have <strong>${dueDictTerms.length}</strong> dictionary terms due for memory review.</p>
-                <button onclick="switchState('DICTIONARY'); document.getElementById('dailyBriefingModal').classList.add('hidden'); setTimeout(() => startFlashcardSession('dictionary'), 300);" class="text-xs bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-2 rounded transition shadow-md w-full">Review Dictionary</button>
+            briefingHTML += `<div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-3 rounded-lg shadow-sm">
+                <p class="text-sm text-purple-900 dark:text-purple-200 mb-2">You have <strong>${dueDictTerms.length}</strong> dictionary terms due for memory review.</p>
+                <button onclick="switchState('DICTIONARY'); document.getElementById('dailyBriefingModal').classList.add('hidden'); setTimeout(() => startFlashcardSession('dictionary'), 300);" class="text-xs bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white font-bold px-3 py-2 rounded transition shadow-md w-full">Review Dictionary</button>
             </div>`;
         }
 
@@ -244,8 +244,8 @@ function checkDailyBriefing(isManual = false) {
         briefingHTML = `
             <div class="text-center py-6">
                 <span class="text-3xl mb-2 block">✅</span>
-                <h4 class="font-bold text-gray-800 text-base">All Caught Up!</h4>
-                <p class="text-xs text-gray-500 mt-1">No deadlines approaching in the next 14 days and no concepts currently due for review.</p>
+                <h4 class="font-bold text-gray-800 dark:text-slate-200 text-base">All Caught Up!</h4>
+                <p class="text-xs text-gray-500 dark:text-slate-400 mt-1">No deadlines approaching in the next 14 days and no concepts currently due for review.</p>
             </div>
         `;
     }

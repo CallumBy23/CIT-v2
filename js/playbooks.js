@@ -1,5 +1,5 @@
 // ==========================================
-// DEAL ANATOMY & PLAYBOOKS (Snap-to-Row Engine)
+// DEAL ANATOMY & PLAYBOOKS (Snap-to-Grid Engine)
 // ==========================================
 
 let currentPlaybook = null;
@@ -75,28 +75,19 @@ window.managePlaybook = function(oldName, event) {
     }
 };
 
-window.renderPlaybookGraph = function(playbookName) {
-    document.getElementById('activePlaybookLabel').innerText = playbookName;
-    const dataObj = db.playbooks[playbookName] || { nodes: [], edges: [] };
-    
-    pbNodes.clear();
-    pbEdges.clear();
+// --- SILENT BACKGROUND LAYOUT CALCULATOR ---
+window.refreshPlaybookLayout = function() {
+    if (!currentPlaybook || !db.playbooks[currentPlaybook]) return;
     
     let nodesMap = new Map();
-    (dataObj.nodes || []).forEach(n => {
-        nodesMap.set(n.id, { ...n });
-    });
+    pbNodes.forEach(n => nodesMap.set(n.id, { ...n }));
+    let edgesList = pbEdges.get();
 
-    let edgesList = dataObj.edges || [];
-
-    // --- 1. CALCULATE TOP-DOWN ROW LEVELS (BFS) ---
+    // 1. CALCULATE TOP-DOWN ROW LEVELS (BFS fallback for unassigned nodes)
     let adj = new Map();
     let inDegree = new Map();
-    nodesMap.forEach((_, id) => {
-        adj.set(id, []);
-        inDegree.set(id, 0);
-    });
-
+    nodesMap.forEach((_, id) => { adj.set(id, []); inDegree.set(id, 0); });
+    
     edgesList.forEach(e => {
         if (adj.has(e.from)) adj.get(e.from).push(e.to);
         if (inDegree.has(e.to)) inDegree.set(e.to, (inDegree.get(e.to) || 0) + 1);
@@ -119,7 +110,6 @@ window.renderPlaybookGraph = function(playbookName) {
     while (queue.length > 0) {
         let currId = queue.shift();
         let currNode = nodesMap.get(currId);
-        
         let children = adj.get(currId) || [];
         children.forEach(childId => {
             let childNode = nodesMap.get(childId);
@@ -131,45 +121,50 @@ window.renderPlaybookGraph = function(playbookName) {
         });
     }
 
-    // --- 2. ANTI-OVERLAP X-COORDINATE SCANNER ---
+    // 2. APPLY GRID COORDINATES
+    let updates = [];
     let levelXCounters = {};
-    nodesMap.forEach(n => {
-        if (n.x !== undefined && n.x !== null) {
-            const lvl = n.manualLevel !== undefined ? parseInt(n.manualLevel, 10) : (n._autoLevel || 1);
-            if (levelXCounters[lvl] === undefined || n.x > levelXCounters[lvl]) {
-                levelXCounters[lvl] = n.x;
-            }
-        }
-    });
 
-    // --- 3. APPLY RIGID GRID SNAPPING ---
-    let finalNodes = [];
     nodesMap.forEach((node) => {
-        if (node.manualLevel !== undefined && node.manualLevel !== "" && node.manualLevel !== null) {
-            node.level = parseInt(node.manualLevel, 10);
-        } else {
-            node.level = node._autoLevel !== undefined ? node._autoLevel : 1;
+        // Obey user overrides, otherwise use BFS auto-level
+        let newLevel = (node.manualLevel !== undefined && node.manualLevel !== null) 
+                        ? parseInt(node.manualLevel, 10) 
+                        : (node._autoLevel !== undefined ? node._autoLevel : 1);
+        
+        let newY = newLevel * 150;
+        let newX = node.x;
+
+        // If it's a legacy node without an X coordinate, space them out safely
+        if (newX === undefined || newX === null) {
+            if (levelXCounters[newLevel] === undefined) {
+                levelXCounters[newLevel] = 0;
+            } else {
+                levelXCounters[newLevel] += 260; 
+            }
+            newX = levelXCounters[newLevel];
         }
         
-        node.y = node.level * 150;
+        // Rigid 260px column grid snap
+        newX = Math.round(newX / 260) * 260; 
 
-        if (node.x === undefined || node.x === null) {
-            if (levelXCounters[node.level] === undefined) {
-                levelXCounters[node.level] = 0;
-            } else {
-                levelXCounters[node.level] += 260; 
-            }
-            node.x = levelXCounters[node.level];
-        }
-
-        // Force all existing nodes onto the invisible 260px column grid
-        node.x = Math.round(node.x / 260) * 260;
-
-        finalNodes.push(node);
+        updates.push({ id: node.id, level: newLevel, manualLevel: newLevel, x: newX, y: newY });
     });
 
-    pbNodes.add(finalNodes);
+    pbNodes.update(updates);
+};
+
+window.renderPlaybookGraph = function(playbookName) {
+    document.getElementById('activePlaybookLabel').innerText = playbookName;
+    const dataObj = db.playbooks[playbookName] || { nodes: [], edges: [] };
+    
+    pbNodes.clear();
+    pbEdges.clear();
+    
+    if (dataObj.nodes) pbNodes.add(dataObj.nodes);
     if (dataObj.edges) pbEdges.add(dataObj.edges);
+
+    // Initial silent layout alignment
+    window.refreshPlaybookLayout();
 
     const container = document.getElementById('playbookCanvas');
     const data = { nodes: pbNodes, edges: pbEdges };
@@ -190,22 +185,25 @@ window.renderPlaybookGraph = function(playbookName) {
                 nodeData.advantages = "";
                 nodeData.disadvantages = "";
                 
-                let maxLvl = 1;
-                pbNodes.forEach(n => { 
-                    const lvl = n.level || 1;
-                    if (lvl > maxLvl) maxLvl = lvl; 
-                });
+                // INFER ROW & COLUMN FROM MOUSE DROP COORDINATES
+                let clickedRow = Math.max(1, Math.round((nodeData.y || 150) / 150));
+                let targetY = clickedRow * 150;
+                let targetX = Math.round((nodeData.x || 0) / 260) * 260;
                 
-                nodeData.manualLevel = maxLvl;
-                nodeData.level = maxLvl; 
-                nodeData.y = maxLvl * 150;
-                
-                let maxX = 0;
-                pbNodes.forEach(n => {
-                    if ((n.level === maxLvl) && n.x > maxX) maxX = n.x;
-                });
-                // Spawn explicitly on the invisible column grid
-                nodeData.x = pbNodes.length === 0 ? 0 : (Math.round(maxX / 260) * 260) + 260;
+                // OVERLAP PREVENTION: Bump to the right if a node is already in this cell
+                let occupied = true;
+                while (occupied) {
+                    occupied = false;
+                    pbNodes.forEach(n => {
+                        if (n.y === targetY && n.x === targetX && n.id !== nodeData.id) occupied = true;
+                    });
+                    if (occupied) targetX += 260;
+                }
+
+                nodeData.manualLevel = clickedRow;
+                nodeData.level = clickedRow; 
+                nodeData.y = targetY;
+                nodeData.x = targetX;
 
                 callback(nodeData); 
                 syncPlaybookToDb();
@@ -219,20 +217,26 @@ window.renderPlaybookGraph = function(playbookName) {
                 if (edgeData.from !== edgeData.to) {
                     edgeData.arrows = 'to';
                     edgeData.color = { color: '#94a3b8' };
-                    callback(edgeData);
+                    callback(edgeData); 
                     syncPlaybookToDb();
-                    setTimeout(() => renderPlaybookGraph(currentPlaybook), 50);
+                    window.refreshPlaybookLayout(); // Fast background refresh (No recentering)
+                    
+                    // Continuous Edge Drawing Mode
+                    setTimeout(() => {
+                        if (playbookNetwork) playbookNetwork.addEdgeMode();
+                    }, 50);
                 }
             },
             deleteNode: function(nodeData, callback) {
                 callback(nodeData);
                 syncPlaybookToDb();
                 closePlaybookDrawer();
+                window.refreshPlaybookLayout();
             },
             deleteEdge: function(edgeData, callback) {
                 callback(edgeData);
                 syncPlaybookToDb();
-                setTimeout(() => renderPlaybookGraph(currentPlaybook), 50);
+                window.refreshPlaybookLayout();
             }
         },
         nodes: {
@@ -256,24 +260,30 @@ window.renderPlaybookGraph = function(playbookName) {
     
     playbookNetwork = new vis.Network(container, data, options);
     
-    // STRICT GRID SNAPPING ON DRAG END
+    // DRAG-AND-DROP ROW SNAPPING
     playbookNetwork.on("dragEnd", function (params) {
         if (params.nodes.length > 0) {
             const positions = playbookNetwork.getPositions(params.nodes);
             const updates = [];
+            
             params.nodes.forEach(nodeId => {
                 const node = pbNodes.get(nodeId);
                 if (node && positions[nodeId]) {
-                    const targetY = (node.level || 1) * 150;
-                    
-                    // Snap X coordinate to rigid 260px columns
+                    // Read physical drop coordinates
                     const rawX = positions[nodeId].x;
+                    const rawY = positions[nodeId].y;
+
+                    // Calculate nearest Row & Column
+                    const newRow = Math.max(1, Math.round(rawY / 150));
+                    const targetY = newRow * 150;
                     const targetX = Math.round(rawX / 260) * 260;
 
-                    updates.push({
-                        id: nodeId,
+                    updates.push({ 
+                        id: nodeId, 
                         x: targetX, 
-                        y: targetY              
+                        y: targetY,
+                        manualLevel: newRow,
+                        level: newRow
                     });
                 }
             });
@@ -342,28 +352,22 @@ window.saveNodeData = function() {
 
     const label = document.getElementById('pbNodeLabelInput').value;
     const levelStr = document.getElementById('pbNodeLevel').value;
-    const timing = document.getElementById('pbNodeTiming').value;
-    const advantages = document.getElementById('pbNodeAdv').value;
-    const disadvantages = document.getElementById('pbNodeDisadv').value;
-
-    const rawNodes = db.playbooks[currentPlaybook].nodes;
-    const nodeIndex = rawNodes.findIndex(n => n.id === nodeId);
     
-    if (nodeIndex > -1) {
-        rawNodes[nodeIndex].label = label;
-        rawNodes[nodeIndex].timing = timing;
-        rawNodes[nodeIndex].advantages = advantages;
-        rawNodes[nodeIndex].disadvantages = disadvantages;
-        if (levelStr !== "") {
-            rawNodes[nodeIndex].manualLevel = parseInt(levelStr, 10);
-            rawNodes[nodeIndex].level = rawNodes[nodeIndex].manualLevel;
-        } else {
-            delete rawNodes[nodeIndex].manualLevel;
-        }
-    }
+    // Fall back to null if the user clears the box (so BFS can take over)
+    const newManualLevel = levelStr !== "" ? parseInt(levelStr, 10) : null;
 
-    saveDatabase();
-    renderPlaybookGraph(currentPlaybook); 
+    pbNodes.update({
+        id: nodeId,
+        label: label,
+        timing: document.getElementById('pbNodeTiming').value,
+        advantages: document.getElementById('pbNodeAdv').value,
+        disadvantages: document.getElementById('pbNodeDisadv').value,
+        manualLevel: newManualLevel,
+        level: newManualLevel
+    });
+
+    syncPlaybookToDb();
+    window.refreshPlaybookLayout(); // Silent coordinate update
     closePlaybookDrawer();
     
     if(typeof showToast === 'function') showToast("Node properties saved.", "success");
@@ -377,7 +381,6 @@ window.resetPlaybookView = function() {
 window.exportPlaybookToConcept = function() {
     if (!currentPlaybook || !playbookNetwork) return;
     
-    // Fit canvas cleanly before snapshotting
     playbookNetwork.fit({ animation: false });
     
     setTimeout(() => {
