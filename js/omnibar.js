@@ -1,12 +1,11 @@
 // GLOBAL OMNIBAR & SHORTCUT ENGINE
 // ==========================================
 
-// Track the current playbook drawing tool state
 window.pbCurrentMode = null; 
 
 function initOmnibarListener() {
     // { capture: true } intercepts keys before Chrome/Gemini extensions steal them
-    window.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', (e) => {
         const isMod = e.metaKey || e.ctrlKey;
         const key = e.key ? e.key.toLowerCase() : '';
 
@@ -18,7 +17,15 @@ function initOmnibarListener() {
             return;
         }
 
-        // 2. FORCE SYNC TO CLOUD (Cmd/Ctrl + S)
+        // 2. UNIVERSAL QUICK ADD: Cmd/Ctrl + Shift + Y
+        if (isMod && e.shiftKey && key === 'y') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            if (typeof openQuickAdd === 'function') openQuickAdd();
+            return;
+        }
+
+        // 3. FORCE SYNC TO CLOUD (Cmd/Ctrl + S)
         if (isMod && !e.shiftKey && key === 's') {
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -27,13 +34,13 @@ function initOmnibarListener() {
             return;
         }
 
-        // 3. PLAYBOOK SHORTCUTS (Cmd/Ctrl + I for Node, Cmd/Ctrl + E for Edge)
+        // 4. PLAYBOOK SHORTCUTS (Cmd/Ctrl + I for Node, Cmd/Ctrl + E for Edge)
         if (isMod && !e.shiftKey && key === 'i') {
-            if (appState === 'PLAYBOOKS' && typeof playbookNetwork !== 'undefined' && playbookNetwork) {
+            if (typeof appState !== 'undefined' && appState === 'PLAYBOOKS' && typeof playbookNetwork !== 'undefined' && playbookNetwork) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 if (window.pbCurrentMode === 'node') {
-                    playbookNetwork.enableEditMode(); // Resets to default toolbar state
+                    playbookNetwork.enableEditMode(); 
                     window.pbCurrentMode = null;
                 } else {
                     playbookNetwork.addNodeMode();
@@ -44,11 +51,11 @@ function initOmnibarListener() {
         }
         
         if (isMod && !e.shiftKey && key === 'e') {
-            if (appState === 'PLAYBOOKS' && typeof playbookNetwork !== 'undefined' && playbookNetwork) {
+            if (typeof appState !== 'undefined' && appState === 'PLAYBOOKS' && typeof playbookNetwork !== 'undefined' && playbookNetwork) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 if (window.pbCurrentMode === 'edge') {
-                    playbookNetwork.enableEditMode(); // Cancels drawing edge
+                    playbookNetwork.enableEditMode(); 
                     window.pbCurrentMode = null;
                 } else {
                     playbookNetwork.addEdgeMode();
@@ -58,12 +65,13 @@ function initOmnibarListener() {
             }
         }
 
-        // 4. SMART SAVE (Cmd/Ctrl + Enter)
+        // 5. SMART SAVE (Cmd/Ctrl + Enter)
         if (isMod && e.key === 'Enter') {
             e.preventDefault();
             e.stopImmediatePropagation();
             
             // Priority A: Is a specific editing drawer or modal open?
+            if (document.getElementById('quickAddModal') && !document.getElementById('quickAddModal').classList.contains('hidden')) return saveQuickAdd();
             if (document.getElementById('playbookDrawer') && !document.getElementById('playbookDrawer').classList.contains('translate-x-full')) return saveNodeData();
             if (document.getElementById('editModalContainer') && !document.getElementById('editModalContainer').classList.contains('hidden')) return saveEdit();
             if (document.getElementById('editConceptModalContainer') && !document.getElementById('editConceptModalContainer').classList.contains('hidden')) return window.saveConceptEditFn();
@@ -85,7 +93,7 @@ function initOmnibarListener() {
             return;
         }
 
-        // 5. QUICK NAVIGATION (Cmd/Ctrl + 1 through 6)
+        // 6. QUICK NAVIGATION (Cmd/Ctrl + 1 through 6)
         if (isMod && !e.shiftKey && ['1','2','3','4','5','6'].includes(key)) {
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -95,19 +103,22 @@ function initOmnibarListener() {
             return;
         }
 
-        // 6. ESCAPE (Close Modals, Drawers, and Drawing Modes)
+        // 7. ESCAPE
         if (e.key === 'Escape') {
             closeOmnibar();
-            
             if (typeof closePlaybookDrawer === 'function') closePlaybookDrawer();
             
-            // Cleanly exit playbook drawing modes on Escape
-            if (appState === 'PLAYBOOKS' && typeof playbookNetwork !== 'undefined' && playbookNetwork) {
+            const qaModal = document.getElementById('quickAddModal');
+            if (qaModal && !qaModal.classList.contains('hidden')) {
+                qaModal.classList.add('hidden');
+                qaModal.classList.remove('flex');
+            }
+            
+            if (typeof appState !== 'undefined' && appState === 'PLAYBOOKS' && typeof playbookNetwork !== 'undefined' && playbookNetwork) {
                 playbookNetwork.enableEditMode();
                 window.pbCurrentMode = null;
             }
             
-            // Close mobile sidebars if open
             ["intelLogSidebar", "conceptLogSidebar", "dictSidebar", "playbooksSidebar"].forEach(id => {
                 const el = document.getElementById(id);
                 if (el && window.innerWidth < 768) el.classList.add('-translate-x-full');
@@ -162,7 +173,6 @@ function runOmnibarSearch() {
 
     for (const [firm, data] of Object.entries(db.dossiers || {})) {
         const firmLower = firm.toLowerCase();
-        
         const pracString = Array.isArray(data.practice) ? data.practice.map(p => p.heading + " " + p.body).join(" ").toLowerCase() : "";
         const clientString = Array.isArray(data.clients) ? data.clients.map(c => c.heading + " " + c.body).join(" ").toLowerCase() : "";
         

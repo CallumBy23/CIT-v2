@@ -29,88 +29,7 @@
   
   <!-- Custom Styles -->
   <link rel="stylesheet" href="css/styles.css">
-  
-  <style>
-    @media print {
-      html, body { 
-          height: auto !important; 
-          min-height: auto !important; 
-          overflow: visible !important; 
-          position: static !important; 
-          background-color: white !important;
-      }
-      /* Hide navigation, sidebars, drawers, and Vis.js toolbars in print */
-      .hidden, [hidden], .print\:hidden, div.vis-manipulation { 
-          display: none !important; 
-      }
-      /* Default multi-page printing behavior for scrollable views */
-      #mainAppWrapper, .overflow-y-auto, .\max-h-\[400px\], .\max-h-\[600px\] { 
-          position: static !important; 
-          height: auto !important; 
-          max-height: none !important; 
-          overflow: visible !important; 
-      }
-      #mainAppWrapper > div:not(.hidden) {
-          display: block !important;
-      }
-      .break-inside-avoid { break-inside: avoid !important; page-break-inside: avoid !important; }
-
-      /* CONTEXT AWARE PRINTING: Lock Canvas to 100vh to preserve Zoom/Pan layout perfectly */
-      #appPlaybooks:not(.hidden), #appGraph:not(.hidden) {
-          height: 100vh !important;
-          max-height: 100vh !important;
-          overflow: hidden !important;
-          position: relative !important;
-          display: block !important;
-      }
-      #appPlaybooks:not(.hidden) #playbookCanvas, 
-      #appGraph:not(.hidden) #networkCanvas {
-          height: 100vh !important;
-          width: 100vw !important;
-          position: absolute !important;
-          top: 0 !important;
-          left: 0 !important;
-      }
-      /* Force all sidebars to stay hidden in print so they don't overlap the graph */
-      #playbookDrawer, #dossierSidebar, #intelLogSidebar, #conceptLogSidebar, #dictSidebar, #playbooksSidebar { 
-          display: none !important; 
-      }
-    }
-
-    /* Force Standardized Active Color for Mobile Navigation */
-    #mobileBottomNav button:not(.border-transparent) {
-        color: #4f46e5 !important;
-        border-top-color: #4f46e5 !important;
-    }
-    .dark #mobileBottomNav button:not(.border-transparent) {
-        color: #818cf8 !important;
-        border-top-color: #818cf8 !important;
-    }
-
-    /* BULLETPROOF VIS.JS DARK MODE OVERRIDES */
-    html.dark div.vis-network div.vis-manipulation {
-        background-color: #0f172a !important; /* slate-900 */
-        border-bottom: 1px solid #1e293b !important; /* slate-800 */
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5) !important;
-    }
-    html.dark div.vis-network div.vis-manipulation .vis-button, 
-    html.dark div.vis-network div.vis-manipulation .vis-label {
-        color: #e2e8f0 !important; /* slate-200 text */
-        text-shadow: none !important;
-    }
-    html.dark div.vis-network div.vis-manipulation .vis-button:hover {
-        background-color: #1e293b !important; /* slate-800 */
-        box-shadow: none !important;
-    }
-    html.dark div.vis-network div.vis-manipulation .vis-separator-line {
-        background-color: #334155 !important; /* slate-700 */
-        width: 1px !important;
-    }
-    html.dark .vis-network {
-        border: none !important;
-        outline: none !important;
-    }
-  </style>
+  <link rel="stylesheet" href="css/overrides.css">
 </head>
 <body class="text-gray-900 dark:text-slate-100 bg-gray-50 dark:bg-slate-950 font-sans flex flex-col h-[100dvh] overflow-hidden transition-colors duration-300">
 
@@ -132,6 +51,28 @@
     </div>
   </div>
 
+  <!-- UNIVERSAL QUICK ADD MODAL -->
+  <div id="quickAddModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[150] hidden flex-col items-center pt-[15vh] px-4 pb-safe print:hidden" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
+    <div class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-xl shadow-2xl overflow-hidden flex flex-col animate-fade-in-up border border-slate-200 dark:border-slate-800">
+        <div class="flex justify-between items-center px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><span>⚡</span> Universal Quick Add <span class="text-[10px] font-normal text-slate-400 bg-slate-200 dark:bg-slate-800 px-1.5 rounded ml-2 shadow-inner border border-slate-300 dark:border-slate-700">Cmd+Shift+Y</span></h3>
+            <button onclick="document.getElementById('quickAddModal').classList.add('hidden'); document.getElementById('quickAddModal').classList.remove('flex');" class="text-slate-400 hover:text-slate-700 dark:hover:text-white text-xl font-bold transition">&times;</button>
+        </div>
+        <div class="p-5 flex flex-col gap-4">
+            <div class="flex gap-3">
+                <select id="qaType" class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-indigo-600 dark:text-indigo-400 outline-none w-1/3 shrink-0">
+                    <option value="intel">🌐 Intel</option>
+                    <option value="concept">📚 Concept</option>
+                    <option value="dict">📖 Dictionary</option>
+                </select>
+                <input type="text" id="qaTitle" placeholder="Headline / Term" class="flex-1 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none dark:bg-slate-900 dark:text-white">
+            </div>
+            <textarea id="qaBody" placeholder="Jot down context, definition, or notes here..." class="w-full border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-sm h-32 outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:text-white resize-none"></textarea>
+            <button onclick="saveQuickAdd()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition shadow-md flex items-center justify-center gap-2 mt-1">💾 Save to Database (Cmd+Enter)</button>
+        </div>
+    </div>
+  </div>
+
   <header id="mainTopHeader" class="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-4 md:px-6 pb-2 md:pb-4 pt-safe flex flex-wrap justify-between items-center gap-4 shrink-0 shadow-sm z-10 print:hidden transition-colors duration-300">
     <div class="flex items-center gap-4 shrink-0 mt-2 md:mt-0 cursor-pointer" onclick="toggleOmnibar()" title="Open Omnibar">
       <div>
@@ -142,6 +83,11 @@
         <div class="flex items-center gap-2 mt-1">
           <div id="statusDot" class="w-2 h-2 md:w-3 md:h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
           <span id="statusText" class="text-xs md:text-sm font-medium text-gray-500 dark:text-slate-400">Connecting...</span>
+          
+          <!-- Daily Streak Tracker -->
+          <div id="streakBadge" class="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 px-1.5 py-[1px] rounded text-[10px] font-bold shadow-sm cursor-help transition-all ml-1.5" title="Daily Engagement Streak">
+            🔥 <span id="streakCount">0</span>
+          </div>
         </div>
       </div>
     </div>
@@ -158,9 +104,7 @@
     </div>
 
     <div class="flex flex-wrap justify-end gap-2 md:gap-3 shrink-0 ml-auto lg:ml-0 items-center">
-      <!-- Dark Mode Toggle -->
       <button onclick="toggleDarkMode()" class="bg-gray-800 dark:bg-slate-200 text-white dark:text-slate-900 hover:bg-gray-700 dark:hover:bg-slate-300 font-semibold px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm transition shadow-sm items-center gap-1 md:gap-2 whitespace-nowrap">🌙 <span class="hidden sm:inline">Theme</span></button>
-      
       <button onclick="openManualBriefing()" class="bg-indigo-600 text-white hover:bg-indigo-700 font-semibold px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm transition shadow-sm flex items-center gap-1 whitespace-nowrap">📋 <span class="hidden sm:inline">Briefing</span></button>
       <button onclick="downloadLocalBackup()" class="bg-teal-600 text-white hover:bg-teal-700 font-semibold px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm transition shadow-sm flex items-center gap-1 md:gap-2 whitespace-nowrap">💾 <span class="hidden sm:inline">Backup</span></button>
       <button onclick="window.print()" class="hidden md:flex bg-gray-800 dark:bg-slate-700 text-white hover:bg-gray-700 dark:hover:bg-slate-600 font-semibold px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm transition shadow-sm items-center gap-1 md:gap-2 whitespace-nowrap">🖨️ <span class="hidden sm:inline">Print</span></button>
@@ -184,9 +128,10 @@
         <h2 class="text-lg font-bold text-gray-800 dark:text-slate-100 mb-4 mt-6 md:mt-0 shrink-0">Log Factor: <span id="formWsLabel" class="text-indigo-600 dark:text-indigo-400">General Market</span></h2>
         
         <div class="space-y-4 flex-1">
-          <input type="text" id="logHeadline" placeholder="Headline / Event" spellcheck="true" lang="en-GB" autocorrect="on" class="w-full border border-gray-300 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none dark:bg-slate-800 dark:text-white">
-          <input type="text" id="logLinkedConcept" list="dlConcepts" placeholder="🔗 Link a Core Concept (Optional)" autocomplete="off" spellcheck="false" class="w-full border border-gray-300 dark:border-slate-700 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-blue-50/50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 font-medium">
-          <input type="text" id="logLinkedFirm" list="dlFirms" placeholder="🏢 Link a Target Firm (Optional)" autocomplete="off" spellcheck="false" class="w-full border border-gray-300 dark:border-slate-700 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 font-medium">
+          <!-- SMART AUTO-TAGGER ENABLED HERE -->
+          <input type="text" id="logHeadline" oninput="runAutoTagger(this.value)" placeholder="Headline" spellcheck="true" lang="en-GB" autocorrect="on" class="w-full border border-gray-300 dark:border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none dark:bg-slate-800 dark:text-white">
+          <input type="text" id="logLinkedConcept" list="dlConcepts" placeholder="🔗 Link a Core Concept (Optional)" autocomplete="off" spellcheck="false" class="w-full border border-gray-300 dark:border-slate-700 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-blue-50/50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 font-medium transition-colors">
+          <input type="text" id="logLinkedFirm" list="dlFirms" placeholder="🏢 Link a Target Firm (Optional)" autocomplete="off" spellcheck="false" class="w-full border border-gray-300 dark:border-slate-700 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 font-medium transition-colors">
           
           <div class="flex gap-2">
             <select id="logPestle" class="w-1/2 border border-gray-300 dark:border-slate-700 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:text-white">
@@ -266,7 +211,7 @@
                       <select id="aiPersonaIntel" class="flex-1 md:flex-none bg-gray-800 dark:bg-slate-900 text-gray-200 border border-gray-700 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-purple-500">
                         <option value="Standard Partner">Standard Persona</option><option value="Magic Circle Partner">Magic Circle</option><option value="US Firm Partner">US Firm</option>
                       </select>
-                      <label class="flex-1 md:flex-none justify-center text-xs text-gray-300 dark:text-slate-300 font-bold flex items-center gap-2 cursor-pointer bg-gray-800 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 dark:border-slate-700 hover:bg-gray-700 dark:hover:bg-slate-700 transition">
+                      <label class="flex-1 md:flex-none justify-center text-xs text-gray-300 dark:text-slate-300 font-bold flex items-center gap-2 cursor-pointer bg-gray-800 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 dark:border-slate-700 hover:bg-slate-700 dark:hover:bg-slate-800 transition">
                         <input type="checkbox" id="pressureModeIntel" class="rounded text-red-500 focus:ring-red-500 bg-gray-900 dark:bg-slate-800 border-slate-600 dark:border-slate-600 w-4 h-4"> ⏱️ Pressure
                       </label>
                     </div>
@@ -1426,134 +1371,8 @@
   <script src="js/dossiers.js"></script>
   <script src="js/ai-engine.js"></script>
   <script src="js/graph.js"></script>
-  <script src="js/playbooks.js"></script> <!-- NEW -->
-
-  <!-- Initialization & Inject Missing Functions -->
-  <script>
-    // Global Dark Mode Toggle Function
-    window.toggleDarkMode = function() {
-        const htmlEl = document.documentElement;
-        if (htmlEl.classList.contains('dark')) {
-            htmlEl.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
-        } else {
-            htmlEl.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-        }
-    };
-
-    // UNIVERSAL SIDEBAR TOGGLE LOGIC
-    window.toggleAppSidebar = function(id) {
-        const el = document.getElementById(id);
-        if (!el) return;
-        if (window.innerWidth >= 768) {
-            el.classList.toggle('md:hidden'); 
-            el.classList.toggle('md:flex'); // Physically pushes content instead of overlaying
-        } else {
-            el.classList.toggle('-translate-x-full');
-        }
-    };
-
-    // EXPLICIT CONCEPT EDIT SAVER
-    window.saveConceptEditFn = function() {
-        const idxStr = document.getElementById('editConceptIndex').value;
-        if (!idxStr) {
-            alert("Error: No concept selected for editing.");
-            return;
-        }
-        const idx = parseInt(idxStr, 10);
-        
-        if (db.concepts && db.concepts[idx]) {
-            db.concepts[idx].title = document.getElementById('editConceptTitle').value;
-            db.concepts[idx].subTag = document.getElementById('editConceptSubTag').value;
-            
-            const catEl = document.getElementById('editConceptCategory');
-            if (catEl) {
-                db.concepts[idx].category = catEl.value;
-            }
-            
-            if (typeof editQuillEditor !== 'undefined') {
-                db.concepts[idx].body = editQuillEditor.root.innerHTML;
-            }
-            
-            if(typeof saveDatabase === 'function') saveDatabase();
-            if (typeof renderConcepts === 'function') renderConcepts();
-            document.getElementById('editConceptModalContainer').classList.add('hidden');
-        }
-    };
-
-    window.onload = async () => {
-      // 1. Initialize Dark Mode preference on load
-      const currentTheme = localStorage.getItem('theme');
-      if (currentTheme === 'dark' || (!currentTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
-      }
-
-      if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register('sw.js').catch(err => console.log('Service Worker failed:', err));
-      }
-
-      const cachedPrefs = localStorage.getItem('LEGAL_NEXUS_UIPREFS');
-      if (cachedPrefs) {
-          try { 
-              uiPrefs = { ...uiPrefs, ...JSON.parse(cachedPrefs) }; 
-              dossierSortMode = uiPrefs.dossierSort || "deadline";
-          } catch(e){}
-      }
-
-      try {
-          // Helper to safely initialize Quill only if element exists
-          const initQuill = (selector, options) => {
-              const el = document.querySelector(selector);
-              return el ? new Quill(el, options) : null;
-          };
-
-          quillEditor = initQuill('#conceptBodyQuill', { modules: { toolbar: '#quillToolbar' }, theme: 'snow' });
-          editQuillEditor = initQuill('#editConceptBodyQuill', { modules: { toolbar: '#editConceptToolbar' }, theme: 'snow' });
-          
-          // Candidate Fit & Dossier Editors
-          cultureQuill = initQuill('#dossierCultureQuill', { modules: { toolbar: '#toolbar-culture' }, theme: 'snow' });
-          personalWhyQuill = initQuill('#dossierPersonalWhyQuill', { modules: { toolbar: '#toolbar-personal-why' }, theme: 'snow' });
-          compModalQuill = initQuill('#compModalQuill', { modules: { toolbar: '#toolbar-comp-modal' }, theme: 'snow' });
-          practiceQuill = initQuill('#practiceModalQuill', { modules: { toolbar: '#toolbar-practice-modal' }, theme: 'snow' });
-          clientsQuill = initQuill('#clientsModalQuill', { modules: { toolbar: '#toolbar-clients-modal' }, theme: 'snow' });
-
-          // Market Intel Editors
-          intelLogQuill = initQuill('#logContextQuill', { modules: { toolbar: '#toolbar-intel-log' }, theme: 'snow', placeholder: 'Commercial Context & Facts...' });
-          intelEditDescQuill = initQuill('#editDescriptionQuill', { modules: { toolbar: '#toolbar-intel-edit-desc' }, theme: 'snow' });
-          intelEditImplQuill = initQuill('#editImplicationsQuill', { modules: { toolbar: '#toolbar-intel-edit-impl' }, theme: 'snow' });
-
-          [quillEditor, editQuillEditor, cultureQuill, personalWhyQuill, compModalQuill, practiceQuill, clientsQuill, intelLogQuill, intelEditDescQuill, intelEditImplQuill].forEach(q => {
-            if (q) {
-                q.root.setAttribute('spellcheck', 'true');
-                q.root.setAttribute('lang', 'en-GB');
-                if (typeof scheduleAutoSave === 'function') q.on('text-change', scheduleAutoSave);
-            }
-          });
-
-          if (typeof initCanvasEvents === 'function') initCanvasEvents();
-          if (typeof initOmnibarListener === 'function') initOmnibarListener();
-          if (typeof initAutoSaveListeners === 'function') initAutoSaveListeners();
-          
-          window.addEventListener('offline', () => setOnlineStatus(false, "Network disconnected."));
-          window.addEventListener('online', () => setOnlineStatus(true));
-      } catch(e) {
-          console.error("Initialization error:", e);
-      }
-      
-      if(typeof window.renderAlphabetBar === 'function') {
-          window.renderAlphabetBar('concepts');
-          window.renderAlphabetBar('dictionary');
-      }
-
-      if(typeof window.updateReverseToggleUI === 'function') {
-          window.updateReverseToggleUI();
-      }
-
-      switchState("INTELLIGENCE");
-      if (typeof loadDatabase === 'function') await loadDatabase();
-    };
-  </script>
+  <script src="js/playbooks.js"></script> 
+  <script src="js/main.js"></script> <!-- ADDED -->
 
 </body>
 </html>

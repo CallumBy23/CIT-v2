@@ -1,0 +1,97 @@
+@media print {
+    html, body { 
+        height: auto !important; 
+        min-height: auto !important; 
+        overflow: visible !important; 
+        position: static !important; 
+        background-color: white !important;
+    }
+    .hidden, [hidden], .print\:hidden, div.vis-manipulation { 
+        display: none !important; 
+    }
+    #mainAppWrapper, .overflow-y-auto, .\max-h-\[400px\], .\max-h-\[600px\] { 
+        position: static !important; 
+        height: auto !important; 
+        max-height: none !important; 
+        overflow: visible !important; 
+    }
+    #mainAppWrapper > div:not(.hidden) {
+        display: block !important;
+    }
+    .break-inside-avoid { break-inside: avoid !important; page-break-inside: avoid !important; }
+
+    #appPlaybooks:not(.hidden), #appGraph:not(.hidden) {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+    }
+    #playbookCanvas, #networkCanvas {
+        display: block !important;
+        width: 100% !important;
+        height: 260mm !important;
+        position: relative !important;
+        page-break-inside: avoid !important;
+    }
+    .vis-network, .vis-network canvas {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        position: relative !important;
+    }
+    #playbookDrawer, #dossierSidebar, #intelLogSidebar, #conceptLogSidebar, #dictSidebar, #playbooksSidebar { 
+        display: none !important; 
+    }
+}
+
+#mobileBottomNav button:not(.border-transparent) {
+    color: #4f46e5 !important;
+    border-top-color: #4f46e5 !important;
+}
+.dark #mobileBottomNav button:not(.border-transparent) {
+    color: #818cf8 !important;
+    border-top-color: #818cf8 !important;
+}
+
+html:not(.dark) div.vis-network div.vis-manipulation {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #cbd5e1 !important; 
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+}
+html:not(.dark) div.vis-network div.vis-manipulation .vis-button, 
+html:not(.dark) div.vis-network div.vis-manipulation .vis-label {
+    color: #4f46e5 !important;
+    text-shadow: none !important;
+    font-weight: bold !important;
+}
+html:not(.dark) div.vis-network div.vis-manipulation .vis-button:hover {
+    background-color: #f1f5f9 !important; 
+    box-shadow: none !important;
+}
+html:not(.dark) div.vis-network div.vis-manipulation .vis-separator-line {
+    background-color: #cbd5e1 !important;
+    width: 1px !important;
+}
+
+html.dark div.vis-network div.vis-manipulation {
+    background-color: rgba(15, 23, 42, 0.95) !important; 
+    border-bottom: 1px solid #1e293b !important; 
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5) !important;
+}
+html.dark div.vis-network div.vis-manipulation .vis-button, 
+html.dark div.vis-network div.vis-manipulation .vis-label {
+    color: #e2e8f0 !important; 
+    text-shadow: none !important;
+    font-weight: bold !important;
+}
+html.dark div.vis-network div.vis-manipulation .vis-button:hover {
+    background-color: #1e293b !important; 
+    box-shadow: none !important;
+}
+html.dark div.vis-network div.vis-manipulation .vis-separator-line {
+    background-color: #334155 !important; 
+    width: 1px !important;
+}
+html.dark .vis-network {
+    border: none !important;
+    outline: none !important;
+}
