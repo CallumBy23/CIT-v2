@@ -271,8 +271,8 @@
             <div class="flex overflow-x-auto scrollbar-hide w-full" id="mainTabs"></div>
         </div>
 
-        <!-- APP VIEWS CONTAINER -->
-        <main id="mainAppWrapper" class="flex-1 flex flex-col relative w-full h-full bg-slate-50 dark:bg-[#0b1120] overflow-hidden">
+        <!-- APP VIEWS CONTAINER (min-h-0 prevents overflow pushing nav bar down) -->
+        <main id="mainAppWrapper" class="flex-1 flex flex-col relative w-full min-h-0 bg-slate-50 dark:bg-[#0b1120] overflow-hidden">
             
             <!-- 1. DASHBOARD MODULE -->
             <div id="appDashboard" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-300">
@@ -313,16 +313,17 @@
 
             <!-- 3. MARKET INTELLIGENCE -->
             <div id="appIntelligence" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-slate-50 dark:bg-[#0b1120]">
-              <button onclick="toggleAppSidebar('intelLogSidebar')" class="fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-50 print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Insight">
+              <button onclick="toggleAppSidebar('intelLogSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Insight">
                 <i data-lucide="plus" class="w-5 h-5"></i> <span>Log Insight</span>
               </button>
 
-              <div id="intelLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-40 print:hidden shadow-xl md:shadow-none pb-32 md:pb-6 h-full flex flex-col md:hidden shrink-0">
+              <div id="intelLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden shadow-xl md:shadow-none pb-24 md:pb-6 h-full flex flex-col md:hidden shrink-0">
                 <button onclick="toggleAppSidebar('intelLogSidebar')" class="absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
                 <h2 class="text-lg font-serif font-black text-slate-900 dark:text-white mb-4 mt-6 md:mt-0 shrink-0">Log Factor: <span id="formWsLabel" class="text-indigo-600 dark:text-indigo-400 font-sans font-bold text-sm ml-1">General Market</span></h2>
                 
                 <div class="space-y-4 flex-1">
-                  <input type="text" id="logHeadline" oninput="runAutoTagger(this.value)" placeholder="Headline (Type @Firm or #Concept)" spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none dark:bg-slate-800 dark:text-white">
+                  <input type="text" id="logHeadline" oninput="runAutoTagger(this.value)" placeholder="Headline (Type @Firm or #Concept)" spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none dark:bg-slate-800 dark:text-white shadow-inner">
+                  <textarea id="logSummary" placeholder="Short Summary / Preview (2-3 lines)..." class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 shadow-inner dark:bg-slate-800 dark:text-white resize-y min-h-[60px]"></textarea>
                   <input type="text" id="logLinkedConcept" list="dlConcepts" placeholder="Link Concept (Optional)" autocomplete="off" spellcheck="false" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 dark:bg-slate-800/50 text-slate-800 dark:text-slate-200 font-medium shadow-inner">
                   <input type="text" id="logLinkedFirm" list="dlFirms" placeholder="Link Firm (Optional)" autocomplete="off" spellcheck="false" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 dark:bg-slate-800/50 text-slate-800 dark:text-slate-200 font-medium shadow-inner">
                   
@@ -351,7 +352,7 @@
                 </div>
               </div>
 
-              <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-32 md:pb-28 h-full transition-colors duration-300">
+              <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full transition-colors duration-300">
                 <div class="max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 items-start">
                     
                     <div class="flex-1 min-w-0 space-y-6 order-2 lg:order-1 w-full">
@@ -418,179 +419,6 @@
 
                         <div id="cardsContainer" class="space-y-4 pb-10 print:space-y-6 print:pb-0 w-full"></div>
                     </div>
-
-                    <div class="w-full lg:w-80 xl:w-[400px] shrink-0 print:hidden relative lg:sticky lg:top-0 flex flex-col gap-6 pt-1 order-1 lg:order-2">
-                        <div id="intelMacroWidget" class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-md p-5 shadow-sm w-full flex flex-col transition-colors duration-300">
-                            <div class="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0 gap-2 flex-wrap">
-                                <div class="flex items-center gap-2">
-                                    <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5"><i data-lucide="bar-chart-2" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i> Market Indicators</h3>
-                                    <span id="macroStatusBadge" class="text-[9px] font-bold text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-sm border border-slate-200 dark:border-slate-700 hidden sm:inline-block">Syncing...</span>
-                                </div>
-                                <select id="macroInterval" onchange="updateMacroStatus()" class="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase tracking-wider outline-none border border-slate-200 dark:border-slate-700 rounded-sm px-2 py-1 focus:ring-1 focus:ring-indigo-500 cursor-pointer w-auto shadow-sm">
-                                    <option value="1">Daily</option><option value="7">Weekly</option><option value="14">Bi-Weekly</option><option value="30">Monthly</option>
-                                </select>
-                            </div>
-
-                            <div class="flex flex-col gap-2.5 overflow-y-visible pr-1 scrollbar-hide">
-                                <div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-sm border border-slate-100 dark:border-slate-700/50">
-                                    <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">BoE Base Rate</span><span class="text-[9px] text-slate-500 font-medium mt-0.5">Debt Finance & LBOs</span></div>
-                                    <input type="text" id="metricBoE" class="bg-transparent text-indigo-700 dark:text-indigo-400 font-black text-sm text-right outline-none w-20 placeholder-slate-400 transition" placeholder="5.00%">
-                                </div>
-                                <div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-sm border border-slate-100 dark:border-slate-700/50">
-                                    <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">US Fed Funds</span><span class="text-[9px] text-slate-500 font-medium mt-0.5">Global Capital Markets</span></div>
-                                    <input type="text" id="metricFed" class="bg-transparent text-indigo-700 dark:text-indigo-400 font-black text-sm text-right outline-none w-20 placeholder-slate-400 transition" placeholder="5.25%">
-                                </div>
-                                <div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-sm border border-slate-100 dark:border-slate-700/50">
-                                    <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">GBP / USD</span><span class="text-[9px] text-slate-500 font-medium mt-0.5">Inbound M&A</span></div>
-                                    <input type="text" id="metricGBP" class="bg-transparent text-indigo-700 dark:text-indigo-400 font-black text-sm text-right outline-none w-20 placeholder-slate-400 transition" placeholder="1.30">
-                                </div>
-                                <div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-sm border border-slate-100 dark:border-slate-700/50">
-                                    <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">UK 10Y Gilt</span><span class="text-[9px] text-slate-500 font-medium mt-0.5">Bond Pricing & Pensions</span></div>
-                                    <input type="text" id="metricGilt" class="bg-transparent text-indigo-700 dark:text-indigo-400 font-black text-sm text-right outline-none w-20 placeholder-slate-400 transition" placeholder="4.05%">
-                                </div>
-                                <div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-sm border border-slate-100 dark:border-slate-700/50">
-                                    <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">UK CPI (YoY)</span><span class="text-[9px] text-slate-500 font-medium mt-0.5">Contract Indexation</span></div>
-                                    <input type="text" id="metricCPI" class="bg-transparent text-indigo-700 dark:text-indigo-400 font-black text-sm text-right outline-none w-20 placeholder-slate-400 transition" placeholder="2.20%">
-                                </div>
-                                <div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-sm border border-slate-100 dark:border-slate-700/50">
-                                    <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">Brent Crude</span><span class="text-[9px] text-slate-500 font-medium mt-0.5">Energy & Projects</span></div>
-                                    <input type="text" id="metricOil" class="bg-transparent text-indigo-700 dark:text-indigo-400 font-black text-sm text-right outline-none w-20 placeholder-slate-400 transition" placeholder="$80.00">
-                                </div>
-                            </div>
-
-                            <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                                <button onclick="clearMacroMetrics()" class="text-[10px] text-slate-500 hover:text-slate-800 dark:hover:text-white font-bold transition px-2 py-1 uppercase tracking-wider">Reset</button>
-                                <button onclick="saveMacroMetrics(event)" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-sm shadow-sm transition flex items-center gap-1.5"><i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i> Save</button>
-                            </div>
-
-                            <script>
-                                (function initMacroWidget() {
-                                    const metricKeys = ['metricBoE', 'metricFed', 'metricGBP', 'metricGilt', 'metricCPI', 'metricOil'];
-                                    
-                                    window.renderMacroWidget = function() {
-                                        if(typeof db === 'undefined') return;
-                                        db.macroMetrics = db.macroMetrics || {};
-                                        
-                                        metricKeys.forEach(id => {
-                                            const el = document.getElementById(id);
-                                            if (el) el.value = db.macroMetrics[id] || '';
-                                        });
-
-                                        const intEl = document.getElementById('macroInterval');
-                                        if (intEl) intEl.value = db.macroMetrics.interval || "7";
-
-                                        updateMacroStatus();
-                                    };
-
-                                    window.updateMacroStatus = function() {
-                                        if(typeof db === 'undefined') return;
-                                        db.macroMetrics = db.macroMetrics || {};
-                                        const badge = document.getElementById('macroStatusBadge');
-                                        if (!badge) return;
-
-                                        const lastUpdatedStr = db.macroMetrics.lastUpdated;
-                                        const intervalDays = parseInt(document.getElementById('macroInterval').value || "7");
-                                        db.macroMetrics.interval = intervalDays; 
-
-                                        if (!lastUpdatedStr) {
-                                            badge.innerText = "Unsaved";
-                                            badge.className = "text-[9px] font-bold text-red-700 dark:text-red-200 uppercase tracking-widest bg-red-100 dark:bg-red-900/50 px-2 py-0.5 rounded-sm border border-red-200 dark:border-red-800";
-                                            return;
-                                        }
-
-                                        const lastUpdated = new Date(lastUpdatedStr);
-                                        const now = new Date();
-                                        now.setHours(0,0,0,0);
-                                        lastUpdated.setHours(0,0,0,0);
-                                        
-                                        const diffTime = Math.abs(now - lastUpdated);
-                                        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-                                        if (diffDays >= intervalDays) {
-                                            badge.innerText = "Due Check";
-                                            badge.className = "text-[9px] font-bold text-orange-700 dark:text-orange-200 uppercase tracking-widest bg-orange-100 dark:bg-orange-900/50 px-2 py-0.5 rounded-sm border border-orange-200 dark:border-orange-800 animate-pulse";
-                                        } else {
-                                            badge.innerText = "Up to Date";
-                                            badge.className = "text-[9px] font-bold text-emerald-700 dark:text-emerald-200 uppercase tracking-widest bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded-sm border border-emerald-200 dark:border-emerald-800";
-                                        }
-                                    };
-
-                                    window.saveMacroMetrics = function(event) {
-                                        if(typeof db === 'undefined') return;
-                                        db.macroMetrics = db.macroMetrics || {};
-                                        db.macroMetrics.history = db.macroMetrics.history || {};
-                                        
-                                        const nowMs = new Date().getTime();
-                                        
-                                        metricKeys.forEach(id => {
-                                            const el = document.getElementById(id);
-                                            if (el && el.value.trim() !== '') {
-                                                db.macroMetrics[id] = el.value;
-                                                
-                                                // Extract the raw number to graph it (removes %, $, commas)
-                                                const numVal = parseFloat(el.value.replace(/[^0-9.-]+/g,""));
-                                                
-                                                if (!isNaN(numVal)) {
-                                                    db.macroMetrics.history[id] = db.macroMetrics.history[id] || [];
-                                                    const hist = db.macroMetrics.history[id];
-                                                    
-                                                    if (hist.length > 0) {
-                                                        // Prevent duplicate entries on the same day; just overwrite today's value
-                                                        const lastDate = new Date(hist[hist.length-1].d);
-                                                        const todayDate = new Date(nowMs);
-                                                        if (lastDate.toDateString() === todayDate.toDateString()) {
-                                                            hist[hist.length-1].v = numVal; 
-                                                        } else {
-                                                            hist.push({ d: nowMs, v: numVal });
-                                                        }
-                                                    } else {
-                                                        hist.push({ d: nowMs, v: numVal });
-                                                    }
-                                                }
-                                            }
-                                        });
-                                        
-                                        const intEl = document.getElementById('macroInterval');
-                                        if (intEl) db.macroMetrics.interval = intEl.value;
-
-                                        db.macroMetrics.lastUpdated = new Date().toISOString();
-                                        updateMacroStatus();
-                                        
-                                        if (typeof saveDatabase === 'function') {
-                                            saveDatabase();
-                                            const btn = event.currentTarget;
-                                            const originalText = btn.innerHTML;
-                                            btn.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5"></i> Saved`;
-                                            if (window.lucide) window.lucide.createIcons();
-                                            setTimeout(() => {
-                                                btn.innerHTML = originalText;
-                                                if (window.lucide) window.lucide.createIcons();
-                                            }, 2000);
-                                            
-                                            // Instantly re-render the dashboard graphs with the new data point
-                                            if(typeof renderDashboard === 'function') renderDashboard();
-                                        }
-                                    };
-
-                                    window.clearMacroMetrics = function() {
-                                        if (confirm('Clear all stored macro values?')) {
-                                            if(typeof db !== 'undefined') db.macroMetrics = {};
-                                            metricKeys.forEach(id => {
-                                                const el = document.getElementById(id);
-                                                if (el) el.value = '';
-                                            });
-                                            const badge = document.getElementById('macroStatusBadge');
-                                            if (badge) {
-                                                badge.innerText = "Manual Sync";
-                                                badge.className = "text-[9px] font-bold text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-sm border border-slate-200 dark:border-slate-700";
-                                            }
-                                            if (typeof saveDatabase === 'function') saveDatabase();
-                                        }
-                                    };
-                                })();
-                            </script>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div> <!-- CLOSING INTELLIGENCE -->
@@ -598,11 +426,11 @@
             <!-- 4. CORE CONCEPTS -->
             <div id="appConcepts" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-slate-50 dark:bg-[#0b1120]">
                 <!-- PROFESSIONAL FAB: ACTION PILL -->
-                <button onclick="toggleAppSidebar('conceptLogSidebar')" class="fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-50 print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Concept">
+                <button onclick="toggleAppSidebar('conceptLogSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Concept">
                     <i data-lucide="plus" class="w-5 h-5"></i> <span>Log Concept</span>
                 </button>
 
-                <div id="conceptLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-40 print:hidden flex-col shadow-xl md:shadow-none pb-32 md:pb-6 h-full md:hidden shrink-0">
+                <div id="conceptLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex-col shadow-xl md:shadow-none pb-24 md:pb-6 h-full md:hidden shrink-0">
                     <button onclick="toggleAppSidebar('conceptLogSidebar')" class="absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
                     <h2 class="text-lg font-serif font-black text-slate-900 dark:text-white mb-4 mt-6 md:mt-0 shrink-0">Log Concept: <span id="formConceptLabel" class="text-indigo-600 dark:text-indigo-400 font-sans font-bold text-sm ml-1">Corporate</span></h2>
                     
@@ -627,7 +455,7 @@
                     </div>
                 </div>
 
-                <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-32 md:pb-28 h-full transition-colors duration-300">
+                <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full transition-colors duration-300">
                     <div class="max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 items-start">
                         <div class="flex-1 min-w-0 w-full space-y-6 order-2 lg:order-1">
                             <div class="print:hidden border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
@@ -706,11 +534,11 @@
             <div id="appDossiers" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120]">
                 
                 <!-- PROFESSIONAL FAB: ACTION PILL -->
-                <button onclick="document.getElementById('dossierSidebar').classList.toggle('-translate-x-full')" class="md:hidden fixed bottom-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-50 print:hidden transition-all hover:-translate-y-1 gap-2">
+                <button onclick="document.getElementById('dossierSidebar').classList.toggle('-translate-x-full')" class="md:hidden fixed bottom-20 right-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2">
                     <i data-lucide="menu" class="w-5 h-5"></i> <span>Firms</span>
                 </button>
 
-                <div id="dossierSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto transition-transform duration-300 z-40 print:hidden flex flex-col shadow-xl md:shadow-none pb-32 md:pb-6 h-full shrink-0">
+                <div id="dossierSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex flex-col shadow-xl md:shadow-none pb-24 md:pb-6 h-full shrink-0">
                     <button onclick="document.getElementById('dossierSidebar').classList.add('-translate-x-full')" class="md:hidden absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 transition z-50"><i data-lucide="x" class="w-6 h-6"></i></button>
                     <div class="flex justify-between items-center mb-4 mt-6 md:mt-0 shrink-0 flex-wrap gap-2">
                       <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Target Firms</h2>
@@ -730,7 +558,7 @@
                     <div id="dossierFirmList" class="space-y-1.5 flex-1 overflow-y-auto pr-1 custom-scrollbar"></div>
                 </div>
                 
-                <div class="flex-1 min-w-0 p-4 md:p-10 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-32 md:pb-28 h-full bg-transparent">
+                <div class="flex-1 min-w-0 p-4 md:p-10 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full bg-transparent">
                     <div class="w-full space-y-6 md:space-y-8 max-w-[1600px] mx-auto" id="dossierContentWrapper">
                         <div id="dossierViewMode" class="block">
                             <div class="flex flex-col xl:flex-row justify-between items-start xl:items-end border-b border-slate-300 dark:border-slate-800 pb-4 mb-6 w-full gap-4">
@@ -847,11 +675,11 @@
             <div id="appDictionary" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120]">
               
               <!-- PROFESSIONAL FAB: ACTION PILL -->
-              <button onclick="toggleAppSidebar('dictSidebar')" class="fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-50 print:hidden transition-all hover:-translate-y-1 gap-2" title="Define Term">
+              <button onclick="toggleAppSidebar('dictSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Define Term">
                 <i data-lucide="plus" class="w-5 h-5"></i> <span>Add Term</span>
               </button>
 
-              <div id="dictSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-40 print:hidden shadow-xl md:shadow-none pb-32 md:pb-6 h-full flex-col md:hidden shrink-0">
+              <div id="dictSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden shadow-xl md:shadow-none pb-24 md:pb-6 h-full flex-col md:hidden shrink-0">
                 <button onclick="toggleAppSidebar('dictSidebar')" class="absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
                 <h2 class="text-lg font-serif font-black text-slate-900 dark:text-white mb-4 mt-6 md:mt-0">Define a Term</h2>
                 
@@ -866,7 +694,7 @@
                 </div>
               </div>
 
-              <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-32 md:pb-28 h-full">
+              <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full">
                 <!-- Split Column Layout -->
                 <div class="max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 items-start"> 
                     <div class="flex-1 min-w-0 w-full space-y-6 order-2 lg:order-1">
@@ -942,10 +770,10 @@
             <div id="appPlaybooks" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120]">
                 
                 <!-- PROFESSIONAL FAB: ACTION PILL -->
-                <button onclick="toggleAppSidebar('playbooksSidebar')" class="fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_8px_30px_rgb(79,70,229,0.3)] flex items-center justify-center z-50 print:hidden transition-all hover:-translate-y-1 gap-2"><i data-lucide="menu" class="w-5 h-5"></i> <span>Playbooks</span></button>
+                <button onclick="toggleAppSidebar('playbooksSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_8px_30px_rgb(79,70,229,0.3)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2"><i data-lucide="menu" class="w-5 h-5"></i> <span>Playbooks</span></button>
 
                 <!-- Playbooks Sidebar -->
-                <div id="playbooksSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[300px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto transition-transform duration-300 z-40 print:hidden flex flex-col shadow-xl md:shadow-none pb-32 md:pb-6 pt-6 h-full shrink-0">
+                <div id="playbooksSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[300px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex flex-col shadow-xl md:shadow-none pb-24 md:pb-6 pt-6 h-full shrink-0">
                     <button onclick="toggleAppSidebar('playbooksSidebar')" class="md:hidden absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 transition z-50"><i data-lucide="x" class="w-6 h-6"></i></button>
                     <div class="flex justify-between items-center mb-4 mt-6 md:mt-0 shrink-0 border-b border-slate-200 dark:border-slate-800 pb-3">
                         <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Playbooks</h2>
@@ -1004,22 +832,48 @@
             </div> <!-- NOW PROPERLY CLOSED -->
 
         </main>
+        
+        <!-- BOTTOM NAVIGATION (MOBILE ONLY) -->
+        <div id="mobileBottomNav" class="md:hidden shrink-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-around items-start z-[50] print:hidden pb-[env(safe-area-inset-bottom)] transition-colors duration-300">
+            <button onclick="switchState('DASHBOARD')" id="mobNavDashboard" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="layout-dashboard" class="w-5 h-5"></i> Home</button>
+            <button onclick="switchState('INTELLIGENCE')" id="mobNavIntel" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="globe" class="w-5 h-5"></i> Intel</button>
+            <button onclick="switchState('CONCEPTS')" id="mobNavConcepts" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="book-open" class="w-5 h-5"></i> KMS</button>
+            <button onclick="switchState('DOSSIERS')" id="mobNavDossiers" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="building-2" class="w-5 h-5"></i> Dossiers</button>
+            <button onclick="switchState('PLAYBOOKS')" id="mobNavPlaybooks" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="git-merge" class="w-5 h-5"></i> Deals</button>
+        </div>
     </div>
   </div> <!-- /MAIN APP CONTAINER -->
-
-  <!-- BOTTOM NAVIGATION (MOBILE ONLY) -->
-  <div id="mobileBottomNav" class="md:hidden fixed bottom-0 left-0 right-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-around items-start z-[50] print:hidden shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)] pb-[env(safe-area-inset-bottom)] transition-colors duration-300">
-    <button onclick="switchState('DASHBOARD')" id="mobNavDashboard" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="layout-dashboard" class="w-5 h-5"></i> Home</button>
-    <button onclick="switchState('INTELLIGENCE')" id="mobNavIntel" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="globe" class="w-5 h-5"></i> Intel</button>
-    <button onclick="switchState('CONCEPTS')" id="mobNavConcepts" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="book-open" class="w-5 h-5"></i> KMS</button>
-    <button onclick="switchState('DOSSIERS')" id="mobNavDossiers" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="building-2" class="w-5 h-5"></i> Dossiers</button>
-    <button onclick="switchState('PLAYBOOKS')" id="mobNavPlaybooks" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="git-merge" class="w-5 h-5"></i> Deals</button>
-  </div>
 
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toastContainer" class="fixed bottom-4 right-4 md:bottom-8 md:right-8 z-[9999] flex flex-col-reverse gap-3 pointer-events-none print:hidden"></div>
 
   <!-- MODALS -->
+
+  <!-- EXPANDED GRAPH MODAL -->
+  <div id="macroGraphModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] hidden flex-col items-center justify-center p-4 md:p-8 transition-all opacity-0 pointer-events-none" onclick="if(event.target===this) window.closeExpandedGraph()">
+      <div id="macroGraphModalInner" class="bg-white dark:bg-[#0f172a] rounded-xl w-full max-w-5xl shadow-2xl flex flex-col relative overflow-hidden border border-slate-200 dark:border-slate-700 transition-transform transform scale-95 duration-200">
+          <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 p-4 md:p-6 bg-slate-50 dark:bg-slate-900/50">
+              <div>
+                  <h3 class="text-xl md:text-2xl font-serif font-black text-slate-900 dark:text-white flex items-center gap-3">
+                      <i data-lucide="trending-up" class="w-6 h-6 text-indigo-500"></i> <span id="expandedGraphName">Metric</span>
+                  </h3>
+                  <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1" id="expandedGraphSub">Details</p>
+              </div>
+              <div class="flex items-center gap-4">
+                  <div class="text-right hidden sm:block mr-4">
+                      <div class="text-2xl font-black text-slate-900 dark:text-white" id="expandedGraphValue">--</div>
+                      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Latest Value</div>
+                  </div>
+                  <button onclick="window.closeExpandedGraph()" class="text-slate-400 hover:text-slate-800 dark:hover:text-white transition bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 p-2 rounded-md"><i data-lucide="x" class="w-6 h-6"></i></button>
+              </div>
+          </div>
+          <div class="p-6 md:p-8 w-full overflow-x-auto custom-scrollbar">
+              <div id="expandedGraphContainer" class="w-full min-w-[600px] h-[40vh] md:h-[400px] relative">
+                  <!-- SVG Injected Here -->
+              </div>
+          </div>
+      </div>
+  </div>
 
   <!-- DAILY BRIEFING MODAL -->
   <div id="dailyBriefingModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('dailyBriefingModal').classList.add('hidden')">
@@ -1075,8 +929,13 @@
       <h3 class="text-xl font-serif font-black text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Edit Insight</h3>
       <input type="hidden" id="editIndex">
       <div class="space-y-4">
-        <input type="text" id="editTitle" spellcheck="true" lang="en-GB" autocorrect="on" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none autosave-input dark:bg-slate-800 dark:text-white font-bold">
+        <input type="text" id="editTitle" spellcheck="true" lang="en-GB" autocorrect="on" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none autosave-input dark:bg-slate-800 dark:text-white font-bold shadow-inner">
         
+        <div class="mt-4">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Short Summary / Preview</label>
+          <textarea id="editSummary" spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none autosave-input dark:bg-slate-800 dark:text-white shadow-inner resize-y min-h-[60px]"></textarea>
+        </div>
+
         <div>
           <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Workspace / Tab</label>
           <select id="editWorkspaceSelect" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 autosave-input"></select>

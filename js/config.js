@@ -1,7 +1,10 @@
 // CONFIGURATION & STATE
 // ==========================================
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxkTTXh2smCuTyVj51r9sdFXbTCPIiESF9-nqjjLOuyrD4iIqgb5PzSHr5iIWqLhCPA/exec"; 
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzUvWIgxxQWbFqnCgFrN0_3wxTN-bwkJxL7pppXBU0hfJmnaGm3X5UNliZ5Gs170Fon/exec"; 
 const GEMINI_API_KEY = "AQ.Ab8RN6IZ4fFDezQbK2Hm_Zfc_6-LnDqw-9cjS_vAai9hlUDLhg"; 
+
+window.currentConceptCategory = "All";
+window.currentWorkspace = "All";
 
 let db = { 
   workspaces: ["General Market", "Interview Vault"], 
@@ -19,13 +22,13 @@ let quillEditor, editQuillEditor;
 let practiceQuill, clientsQuill, cultureQuill; 
 let appState = "INTELLIGENCE"; 
 
-let currentWorkspace = "General Market";
+let currentWorkspace = "All";
 let activePestleFilter = "All";
 const PESTLE_CATEGORIES = ["All", "Political", "Economic", "Social", "Technological", "Legal", "Environmental", "Assessment"];
 let selectedFactors = new Set();
 let currentVisibleFactorIndices = [];
 
-let currentConceptCategory = "Corporate / M&A";
+let currentConceptCategory = "All";
 let selectedConcepts = new Set();
 let currentVisibleConceptIndices = [];
 let filterReviewDue = false;

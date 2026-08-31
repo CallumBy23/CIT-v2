@@ -106,6 +106,7 @@ function switchState(newState) {
           if (typeof renderDashboard === 'function') renderDashboard();
       }
       else if (newState === "INTELLIGENCE") {
+          currentWorkspace = "All"; // <--- ADD THIS
           if (mainTabsWrapper) {
               mainTabsWrapper.style.display = "block";
               mainTabsWrapper.classList.remove("hidden");
@@ -117,6 +118,7 @@ function switchState(newState) {
           renderTabs(); renderFeed();
       } 
       else if (newState === "CONCEPTS") {
+          currentConceptCategory = "All";
           if (mainTabsWrapper) {
               mainTabsWrapper.style.display = "block";
               mainTabsWrapper.classList.remove("hidden");

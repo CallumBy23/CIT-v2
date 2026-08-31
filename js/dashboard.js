@@ -1,18 +1,34 @@
 // DASHBOARD & COMMAND CENTER LOGIC
 // ==========================================
 
+// Legacy Bridge: Catch old 'assess' calls and map them to the new engine
+window.assess = function(rating) {
+    if (typeof window.processFlashcardResult === 'function') {
+        window.processFlashcardResult(rating);
+    } else {
+        console.error("Flashcard engine not loaded yet.");
+    }
+};
+
 // 1. Initialize from LocalStorage to remember the timeframe
 window.currentMacroPeriod = localStorage.getItem('LEGAL_NEXUS_MACRO_PERIOD') || '180';
 
 window.updateMacroPeriod = function(val) {
     window.currentMacroPeriod = val;
     localStorage.setItem('LEGAL_NEXUS_MACRO_PERIOD', val);
-    if(typeof renderDashboard === 'function') renderDashboard();
+    if(typeof window.renderDashboard === 'function') window.renderDashboard();
 };
 
 window.renderDashboard = function() {
     const grid = document.getElementById("dashboardGrid");
     if (!grid) return;
+
+    // Async Database Guard to prevent rendering crashes
+    if (typeof db === 'undefined' || !db) {
+        console.warn("Database not initialized. Retrying dashboard render...");
+        setTimeout(window.renderDashboard, 200);
+        return;
+    }
 
     // --- 1. DATA AGGREGATION ---
     const nowMs = new Date().getTime();
@@ -65,13 +81,13 @@ window.renderDashboard = function() {
     });
     const dictMasteryPct = dictTotalSrsItems === 0 ? 0 : Math.round((dictMasteredSrsItems / dictTotalSrsItems) * 100);
 
-    // Get Recent Intel Activity (Last 5)
+    // Get Recent Intel Activity
     let recentIntel = [...(db.factors || [])]
         .filter(f => f.workspace !== "Interview Vault")
         .reverse()
-        .slice(0, 5);
+        .slice(0, 6);
 
-    // Macro Metrics Safeload, Formatting & Historical Fallbacks
+    // Macro Metrics Safeload & Historical Fallbacks
     const m = db.macroMetrics || {};
     m.history = m.history || {};
 
@@ -90,7 +106,6 @@ window.renderDashboard = function() {
         { key: 'metricOil', label: 'Brent Crude', sub: 'Energy & Projects', val: m.metricOil || '--', color: 'text-rose-600 dark:text-rose-400', spark: 'stroke-rose-500' }
     ];
 
-    // Helper to generate a realistic looking fallback curve if database is empty
     const genMockHistory = (arr) => arr.map((v, i) => ({ d: nowMs - ((arr.length - 1 - i) * 30 * dayMs), v: v }));
     const fallbacks = {
         metricBoE: genMockHistory([4.00, 4.25, 4.50, 4.75, 5.00, 5.25, 5.25, 5.00, 4.75]),
@@ -106,17 +121,14 @@ window.renderDashboard = function() {
         let rawData = m.history[metricKey] || fallbacks[metricKey];
         if (!Array.isArray(rawData)) rawData = fallbacks[metricKey];
 
-        // Filter based on dropdown timeframe
         let dataPoints = [...rawData];
         if (window.currentMacroPeriod !== 'all') {
             const cutoffMs = nowMs - (parseInt(window.currentMacroPeriod) * dayMs);
             dataPoints = dataPoints.filter(pt => pt.d >= cutoffMs);
         }
 
-        // Failsafe: If filter leaves < 2 points, grab the most recent 2
         if (dataPoints.length < 2) dataPoints = rawData.slice(-2);
 
-        // DATA THINNING: Smooth out high-frequency daily data over long horizons to prevent barcode rendering
         if (dataPoints.length > 90) {
             const step = Math.ceil(dataPoints.length / 60); 
             dataPoints = dataPoints.filter((_, i) => i % step === 0 || i === dataPoints.length - 1);
@@ -127,7 +139,6 @@ window.renderDashboard = function() {
         const max = Math.max(...vals);
         const range = max - min === 0 ? 1 : max - min;
         
-        // Formatter for Dates
         const formatAxisDate = (ms) => new Date(ms).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
         const formatHoverDate = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
         
@@ -145,14 +156,13 @@ window.renderDashboard = function() {
             return `${x.toFixed(1)},${y.toFixed(1)}`;
         }).join(' ');
 
-        // Invisible Hover Slices
+        // Isolated hover group using group/point to prevent global hover bar bug
         const hoverOverlays = dataPoints.map((pt) => {
             return `
-                <div class="flex-1 h-full group relative cursor-crosshair">
-                    <div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-slate-800 dark:bg-slate-700 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg pointer-events-none transition-opacity z-50 whitespace-nowrap">
+                <div class="flex-1 h-full group/point relative">
+                    <div class="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/point:opacity-100 bg-slate-800 dark:bg-slate-700 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg pointer-events-none transition-opacity z-50 whitespace-nowrap">
                         ${formatHoverDate(pt.d)}: <span class="${colorClass.replace('text-', 'text-')}">${pt.v}</span>
                     </div>
-                    <div class="absolute top-0 bottom-0 left-1/2 w-px bg-slate-400 dark:bg-slate-500 opacity-0 group-hover:opacity-50 pointer-events-none"></div>
                 </div>
             `;
         }).join('');
@@ -164,7 +174,7 @@ window.renderDashboard = function() {
                         <span>${max.toFixed(1)}</span>
                         <span>${min.toFixed(1)}</span>
                     </div>
-                    <div class="flex-1 relative w-full h-full border-l border-b border-slate-200 dark:border-slate-700/50">
+                    <div class="flex-1 relative w-full h-full border-l border-b border-slate-200 dark:border-slate-700/50 pl-1 pb-1">
                         <div class="absolute inset-0 ml-1 mb-1">
                             <svg viewBox="0 0 100 28" class="absolute inset-0 w-full h-full ${colorClass} fill-none opacity-80" preserveAspectRatio="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="${points}"></polyline></svg>
                             <div class="absolute inset-0 flex">${hoverOverlays}</div>
@@ -179,17 +189,15 @@ window.renderDashboard = function() {
         `;
     };
 
-    // Mastery Donut Math (Increased bounds for perfect circle rendering)
-    const radius = 40;
+    const radius = 38;
     const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference - (masteryPct / 100) * circumference;
     const dictStrokeDashoffset = circumference - (dictMasteryPct / 100) * circumference;
 
-    // --- 2. RENDER HTML SHELL ---
     let html = `
         <!-- ROW 1: QUICK STATS -->
         <div class="col-span-1 lg:col-span-3 xl:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm flex flex-col hover:border-indigo-400 transition-colors">
+            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm flex flex-col hover:border-indigo-400 transition-colors cursor-pointer" onclick="window.switchState('CONCEPTS')">
                 <div class="flex justify-between items-center mb-2">
                     <div class="w-8 h-8 rounded-md bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400"><i data-lucide="book-open" class="w-4 h-4"></i></div>
                     <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Concepts</span>
@@ -198,7 +206,7 @@ window.renderDashboard = function() {
                 <p class="text-xs font-medium text-slate-500 mt-1">Tracked in Library</p>
             </div>
             
-            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm flex flex-col hover:border-indigo-400 transition-colors">
+            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-5 shadow-sm flex flex-col hover:border-indigo-400 transition-colors cursor-pointer" onclick="window.switchState('DOSSIERS')">
                 <div class="flex justify-between items-center mb-2">
                     <div class="w-8 h-8 rounded-md bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400"><i data-lucide="building-2" class="w-4 h-4"></i></div>
                     <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Dossiers</span>
@@ -207,7 +215,7 @@ window.renderDashboard = function() {
                 <p class="text-xs font-medium text-slate-500 mt-1">Target Firms Mapped</p>
             </div>
 
-            <div class="bg-white dark:bg-[#0f172a] border ${alertsCount > 0 ? 'border-red-200 dark:border-red-900/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-slate-200 dark:border-slate-800'} rounded-lg p-5 shadow-sm flex flex-col hover:border-indigo-400 transition-colors cursor-pointer" onclick="openManualBriefing()">
+            <div class="bg-white dark:bg-[#0f172a] border ${alertsCount > 0 ? 'border-red-200 dark:border-red-900/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-slate-200 dark:border-slate-800'} rounded-lg p-5 shadow-sm flex flex-col hover:border-indigo-400 transition-colors cursor-pointer" onclick="window.openManualBriefing()">
                 <div class="flex justify-between items-center mb-2">
                     <div class="w-8 h-8 rounded-md ${alertsCount > 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 animate-pulse' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'} flex items-center justify-center"><i data-lucide="bell" class="w-4 h-4"></i></div>
                     <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Deadlines</span>
@@ -216,7 +224,7 @@ window.renderDashboard = function() {
                 <p class="text-xs font-medium text-slate-500 mt-1">${alertsCount > 0 ? 'Urgent Actions Required' : 'No imminent deadlines'}</p>
             </div>
 
-            <div class="bg-white dark:bg-[#0f172a] border ${totalReviewsDue > 0 ? 'border-amber-200 dark:border-amber-900/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]' : 'border-slate-200 dark:border-slate-800'} rounded-lg p-5 shadow-sm flex flex-col hover:border-indigo-400 transition-colors cursor-pointer" onclick="openFlashcardDashboard('concepts')">
+            <div class="bg-white dark:bg-[#0f172a] border ${totalReviewsDue > 0 ? 'border-amber-200 dark:border-amber-900/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]' : 'border-slate-200 dark:border-slate-800'} rounded-lg p-5 shadow-sm flex flex-col hover:border-indigo-400 transition-colors cursor-pointer" onclick="window.openUniversalFlashcardDashboard()">
                 <div class="flex justify-between items-center mb-2">
                     <div class="w-8 h-8 rounded-md ${totalReviewsDue > 0 ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'} flex items-center justify-center"><i data-lucide="layers" class="w-4 h-4"></i></div>
                     <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Reviews</span>
@@ -233,8 +241,8 @@ window.renderDashboard = function() {
             <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
                 <div class="flex justify-between items-center mb-6">
                     <div>
-                        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5 text-indigo-500"></i> Market Intelligence</h2>
-                        <p class="text-xs text-slate-500 mt-1">Real-time commercial intelligence and macro indicators.</p>
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5 text-indigo-500"></i> Market Data</h2>
+                        <p class="text-xs text-slate-500 mt-1">Click any card to expand high-resolution historical chart.</p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="window.openMacroImportModal()" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-600 transition items-center gap-1.5 hidden sm:flex bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-sm border border-slate-200 dark:border-slate-700 shadow-sm"><i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i> CSV</button>
@@ -248,16 +256,16 @@ window.renderDashboard = function() {
                             <option value="1825" ${window.currentMacroPeriod === '1825' ? 'selected' : ''}>5Y</option>
                             <option value="all" ${window.currentMacroPeriod === 'all' ? 'selected' : ''}>MAX</option>
                         </select>
-                        <button onclick="switchState('INTELLIGENCE')" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-sm hover:bg-indigo-100 transition border border-indigo-200 dark:border-indigo-800 hidden md:block">Customize</button>
+                        <button onclick="window.openMacroManualEditModal()" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-sm hover:bg-indigo-100 transition border border-indigo-200 dark:border-indigo-800 hidden md:block">Update Data</button>
                     </div>
                 </div>
                 
                 <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     ${metrics.map(m => `
-                        <div class="border border-slate-100 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 flex flex-col shadow-inner">
+                        <div onclick="window.openExpandedGraph('${m.key}', '${m.label}', '${m.sub}', '${m.val}', '${m.color}', '${m.spark}')" class="border border-slate-100 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 flex flex-col shadow-inner cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600 transition group">
                             <div class="flex justify-between items-start mb-1">
                                 <div>
-                                    <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200">${m.label}</h4>
+                                    <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">${m.label}</h4>
                                     <span class="text-[9px] font-medium text-slate-500">${m.sub}</span>
                                 </div>
                                 <span class="text-sm font-black ${m.color}">${m.val}</span>
@@ -272,117 +280,111 @@ window.renderDashboard = function() {
             <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm flex-1">
                 <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
                     <h2 class="text-sm font-bold text-slate-900 dark:text-white">Recent Commercial Activity</h2>
-                    <button onclick="switchState('INTELLIGENCE')" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-600 transition">View All &rarr;</button>
+                    <button onclick="window.switchState('INTELLIGENCE')" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-600 transition">View All &rarr;</button>
                 </div>
                 <div class="space-y-4">
-                    ${recentIntel.length > 0 ? recentIntel.map(f => `
-                        <div class="flex items-start gap-3 group cursor-pointer" onclick="switchState('INTELLIGENCE')">
+                    ${recentIntel.length > 0 ? recentIntel.map(f => {
+                        const origIdx = db.factors.indexOf(f);
+                        return `
+                        <div class="flex items-start gap-3 group cursor-pointer" onclick="window.routeToIntelFactor(${origIdx})">
                             <div class="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:scale-110 transition"><i data-lucide="zap" class="w-4 h-4"></i></div>
                             <div class="flex-1 min-w-0 border-b border-slate-50 dark:border-slate-800/50 pb-3 group-hover:border-indigo-200 transition">
                                 <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">${f.title || "Untitled Insight"}</h4>
-                                <div class="flex items-center gap-2 mt-1">
+                                ${f.summary ? `<p class="text-[12px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">${f.summary}</p>` : ''}
+                                <div class="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-50 dark:border-slate-800/50">
                                     <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">${f.pestle || 'General'}</span>
                                     <span class="text-[9px] text-slate-400">&bull;</span>
                                     <span class="text-[9px] font-medium text-slate-400 truncate">${f.workspace}</span>
                                 </div>
                             </div>
                         </div>
-                    `).join('') : `<p class="text-xs text-slate-500 italic">No recent intel logged.</p>`}
+                        `;
+                    }).join('') : `<p class="text-xs text-slate-500 italic">No recent intel logged.</p>`}
                 </div>
             </div>
         </div>
 
-        <!-- ROW 2: RIGHT SIDEBAR (Mastery & Actions - FLUSH ALIGNED) -->
         <div class="col-span-1 flex flex-col gap-6 h-full">
-            
-            <!-- Concept Mastery SVG Donut -->
-            <div class="bg-gradient-to-br from-slate-900 to-slate-800 dark:from-[#0b1120] dark:to-[#0f172a] rounded-lg p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col justify-center flex-1">
+            <div class="flex-1 bg-gradient-to-br from-slate-900 to-slate-800 dark:from-[#0b1120] dark:to-[#0f172a] rounded-lg p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 pointer-events-none"></div>
-                <h2 class="text-sm font-bold text-white mb-4 flex items-center gap-2 relative z-10"><i data-lucide="target" class="w-4 h-4 text-emerald-400"></i> Concept Mastery</h2>
+                <h2 class="text-sm font-bold text-white relative z-10 shrink-0 flex items-center gap-2"><i data-lucide="target" class="w-4 h-4 text-emerald-400"></i> Concept Mastery</h2>
                 
-                <div class="flex justify-center items-center mb-5 relative z-10">
-                    <div class="relative w-28 h-28 flex items-center justify-center">
-                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                            <!-- Background Circle -->
-                            <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="rgba(255,255,255,0.1)" stroke-width="8"></circle>
-                            <!-- Progress Circle -->
-                            <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="#10b981" stroke-width="8" 
-                                    stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" 
-                                    stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]"></circle>
-                        </svg>
-                        <div class="absolute flex flex-col items-center mt-1">
-                            <span class="text-2xl font-black text-white leading-none">${masteryPct}%</span>
-                            <span class="text-[8px] uppercase tracking-widest text-slate-400 font-bold mt-1">Mastered</span>
+                <div class="flex-1 flex flex-col justify-center relative z-10">
+                    <div class="flex justify-center items-center mb-6">
+                        <div class="relative w-28 h-28 flex items-center justify-center">
+                            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="rgba(255,255,255,0.1)" stroke-width="8"></circle>
+                                <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="#10b981" stroke-width="8" 
+                                        stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" 
+                                        stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]"></circle>
+                            </svg>
+                            <div class="absolute flex flex-col items-center mt-1">
+                                <span class="text-2xl font-black text-white leading-none">${masteryPct}%</span>
+                                <span class="text-[8px] uppercase tracking-widest text-slate-400 font-bold mt-1">Mastered</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-2 px-2 mb-6">
+                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
+                            <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span> Mastered</span>
+                            <span class="text-white font-bold">${masteredSrsItems}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
+                            <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Learning</span>
+                            <span class="text-white font-bold">${totalSrsItems - masteredSrsItems}</span>
                         </div>
                     </div>
                 </div>
-                
-                <div class="space-y-2 relative z-10 mb-5 px-2">
-                    <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
-                        <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span> Mastered</span>
-                        <span class="text-white font-bold">${masteredSrsItems}</span>
-                    </div>
-                    <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
-                        <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Learning</span>
-                        <span class="text-white font-bold">${totalSrsItems - masteredSrsItems}</span>
-                    </div>
-                </div>
-                
-                <button onclick="openFlashcardDashboard('concepts')" class="w-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold py-2.5 rounded-sm transition backdrop-blur-sm relative z-10 mt-auto">Review Concepts</button>
+                <button onclick="window.openFlashcardDashboard('concepts')" class="w-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold py-2.5 rounded-sm transition backdrop-blur-sm relative z-10 shrink-0 mt-auto">Review Concepts</button>
             </div>
 
-            <!-- Dictionary Mastery SVG Donut -->
-            <div class="bg-gradient-to-br from-slate-900 to-slate-800 dark:from-[#0b1120] dark:to-[#0f172a] rounded-lg p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col justify-center flex-1">
+            <div class="flex-1 bg-gradient-to-br from-slate-900 to-slate-800 dark:from-[#0b1120] dark:to-[#0f172a] rounded-lg p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 pointer-events-none"></div>
-                <h2 class="text-sm font-bold text-white mb-4 flex items-center gap-2 relative z-10"><i data-lucide="book-open-check" class="w-4 h-4 text-cyan-400"></i> Dictionary Mastery</h2>
+                <h2 class="text-sm font-bold text-white relative z-10 shrink-0 flex items-center gap-2"><i data-lucide="book-open-check" class="w-4 h-4 text-cyan-400"></i> Dictionary Mastery</h2>
                 
-                <div class="flex justify-center items-center mb-5 relative z-10">
-                    <div class="relative w-28 h-28 flex items-center justify-center">
-                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                            <!-- Background Circle -->
-                            <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="rgba(255,255,255,0.1)" stroke-width="8"></circle>
-                            <!-- Progress Circle -->
-                            <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="#06b6d4" stroke-width="8" 
-                                    stroke-dasharray="${circumference}" stroke-dashoffset="${dictStrokeDashoffset}" 
-                                    stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]"></circle>
-                        </svg>
-                        <div class="absolute flex flex-col items-center mt-1">
-                            <span class="text-2xl font-black text-white leading-none">${dictMasteryPct}%</span>
-                            <span class="text-[8px] uppercase tracking-widest text-slate-400 font-bold mt-1">Mastered</span>
+                <div class="flex-1 flex flex-col justify-center relative z-10">
+                    <div class="flex justify-center items-center mb-6">
+                        <div class="relative w-28 h-28 flex items-center justify-center">
+                            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="rgba(255,255,255,0.1)" stroke-width="8"></circle>
+                                <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="#06b6d4" stroke-width="8" 
+                                        stroke-dasharray="${circumference}" stroke-dashoffset="${dictStrokeDashoffset}" 
+                                        stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]"></circle>
+                            </svg>
+                            <div class="absolute flex flex-col items-center mt-1">
+                                <span class="text-2xl font-black text-white leading-none">${dictMasteryPct}%</span>
+                                <span class="text-[8px] uppercase tracking-widest text-slate-400 font-bold mt-1">Mastered</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-2 px-2 mb-6">
+                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
+                            <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]"></span> Mastered</span>
+                            <span class="text-white font-bold">${dictMasteredSrsItems}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
+                            <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Learning</span>
+                            <span class="text-white font-bold">${dictTotalSrsItems - dictMasteredSrsItems}</span>
                         </div>
                     </div>
                 </div>
-                
-                <div class="space-y-2 relative z-10 mb-5 px-2">
-                    <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
-                        <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]"></span> Mastered</span>
-                        <span class="text-white font-bold">${dictMasteredSrsItems}</span>
-                    </div>
-                    <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
-                        <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Learning</span>
-                        <span class="text-white font-bold">${dictTotalSrsItems - dictMasteredSrsItems}</span>
-                    </div>
-                </div>
-                
-                <button onclick="openFlashcardDashboard('dictionary')" class="w-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold py-2.5 rounded-sm transition backdrop-blur-sm relative z-10 mt-auto">Review Glossary</button>
+                <button onclick="window.openFlashcardDashboard('dictionary')" class="w-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold py-2.5 rounded-sm transition backdrop-blur-sm relative z-10 shrink-0 mt-auto">Review Glossary</button>
             </div>
 
-            <!-- Quick Actions (Expanded & Bottom Positioned) -->
             <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm flex flex-col shrink-0">
                 <h2 class="text-sm font-bold text-slate-900 dark:text-white mb-4">Quick Actions</h2>
                 <div class="flex flex-col gap-3">
-                    <button onclick="openQuickAdd()" class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-md text-sm transition shadow-sm hover:-translate-y-0.5">
+                    <button onclick="window.openQuickAdd()" class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-md text-sm transition shadow-sm hover:-translate-y-0.5">
                         <i data-lucide="plus" class="w-4 h-4 shrink-0"></i> <span class="text-center font-bold">Add Universal Record</span>
                     </button>
-                    <button onclick="switchState('DOSSIERS'); setTimeout(addDossierFirm, 100);" class="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold py-2.5 px-4 rounded-md text-sm transition shadow-sm">
+                    <button onclick="window.switchState('DOSSIERS'); setTimeout(window.addDossierFirm, 100);" class="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold py-2.5 px-4 rounded-md text-sm transition shadow-sm">
                         <i data-lucide="building-2" class="w-4 h-4 text-slate-400 shrink-0"></i> <span class="text-center">Track New Firm</span>
                     </button>
-                    <button onclick="openManualBriefing()" class="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold py-2.5 px-4 rounded-md text-sm transition shadow-sm">
+                    <button onclick="window.openManualBriefing()" class="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold py-2.5 px-4 rounded-md text-sm transition shadow-sm">
                         <i data-lucide="clipboard-list" class="w-4 h-4 text-slate-400 shrink-0"></i> <span class="text-center">Generate Briefing</span>
                     </button>
                 </div>
             </div>
-
         </div>
     `;
 
@@ -390,7 +392,6 @@ window.renderDashboard = function() {
     
     if (window.lucide) window.lucide.createIcons();
     
-    // Header Alignment Fix
     const headerWrapper = document.querySelector("#appDashboard > div > div.flex.justify-between.items-end");
     if (headerWrapper) {
         headerWrapper.className = "flex justify-between items-center mb-8";
@@ -399,7 +400,152 @@ window.renderDashboard = function() {
     }
 };
 
-// --- DEDICATED NATIVE CSV IMPORT MODAL ---
+// --- EXPANDED MACRO GRAPH ENGINE (BOTTOM X-AXIS FIX) ---
+window.openExpandedGraph = function(metricKey, label, sub, val, colorClass, sparkClass) {
+    let modal = document.getElementById("macroGraphModal");
+    if (!modal) return;
+
+    document.getElementById("expandedGraphName").innerText = label;
+    document.getElementById("expandedGraphSub").innerText = sub;
+    
+    const valEl = document.getElementById("expandedGraphValue");
+    valEl.innerText = val;
+    valEl.className = `text-2xl font-black ${colorClass}`;
+
+    const nowMs = new Date().getTime();
+    const dayMs = 24 * 60 * 60 * 1000;
+    
+    const m = db.macroMetrics || {};
+    const genMockHistory = (arr) => arr.map((v, i) => ({ d: nowMs - ((arr.length - 1 - i) * 30 * dayMs), v: v }));
+    const fallbacks = {
+        metricBoE: genMockHistory([4.00, 4.25, 4.50, 4.75, 5.00, 5.25, 5.25, 5.00, 4.75]),
+        metricFed: genMockHistory([3.75, 4.00, 4.50, 4.75, 5.25, 5.50, 5.50, 5.00, 4.75]),
+        metricGBP: genMockHistory([1.21, 1.24, 1.26, 1.25, 1.28, 1.30, 1.32, 1.31, 1.34]),
+        metricGilt: genMockHistory([3.80, 4.10, 4.40, 4.35, 4.60, 4.90, 4.85, 4.70, 4.65]),
+        metricCPI: genMockHistory([6.8, 4.6, 4.0, 3.4, 3.2, 2.3, 2.0, 2.2, 2.6]),
+        metricOil: genMockHistory([72.5, 78.5, 82.0, 84.5, 79.0, 75.2, 80.4, 88.1, 85.55])
+    };
+
+    let rawData = (m.history && m.history[metricKey]) || fallbacks[metricKey];
+    if (!Array.isArray(rawData)) rawData = fallbacks[metricKey];
+
+    let dataPoints = [...rawData];
+    if (window.currentMacroPeriod !== 'all') {
+        const cutoffMs = nowMs - (parseInt(window.currentMacroPeriod) * dayMs);
+        dataPoints = dataPoints.filter(pt => pt.d >= cutoffMs);
+    }
+    if (dataPoints.length < 2) dataPoints = rawData.slice(-2);
+
+    const vals = dataPoints.map(pt => pt.v);
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const range = max - min === 0 ? 1 : max - min;
+    
+    // Y-Axis Breathing Room
+    const paddingMultiplier = 0.08; 
+    const expandedMin = min - (range * paddingMultiplier);
+    const expandedMax = max + (range * paddingMultiplier);
+    const expandedRange = expandedMax - expandedMin;
+
+    const formatAxisDate = (ms) => new Date(ms).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+    const formatHoverDate = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    const width = 800;
+    const height = 300;
+    const padding = 10;
+
+    const points = vals.map((v, idx) => {
+        const x = (idx / (vals.length - 1)) * width;
+        const normalizedY = (v - expandedMin) / expandedRange;
+        const y = (height - padding) - (normalizedY * (height - 2 * padding));
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+
+    let gridLinesHtml = '';
+    let yLabelsHtml = '';
+    for (let i = 0; i <= 4; i++) {
+        const yPosition = padding + (i * ((height - 2 * padding) / 4));
+        const valAtGridline = expandedMax - (i * (expandedRange / 4));
+        
+        gridLinesHtml += `<line x1="0" y1="${yPosition}" x2="${width}" y2="${yPosition}" stroke="currentColor" stroke-dasharray="4 4" class="text-slate-200 dark:text-slate-700 opacity-50" stroke-width="1"></line>`;
+        yLabelsHtml += `<div class="absolute w-12 text-right pr-2 text-[10px] font-mono font-medium text-slate-400" style="top: ${(yPosition/height)*100}%; transform: translateY(-50%); left: 0;">${valAtGridline.toFixed(2)}</div>`;
+    }
+
+    // Isolated hover group using group/modalpoint to prevent global hover bar bug
+    const hoverOverlays = dataPoints.map((pt) => {
+        return `
+            <div class="flex-1 h-full group/modalpoint relative">
+                <div class="absolute bottom-[20%] left-1/2 -translate-x-1/2 opacity-0 group-hover/modalpoint:opacity-100 bg-slate-900 dark:bg-slate-700 text-white text-xs font-bold px-3 py-1.5 rounded shadow-xl pointer-events-none transition-opacity z-50 whitespace-nowrap">
+                    ${formatHoverDate(pt.d)}<br>
+                    <span class="${colorClass.replace('text-', 'text-')}">${pt.v}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    const container = document.getElementById("expandedGraphContainer");
+    
+    // Clean, non-overlapping column layout: Plot on top, Dates strictly at the bottom
+    container.innerHTML = `
+        <div class="flex flex-col h-full w-full">
+            <div class="flex flex-1 relative h-[300px]">
+                <!-- Y-Axis Labels -->
+                <div class="w-14 relative h-full shrink-0 border-r border-slate-200 dark:border-slate-800 mr-2">
+                    ${yLabelsHtml}
+                </div>
+                <!-- Main SVG Canvas -->
+                <div class="flex-1 relative h-full min-w-[600px] border-b border-slate-200 dark:border-slate-800">
+                    <svg viewBox="0 0 ${width} ${height}" class="absolute inset-0 w-full h-full ${sparkClass} fill-none" preserveAspectRatio="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        ${gridLinesHtml}
+                        <polyline points="${points}" class="drop-shadow-sm"></polyline>
+                    </svg>
+                    <div class="absolute inset-0 flex">${hoverOverlays}</div>
+                </div>
+            </div>
+            
+            <!-- X-Axis Labels Strictly Along The Bottom -->
+            <div class="flex justify-between text-xs text-slate-400 font-mono font-medium ml-16 pt-3 min-w-[600px] shrink-0">
+                <span>${formatAxisDate(dataPoints[0].d)}</span>
+                <span>${formatAxisDate(dataPoints[Math.floor(dataPoints.length/2)].d)}</span>
+                <span>${formatAxisDate(dataPoints[dataPoints.length-1].d)}</span>
+            </div>
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    setTimeout(() => {
+        modal.classList.remove('opacity-0', 'pointer-events-none');
+        const inner = document.getElementById("macroGraphModalInner");
+        if (inner) inner.classList.replace('scale-95', 'scale-100');
+    }, 10);
+};
+
+window.closeExpandedGraph = function() {
+    const modal = document.getElementById('macroGraphModal');
+    if (modal) {
+        modal.classList.add('opacity-0', 'pointer-events-none');
+        const inner = document.getElementById("macroGraphModalInner");
+        if (inner) inner.classList.replace('scale-100', 'scale-95');
+        
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }, 200);
+    }
+};
+
+// Listen for Escape key to close modals
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        window.closeExpandedGraph();
+        if(typeof window.closeMacroImportModal === 'function') window.closeMacroImportModal();
+        if(typeof window.closeMacroManualEditModal === 'function') window.closeMacroManualEditModal();
+    }
+});
+
+// --- DEDICATED NATIVE CSV IMPORT MODAL WITH AUTO-DATE REPAIR ---
 window.openMacroImportModal = function() {
     let modal = document.getElementById('macroImportModal');
     if (!modal) {
@@ -410,9 +556,9 @@ window.openMacroImportModal = function() {
             <div class="bg-white dark:bg-slate-900 rounded-lg max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 transform scale-95 transition-transform duration-200">
                 <div class="flex justify-between items-center mb-4 border-b border-slate-200 dark:border-slate-800 pb-3">
                     <h3 class="text-lg font-serif font-black text-slate-900 dark:text-white flex items-center gap-2"><i data-lucide="upload-cloud" class="w-5 h-5 text-indigo-500"></i> Import Macro Data</h3>
-                    <button onclick="closeMacroImportModal()" class="text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+                    <button onclick="window.closeMacroImportModal()" class="text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
                 </div>
-                <p class="text-xs text-slate-500 mb-5 leading-relaxed">Download a historical dataset from FRED or the ONS. Ensure your CSV only contains two columns: <strong>Date</strong> and <strong>Value</strong>.</p>
+                <p class="text-xs text-slate-500 mb-5 leading-relaxed">Download a historical dataset from FRED, Bank of England, or ONS. Ensure your CSV contains two columns: <strong>Date</strong> and <strong>Value</strong>.</p>
                 
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Target Metric</label>
                 <select id="macroImportSelect" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md p-2.5 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 mb-6 shadow-inner cursor-pointer">
@@ -425,7 +571,7 @@ window.openMacroImportModal = function() {
                 </select>
 
                 <div class="relative border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition cursor-pointer group bg-slate-50/50 dark:bg-[#0b1120]">
-                    <input type="file" id="macroCsvFileInput" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="processMacroCSV(event)">
+                    <input type="file" id="macroCsvFileInput" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="window.processMacroCSV(event)">
                     <div class="flex flex-col items-center justify-center gap-2 group-hover:-translate-y-1 transition-transform">
                         <div class="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-sm"><i data-lucide="file-spreadsheet" class="w-6 h-6"></i></div>
                         <span class="text-sm font-bold text-slate-700 dark:text-slate-200">Click or Drag CSV File</span>
@@ -437,7 +583,6 @@ window.openMacroImportModal = function() {
         if (window.lucide) window.lucide.createIcons();
     }
     
-    // Reveal Modal
     modal.classList.remove('opacity-0', 'pointer-events-none');
     setTimeout(() => modal.querySelector('div').classList.replace('scale-95', 'scale-100'), 10);
 };
@@ -451,6 +596,41 @@ window.closeMacroImportModal = function() {
         if(fileInput) fileInput.value = ""; 
     }
 };
+
+// Robust date parser supporting DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD
+function parseAnyDate(str) {
+    if (!str) return NaN;
+    str = String(str).trim();
+    
+    // 1. Catch ISO YYYY-MM-DD explicitly first
+    const isoMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (isoMatch) {
+        const y = parseInt(isoMatch[1], 10);
+        const m = parseInt(isoMatch[2], 10) - 1;
+        const d = parseInt(isoMatch[3], 10);
+        return new Date(y, m, d).getTime();
+    }
+    
+    // 2. Catch DD/MM/YY or DD/MM/YYYY (e.g. 26/07/24 or 26-07-2024)
+    const ukMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s|$)/);
+    if (ukMatch) {
+        const d = parseInt(ukMatch[1], 10);
+        let m = parseInt(ukMatch[2], 10) - 1;
+        let y = parseInt(ukMatch[3], 10);
+        
+        // Auto-correct 2-digit years to 20XX
+        if (y < 100) y += 2000;
+        
+        // If the "month" is > 11, it was actually MM/DD/YYYY, so flip them back
+        if (m > 11) {
+            return new Date(y, d - 1, m + 1).getTime(); 
+        }
+        
+        return new Date(y, m, d).getTime();
+    }
+    
+    return Date.parse(str);
+}
 
 window.processMacroCSV = function(event) {
     const file = event.target.files[0];
@@ -470,7 +650,7 @@ window.processMacroCSV = function(event) {
             const cols = row.split(',');
             if(cols.length >= 2) {
                 // Ignore header rows by ensuring the first column resolves to a valid date
-                let dateMs = Date.parse(cols[0].trim());
+                let dateMs = parseAnyDate(cols[0]);
                 let val = parseFloat(cols[1].replace(/[^0-9.-]+/g,""));
                 
                 if(!isNaN(dateMs) && !isNaN(val)) {
@@ -480,7 +660,7 @@ window.processMacroCSV = function(event) {
         });
         
         if(parsed.length > 0) {
-            parsed.sort((a,b) => a.d - b.d); // Chronological Order
+            parsed.sort((a,b) => a.d - b.d); // Pure chronological sort
             db.macroMetrics = db.macroMetrics || {};
             db.macroMetrics.history = db.macroMetrics.history || {};
             db.macroMetrics.history[metricKey] = parsed;
@@ -489,18 +669,121 @@ window.processMacroCSV = function(event) {
             db.macroMetrics[metricKey] = parsed[parsed.length-1].v.toString();
             
             if(typeof saveDatabase === 'function') saveDatabase();
-            if(typeof renderDashboard === 'function') renderDashboard();
+            if(typeof window.renderDashboard === 'function') window.renderDashboard();
             
-            closeMacroImportModal();
+            window.closeMacroImportModal();
             if(typeof showToast === 'function') {
-                showToast(`Successfully imported ${parsed.length} historical records for ${label}.`, "success");
+                showToast(`Successfully imported ${parsed.length} records for ${label}.`, "success");
             } else {
                 alert(`Successfully imported ${parsed.length} historical records for ${label}!`);
             }
         } else {
             alert("Could not parse the CSV. Please ensure it has two columns: Date and Value.");
-            closeMacroImportModal();
+            window.closeMacroImportModal();
         }
     };
     reader.readAsText(file);
+};
+
+// --- DEDICATED MANUAL DATA ENTRY MODAL ---
+window.openMacroManualEditModal = function() {
+    let modal = document.getElementById('macroManualEditModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'macroManualEditModal';
+        modal.className = "fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 transition-all opacity-0 pointer-events-none";
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-slate-900 rounded-lg max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 transform scale-95 transition-transform duration-200">
+                <div class="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
+                    <h3 class="text-xl font-serif font-black text-slate-900 dark:text-white flex items-center gap-2"><i data-lucide="edit-3" class="w-5 h-5 text-indigo-500"></i> Update Macro Metrics</h3>
+                    <button onclick="window.closeMacroManualEditModal()" class="text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">BoE Base Rate (%)</label><input type="text" id="editMetricBoE" class="w-full border border-slate-300 dark:border-slate-700 rounded-md p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner font-bold" placeholder="e.g. 5.25"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">US Fed Funds (%)</label><input type="text" id="editMetricFed" class="w-full border border-slate-300 dark:border-slate-700 rounded-md p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner font-bold" placeholder="e.g. 5.50"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">GBP / USD</label><input type="text" id="editMetricGBP" class="w-full border border-slate-300 dark:border-slate-700 rounded-md p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner font-bold" placeholder="e.g. 1.28"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">UK 10Y Gilt (%)</label><input type="text" id="editMetricGilt" class="w-full border border-slate-300 dark:border-slate-700 rounded-md p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner font-bold" placeholder="e.g. 4.25"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">UK CPI (YoY %)</label><input type="text" id="editMetricCPI" class="w-full border border-slate-300 dark:border-slate-700 rounded-md p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner font-bold" placeholder="e.g. 3.4"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Brent Crude</label><input type="text" id="editMetricOil" class="w-full border border-slate-300 dark:border-slate-700 rounded-md p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner font-bold" placeholder="e.g. 82.50"></div>
+                </div>
+
+                <div class="flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800 pt-5">
+                    <button onclick="window.closeMacroManualEditModal()" class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 font-bold py-2.5 px-5 rounded-md transition text-sm">Cancel</button>
+                    <button onclick="window.saveManualMacroMetrics()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-md transition text-sm shadow-md flex items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Save to Graph</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    const m = db.macroMetrics || {};
+    document.getElementById('editMetricBoE').value = m.metricBoE || '';
+    document.getElementById('editMetricFed').value = m.metricFed || '';
+    document.getElementById('editMetricGBP').value = m.metricGBP || '';
+    document.getElementById('editMetricGilt').value = m.metricGilt || '';
+    document.getElementById('editMetricCPI').value = m.metricCPI || '';
+    document.getElementById('editMetricOil').value = m.metricOil || '';
+
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    setTimeout(() => modal.querySelector('div').classList.replace('scale-95', 'scale-100'), 10);
+    if (window.lucide) window.lucide.createIcons();
+};
+
+window.closeMacroManualEditModal = function() {
+    const modal = document.getElementById('macroManualEditModal');
+    if (modal) {
+        modal.classList.add('opacity-0', 'pointer-events-none');
+        modal.querySelector('div').classList.replace('scale-100', 'scale-95');
+    }
+};
+
+window.saveManualMacroMetrics = function() {
+    if(typeof db === 'undefined') return;
+    db.macroMetrics = db.macroMetrics || {};
+    db.macroMetrics.history = db.macroMetrics.history || {};
+    
+    const nowMs = new Date().getTime();
+    const keys = [
+        {id: 'metricBoE', isPct: true}, 
+        {id: 'metricFed', isPct: true}, 
+        {id: 'metricGBP', isPct: false}, 
+        {id: 'metricGilt', isPct: true}, 
+        {id: 'metricCPI', isPct: true}, 
+        {id: 'metricOil', isPct: false}
+    ];
+    
+    keys.forEach(k => {
+        const el = document.getElementById('edit' + k.id.charAt(0).toUpperCase() + k.id.slice(1));
+        if (el && el.value.trim() !== '') {
+            const rawVal = el.value.replace(/[^0-9.-]+/g, "");
+            const numVal = parseFloat(rawVal);
+            
+            if (!isNaN(numVal)) {
+                db.macroMetrics[k.id] = k.isPct ? numVal.toString() + '%' : numVal.toString();
+                
+                db.macroMetrics.history[k.id] = db.macroMetrics.history[k.id] || [];
+                const hist = db.macroMetrics.history[k.id];
+                
+                if (hist.length > 0) {
+                    const lastDate = new Date(hist[hist.length-1].d);
+                    const todayDate = new Date(nowMs);
+                    if (lastDate.toDateString() === todayDate.toDateString()) {
+                        hist[hist.length-1].v = numVal; 
+                    } else {
+                        hist.push({ d: nowMs, v: numVal });
+                    }
+                } else {
+                    hist.push({ d: nowMs, v: numVal });
+                }
+            }
+        }
+    });
+    
+    db.macroMetrics.lastUpdated = new Date().toISOString();
+    if (typeof saveDatabase === 'function') saveDatabase();
+    if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    
+    window.closeMacroManualEditModal();
+    if(typeof showToast === 'function') showToast("Data saved and graphed successfully.", "success");
 };

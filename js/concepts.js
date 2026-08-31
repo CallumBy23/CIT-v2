@@ -1,6 +1,16 @@
 // CONCEPTS RENDERING WITH INTERVIEW VAULT
 // ==========================================
 
+window.toggleConceptCard = function(index, event) {
+    if (event && (event.target.closest('button') || event.target.closest('a') || event.target.closest('input') || event.target.closest('.ql-editor'))) return;
+    
+    if (db.concepts && db.concepts[index]) {
+        db.concepts[index].isCollapsed = !db.concepts[index].isCollapsed;
+        if (typeof saveDatabase === 'function') saveDatabase();
+        renderConcepts();
+    }
+};
+
 // --- REVERSE FLASHCARD STATE ---
 window.isReverseFlashcards = localStorage.getItem('LEGAL_NEXUS_FC_REVERSE') === 'true';
 
@@ -20,16 +30,12 @@ window.updateReverseToggleUI = function() {
             btn.classList.replace('bg-white', 'bg-indigo-50');
             btn.classList.replace('text-slate-700', 'text-indigo-700');
             btn.classList.replace('border-slate-300', 'border-indigo-300');
-            
-            // Dark mode overrides
             btn.classList.add('dark:bg-slate-800', 'dark:text-indigo-400', 'dark:border-indigo-500');
         } else {
             if (textSpan) textSpan.innerText = "Front: Term";
             btn.classList.replace('bg-indigo-50', 'bg-white');
             btn.classList.replace('text-indigo-700', 'text-slate-700');
             btn.classList.replace('border-indigo-300', 'border-slate-300');
-            
-            // Dark mode overrides
             btn.classList.remove('dark:bg-slate-800', 'dark:text-indigo-400', 'dark:border-indigo-500');
         }
     });
@@ -68,19 +74,34 @@ window.renderAlphabetBar = function(source) {
     }).join('');
 };
 
-function saveConcept() {
-    const title = document.getElementById("conceptTitle").value;
-    const htmlBody = typeof quillEditor !== 'undefined' ? quillEditor.root.innerHTML : "";
-    if (!title || htmlBody === "<p><br></p>" || htmlBody === "") return;
+window.saveConcept = function() {
+    const title = document.getElementById("conceptTitle").value.trim();
+    
+    // Safely extract HTML regardless of Quill variable name
+    let htmlBody = "";
+    const editorEl = document.querySelector('#conceptBodyQuill .ql-editor');
+    if (editorEl) {
+        htmlBody = editorEl.innerHTML;
+    } else if (typeof quillEditor !== 'undefined' && quillEditor.root) {
+        htmlBody = quillEditor.root.innerHTML;
+    }
+    
+    // Strip tags to truly verify it's not empty
+    const cleanText = htmlBody.replace(/<[^>]*>?/gm, '').trim();
+    
+    if (!title || !cleanText) {
+        alert("Please enter a Concept Name and Definition before saving.");
+        return;
+    }
 
-    const catToSave = (!currentConceptCategory || currentConceptCategory === "All") ? (db.conceptCategories[0] || "General") : currentConceptCategory;
+    const catToSave = (!currentConceptCategory || currentConceptCategory === "All") ? (db.conceptCategories && db.conceptCategories[0] ? db.conceptCategories[0] : "General") : currentConceptCategory;
     
     db.concepts.push({
       title, category: catToSave, body: htmlBody, summary: "",
       subTag: document.getElementById("conceptSubTag").value,
       diagram: typeof diagramTempBase64 !== 'undefined' ? diagramTempBase64 : "", 
       srs: { nextReview: new Date().getTime(), interval: 0, ease: 2.5, mastered: false, lastRating: 'forgot' },
-      date: new Date().toLocaleDateString(), isCollapsed: false, score: ""
+      date: new Date().toLocaleDateString('en-GB'), isCollapsed: false, score: ""
     });
     
     if(typeof saveDatabase === 'function') saveDatabase(); 
@@ -89,7 +110,10 @@ function saveConcept() {
     
     document.getElementById("conceptTitle").value = ""; 
     document.getElementById("conceptSubTag").value = ""; 
-    if(typeof quillEditor !== 'undefined') quillEditor.setContents([]);
+    
+    if(editorEl) editorEl.innerHTML = "";
+    else if(typeof quillEditor !== 'undefined') quillEditor.setContents([]);
+    
     if(typeof diagramTempBase64 !== 'undefined') window.diagramTempBase64 = "";
     
     const preview = document.getElementById("newConceptDiagramPreview");
@@ -99,15 +123,21 @@ function saveConcept() {
     }
     const label = document.getElementById("newConceptDiagramLabel");
     if(label) label.innerText = "Add Diagram";
-}
+    
+    if(typeof toggleAppSidebar === 'function' && window.innerWidth < 768) {
+         toggleAppSidebar('conceptLogSidebar');
+    }
+};
 
-function renderConcepts() {
+window.renderConcepts = function() {
     const container = document.getElementById("conceptsContainer");
     if (!container) return;
     
     try {
         container.innerHTML = "";
-        if (typeof currentVisibleConceptIndices !== 'undefined') window.currentVisibleConceptIndices = [];
+        
+        // BUG FIX: Removed the "window." prefix so it maps directly to your configuration array
+        currentVisibleConceptIndices = [];
 
         // --- 1. BUILD MASTERY DASHBOARD WIDGET (RIGHT SIDEBAR) ---
         const widgetContainer = document.getElementById("conceptMasteryWidget");
@@ -201,7 +231,9 @@ function renderConcepts() {
         }
 
         indexedConcepts.forEach(({concept, originalIndex}) => {
-            if (typeof currentVisibleConceptIndices !== 'undefined') window.currentVisibleConceptIndices.push(originalIndex);
+            // BUG FIX: Removed the "window." prefix
+            currentVisibleConceptIndices.push(originalIndex);
+            
             const isCollapsed = concept.isCollapsed !== false;
             const isChecked = typeof window.selectedConcepts !== 'undefined' && window.selectedConcepts.has(originalIndex) ? "checked" : "";
             
@@ -224,34 +256,17 @@ function renderConcepts() {
             const diagramHTML = concept.diagram ? `<div class="mt-4"><img src="${concept.diagram}" class="w-full max-h-64 object-contain rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"></div>` : '';
 
             const card = document.createElement("div");
-            card.className = "bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-md p-4 md:p-5 shadow-sm print:break-inside-avoid print:border-slate-400 print:shadow-none group cursor-pointer transition hover:border-indigo-400 dark:hover:border-indigo-500 w-full";
+            card.className = "bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-md p-4 md:p-5 shadow-sm print:break-inside-avoid print:border-slate-400 print:shadow-none group transition hover:border-indigo-400 dark:hover:border-indigo-500 w-full";
             
-            card.onclick = function(e) {
-                if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) return;
-                const body = this.querySelector('.nexus-body');
-                const icon = this.querySelector('.nexus-icon i');
-                if(body && icon) {
-                    body.classList.toggle('hidden');
-                    if (body.classList.contains('hidden')) {
-                        icon.setAttribute('data-lucide', 'chevron-down');
-                    } else {
-                        icon.setAttribute('data-lucide', 'chevron-up');
-                    }
-                    if (window.lucide) window.lucide.createIcons();
-                    db.concepts[originalIndex].isCollapsed = body.classList.contains('hidden');
-                    if (typeof saveDatabase === 'function') saveDatabase();
-                }
-            };
-
             card.innerHTML = `
-              <div class="flex flex-col md:flex-row justify-between md:items-start mb-3 group gap-2">
+              <div class="flex flex-col md:flex-row justify-between md:items-start mb-3 group gap-2 cursor-pointer" onclick="window.toggleConceptCard(${originalIndex}, event)">
                 <div class="flex items-start gap-3 flex-1">
-                  <input type="checkbox" ${isChecked} onchange="toggleConceptSelection(${originalIndex}, event)" class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer print:hidden shrink-0 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500">
+                  <input type="checkbox" ${isChecked} onchange="window.toggleConceptSelection(${originalIndex}, event)" class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer print:hidden shrink-0 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500">
                   <div class="flex flex-col min-w-0 w-full">
-                    <div class="flex justify-between items-start w-full cursor-pointer" onclick="db.concepts[${originalIndex}].isCollapsed = !${isCollapsed}; renderConcepts(); if(typeof saveDatabase === 'function') saveDatabase();">
+                    <div class="flex justify-between items-start w-full">
                       <h4 class="font-bold text-slate-900 dark:text-white text-sm md:text-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition md:pr-4 print:text-black break-words leading-snug">${concept.title || "Untitled Concept"}</h4>
                       <div class="flex items-center gap-2 shrink-0 ml-2 mt-1 md:mt-0">
-                         <button onclick="openEditConceptModal(${originalIndex}); event.stopPropagation();" class="text-[10px] md:text-xs font-bold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition print:hidden flex items-center gap-1.5 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-slate-700 px-2 py-1 rounded-sm border border-slate-200 dark:border-slate-700 hover:border-indigo-200 shadow-sm"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Edit</span></button>
+                         <button onclick="event.stopPropagation(); window.openEditConceptModal(${originalIndex});" class="text-[10px] md:text-xs font-bold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition print:hidden flex items-center gap-1.5 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-slate-700 px-2 py-1 rounded-sm border border-slate-200 dark:border-slate-700 hover:border-indigo-200 shadow-sm"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Edit</span></button>
                          <span class="nexus-icon text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition print:hidden"><i data-lucide="${isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-4 h-4"></i></span>
                       </div>
                     </div>
@@ -266,7 +281,7 @@ function renderConcepts() {
                 <div class="prose prose-sm md:prose-base max-w-none text-slate-700 dark:text-slate-200 leading-relaxed mb-4 print:text-black dict-highlight-target dark:prose-invert">${concept.body || ""}</div>
                 ${diagramHTML}
                 <div class="mt-4 flex gap-3 print:hidden">
-                  <button onclick="deleteConcept(${originalIndex})" class="flex-1 md:flex-none text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 font-bold py-1.5 px-3 rounded-sm transition shadow-sm flex items-center justify-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</button>
+                  <button onclick="event.stopPropagation(); window.deleteConcept(${originalIndex});" class="flex-1 md:flex-none text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 font-bold py-1.5 px-3 rounded-sm transition shadow-sm flex items-center justify-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</button>
                 </div>
               </div>
             `;
@@ -280,9 +295,9 @@ function renderConcepts() {
         console.error("Critical rendering error in concepts.js:", err);
         container.innerHTML = `<div class="p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md print:hidden"><h3 class="text-red-700 dark:text-red-400 font-bold">Data Rendering Error</h3><p class="text-red-600 dark:text-red-300 text-sm mt-2">A corrupt record caused the page to stop drawing. Error details: ${err.message}</p></div>`;
     }
-}
+};
 
-function openEditConceptModal(index) {
+window.openEditConceptModal = function(index) {
     const c = db.concepts[index];
     document.getElementById("editConceptIndex").value = index;
     document.getElementById("editConceptTitle").value = c.title || "";
@@ -294,7 +309,12 @@ function openEditConceptModal(index) {
         catSelect.value = c.category || db.conceptCategories[0];
     }
     
-    if(window.editQuillEditor) window.editQuillEditor.root.innerHTML = c.body || "";
+    const editorEl = document.querySelector('#editConceptBodyQuill .ql-editor');
+    if (editorEl) {
+        editorEl.innerHTML = c.body || "";
+    } else if (window.editQuillEditor) {
+        window.editQuillEditor.root.innerHTML = c.body || "";
+    }
 
     const previewImg = document.getElementById("editConceptDiagramPreview");
     if (previewImg) {
@@ -310,7 +330,35 @@ function openEditConceptModal(index) {
     }
 
     document.getElementById("editConceptModalContainer").classList.remove('hidden');
-}
+};
+
+window.saveConceptEditFn = function() {
+    const indexStr = document.getElementById("editConceptIndex").value;
+    if (indexStr === "") return;
+    const index = parseInt(indexStr, 10);
+    
+    db.concepts[index].title = document.getElementById("editConceptTitle").value;
+    db.concepts[index].subTag = document.getElementById("editConceptSubTag").value;
+    db.concepts[index].category = document.getElementById("editConceptCategory").value;
+    
+    let bodyHtml = "";
+    const editorEl = document.querySelector('#editConceptBodyQuill .ql-editor');
+    if (editorEl) {
+        bodyHtml = editorEl.innerHTML;
+    } else if (window.editQuillEditor && window.editQuillEditor.root) {
+        bodyHtml = window.editQuillEditor.root.innerHTML;
+    }
+    
+    db.concepts[index].body = bodyHtml === "<p><br></p>" ? "" : bodyHtml;
+    
+    if (typeof diagramTempBase64 !== 'undefined' && diagramTempBase64) {
+        db.concepts[index].diagram = diagramTempBase64;
+    }
+    
+    document.getElementById("editConceptModalContainer").classList.add('hidden');
+    if(typeof saveDatabase === 'function') saveDatabase();
+    renderConcepts();
+};
 
 window.selectedConcepts = window.selectedConcepts || new Set();
 
@@ -318,7 +366,7 @@ window.toggleConceptSelection = function(index, event) {
     event.stopPropagation();
     if (event.target.checked) window.selectedConcepts.add(index);
     else window.selectedConcepts.delete(index);
-    if(typeof updateMassDeleteConceptBtn === 'function') updateMassDeleteConceptBtn();
+    if(typeof updateMassDeleteConceptBtn === 'function') window.updateMassDeleteConceptBtn();
 };
 
 window.updateMassDeleteConceptBtn = function() {
@@ -336,36 +384,55 @@ window.updateMassDeleteConceptBtn = function() {
 window.massDeleteConcepts = function() {
     if(!window.selectedConcepts || window.selectedConcepts.size === 0) return;
     if(confirm(`Delete ${window.selectedConcepts.size} selected concept(s)?`)) {
+        
+        // Immediate UI lockout to prevent race condition reloads
+        const statusText = document.getElementById('statusText');
+        const statusDot = document.getElementById('statusDot');
+        if (statusText) statusText.innerText = "Syncing Deletion...";
+        if (statusDot) statusDot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)] animate-pulse";
+
         let sortedIndices = Array.from(window.selectedConcepts).sort((a,b)=>b-a);
         sortedIndices.forEach(idx => { 
             let conceptTitle = db.concepts[idx].title;
-            db.factors.forEach(f => { if(f.linkedConcept === conceptTitle) f.linkedConcept = ""; });
+            if (db.factors) {
+                db.factors.forEach(f => { if(f && f.linkedConcept === conceptTitle) f.linkedConcept = ""; });
+            }
             db.concepts.splice(idx, 1); 
         });
         window.selectedConcepts.clear();
-        updateMassDeleteConceptBtn();
-        if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
+        if (typeof window.updateMassDeleteConceptBtn === 'function') window.updateMassDeleteConceptBtn();
+        if(typeof updateNexusDropdowns === 'function') { try { updateNexusDropdowns(); } catch(e){} }
         if(typeof saveDatabase === 'function') saveDatabase();
         renderConcepts();
     }
 };
 
-function deleteConcept(index) {
-    if(confirm(`Delete concept: "${db.concepts[index].title}"?`)) {
-        let conceptTitle = db.concepts[index].title;
-        db.factors.forEach(f => { if(f.linkedConcept === conceptTitle) f.linkedConcept = ""; });
-        
-        db.concepts.splice(index, 1);
-        
-        if(window.selectedConcepts && window.selectedConcepts.has(index)) {
-            window.selectedConcepts.delete(index);
-            updateMassDeleteConceptBtn();
-        }
-        if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
-        if(typeof saveDatabase === 'function') saveDatabase();
-        renderConcepts();
+window.deleteConcept = function(index) {
+    index = parseInt(index, 10);
+    if(!confirm(`Delete concept: "${db.concepts[index].title}"?`)) return;
+    
+    // Immediate UI lockout to prevent race condition reloads
+    const statusText = document.getElementById('statusText');
+    const statusDot = document.getElementById('statusDot');
+    if (statusText) statusText.innerText = "Syncing Deletion...";
+    if (statusDot) statusDot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)] animate-pulse";
+
+    let conceptTitle = db.concepts[index].title;
+    if (db.factors) {
+        db.factors.forEach(f => { if(f && f.linkedConcept === conceptTitle) f.linkedConcept = ""; });
     }
-}
+    
+    db.concepts.splice(index, 1);
+    
+    if(window.selectedConcepts && window.selectedConcepts.has(index)) {
+        window.selectedConcepts.delete(index);
+        if (typeof window.updateMassDeleteConceptBtn === 'function') window.updateMassDeleteConceptBtn();
+    }
+    
+    if(typeof updateNexusDropdowns === 'function') { try { updateNexusDropdowns(); } catch(e){} }
+    if(typeof saveDatabase === 'function') saveDatabase();
+    renderConcepts();
+};
 
 // ==========================================
 // UNIVERSAL SRS FLASHCARD ENGINE & DASHBOARD
@@ -378,6 +445,52 @@ window.currentFlashcardQueues = { red: [], orange: [], yellow: [], green: [] };
 function reviewSelectedCards(source) {
     openFlashcardDashboard(source, true);
 }
+
+window.openUniversalFlashcardDashboard = function() {
+    currentFlashcardSource = 'all';
+    const now = new Date().getTime();
+    
+    let allCards = [];
+
+    (db.concepts || []).forEach((c, index) => {
+        if (c.category !== "Interview Vault") {
+            allCards.push({ item: c, originalIndex: index, sourceType: 'concepts' });
+        }
+    });
+
+    (db.dictionary || []).forEach((d, index) => {
+        allCards.push({ item: d, originalIndex: index, sourceType: 'dictionary' });
+    });
+
+    if (allCards.length === 0) return alert("No flashcards found in library.");
+
+    window.currentFlashcardQueues = { red: [], orange: [], yellow: [], green: [] };
+
+    allCards.forEach(obj => {
+        let srs = obj.item.srs || { interval: 0, nextReview: 0, lastRating: 'forgot', mastered: false };
+        let isDue = srs.nextReview <= now;
+        let isMastered = srs.mastered === true;
+        let lastRating = srs.lastRating || 'forgot';
+
+        if (isMastered) {
+            window.currentFlashcardQueues.green.push(obj);
+        } else if (lastRating === 'forgot' || lastRating === 'hard' || srs.interval === 0) {
+            window.currentFlashcardQueues.red.push(obj);
+        } else if (isDue) {
+            window.currentFlashcardQueues.orange.push(obj);
+        } else {
+            window.currentFlashcardQueues.yellow.push(obj);
+        }
+    });
+
+    document.getElementById('fcRedCount').innerText = window.currentFlashcardQueues.red.length;
+    document.getElementById('fcOrangeCount').innerText = window.currentFlashcardQueues.orange.length;
+    document.getElementById('fcYellowCount').innerText = window.currentFlashcardQueues.yellow.length;
+    document.getElementById('fcGreenCount').innerText = window.currentFlashcardQueues.green.length;
+
+    document.getElementById('flashcardDashboardModal').classList.remove('hidden');
+    document.getElementById('flashcardDashboardModal').classList.add('flex');
+};
 
 function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
     currentFlashcardSource = source;
@@ -549,6 +662,7 @@ function renderCurrentFlashcard() {
         document.getElementById("flashcardModal").classList.remove("flex");
         if (currentFlashcardSource === 'concepts' && typeof renderConcepts === 'function') renderConcepts();
         else if (currentFlashcardSource === 'dictionary' && typeof renderDictionary === 'function') renderDictionary();
+        else if (currentFlashcardSource === 'all' && typeof renderDashboard === 'function') renderDashboard();
         return;
     }
 
@@ -626,7 +740,7 @@ function flipFlashcard() {
     let titleStr = String(qItem.item.title || qItem.item.term || "Untitled");
     let bodyHtml = String(qItem.item.body || qItem.item.definition || "No content.");
 
-    if (currentFlashcardSource === 'concepts' && qItem.item.diagram) {
+    if ((currentFlashcardSource === 'concepts' || (currentFlashcardSource === 'all' && qItem.sourceType === 'concepts')) && qItem.item.diagram) {
         bodyHtml = `<img src="${qItem.item.diagram}" class="w-full max-h-60 object-contain rounded-md border border-slate-200 dark:border-slate-700 mb-4 bg-white dark:bg-slate-800">` + bodyHtml;
     }
 
@@ -675,6 +789,9 @@ function processFlashcardResult(rating) {
     
     if (qItem.item.isDossier) {
         srsRef = qItem.item.srs;
+    } else if (currentFlashcardSource === 'all') {
+        const dataSource = qItem.sourceType === 'concepts' ? db.concepts : db.dictionary;
+        srsRef = dataSource[qItem.originalIndex].srs;
     } else {
         const dataSource = currentFlashcardSource === 'concepts' ? db.concepts : db.dictionary;
         srsRef = dataSource[qItem.originalIndex].srs;
@@ -726,6 +843,9 @@ function processFlashcardResult(rating) {
 
     if (qItem.item.isDossier) {
         db.dossiers[qItem.item.firmName].srs[qItem.item.dossierKey] = srsData;
+    } else if (currentFlashcardSource === 'all') {
+        const dataSource = qItem.sourceType === 'concepts' ? db.concepts : db.dictionary;
+        dataSource[qItem.originalIndex].srs = srsData;
     } else {
         const dataSource = currentFlashcardSource === 'concepts' ? db.concepts : db.dictionary;
         dataSource[qItem.originalIndex].srs = srsData;
@@ -746,6 +866,10 @@ function closeFlashcards() {
     } else if (currentFlashcardSource === 'dictionary' && typeof renderDictionary === 'function') {
         if(typeof window.selectedDictionary !== 'undefined') window.selectedDictionary.clear();
         renderDictionary();
+    } else if (currentFlashcardSource === 'all') {
+        if (typeof renderConcepts === 'function') renderConcepts();
+        if (typeof renderDictionary === 'function') renderDictionary();
+        if (typeof renderDashboard === 'function') renderDashboard();
     }
 }
 
@@ -789,7 +913,7 @@ async function evaluateFeynman() {
     btn.disabled = true;
 
     const qItem = flashcardQueue[currentFlashcardIndex];
-    const isConcept = currentFlashcardSource === 'concepts';
+    const isConcept = currentFlashcardSource === 'concepts' || (currentFlashcardSource === 'all' && qItem.sourceType === 'concepts');
     const term = isConcept ? String(qItem.item.title || "Concept") : String(qItem.item.term || "Term");
     
     const rawDefinition = isConcept ? String(qItem.item.body || "") : String(qItem.item.definition || "");
