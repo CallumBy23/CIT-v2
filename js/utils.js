@@ -48,63 +48,23 @@ window.alert = function(message) {
 
 function updateNexusDropdowns() {
     const conceptOptions = `<option value="">🔗 Link a Core Concept (Optional)</option>` + 
-      (db.concepts || []).filter(c => c.category !== "Interview Vault").map(c => `<option value="${c.title}">${c.title} (${c.category})</option>`).join('');
-    document.getElementById("logLinkedConcept").innerHTML = conceptOptions;
-    document.getElementById("editLinkedConcept").innerHTML = conceptOptions;
+      (db.concepts || []).filter(c => c && c.category !== "Interview Vault").map(c => `<option value="${c.title}">${c.title} (${c.category})</option>`).join('');
+    
+    const logEl = document.getElementById("logLinkedConcept");
+    if(logEl) logEl.innerHTML = conceptOptions;
+    const editEl = document.getElementById("editLinkedConcept");
+    if(editEl) editEl.innerHTML = conceptOptions;
   
-    const sortedFirms = [...(db.targetFirms || [])].sort((a,b) => a.localeCompare(b));
+    // BUG FIX: Prevent crash on undefined target firms
+    const sortedFirms = [...(db.targetFirms || [])].filter(Boolean).sort((a,b) => String(a).localeCompare(String(b)));
+    
     const firmOptions = `<option value="">🏢 Link a Target Firm (Optional)</option>` + 
       sortedFirms.map(f => `<option value="${f}">${f}</option>`).join('');
-    document.getElementById("logLinkedFirm").innerHTML = firmOptions;
-    document.getElementById("editLinkedFirm").innerHTML = firmOptions;
-}
-
-// DEBOUNCED AUTOSAVE ENGINE
-function scheduleAutoSave() {
-    document.getElementById('statusText').innerText = "Saving...";
-    document.getElementById('statusDot').className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]";
-    
-    clearTimeout(autoSaveTimer);
-    autoSaveTimer = setTimeout(() => {
-        if (appState === "DOSSIERS" && !document.getElementById("dossierEditMode").classList.contains("hidden")) {
-            if(currentDossierFirm && db.dossiers[currentDossierFirm]) {
-                db.dossiers[currentDossierFirm].firmType = document.getElementById("dossierFirmType").value;
-                db.dossiers[currentDossierFirm].locations = document.getElementById("dossierLocations").value;
-                db.dossiers[currentDossierFirm].practice = practiceQuill.root.innerHTML;
-                db.dossiers[currentDossierFirm].clients = clientsQuill.root.innerHTML;
-                db.dossiers[currentDossierFirm].culture = cultureQuill.root.innerHTML;
-                
-                const sType = document.getElementById("dossierSchemeType").value;
-                const oDate = document.getElementById("dossierOpenDate").value;
-                const cDate = document.getElementById("dossierCloseDate").value;
-                const roll = document.getElementById("dossierRolling").value;
-                
-                if (!db.dossiers[currentDossierFirm].schemes) db.dossiers[currentDossierFirm].schemes = [];
-                if (sType || cDate) {
-                    if (db.dossiers[currentDossierFirm].schemes.length > 0) {
-                        db.dossiers[currentDossierFirm].schemes[0].schemeType = sType;
-                        db.dossiers[currentDossierFirm].schemes[0].openDate = oDate;
-                        db.dossiers[currentDossierFirm].schemes[0].closeDate = cDate;
-                        db.dossiers[currentDossierFirm].schemes[0].rolling = roll;
-                    } else {
-                        db.dossiers[currentDossierFirm].schemes.push({
-                            category: db.dossiers[currentDossierFirm].firmType,
-                            schemeType: sType,
-                            openDate: oDate,
-                            closeDate: cDate,
-                            rolling: roll,
-                            applied: false
-                        });
-                    }
-                }
-            }
-        } else if (appState === "INTELLIGENCE" && !document.getElementById("editModalContainer").classList.contains("hidden")) {
-            if(typeof saveEdit === "function") saveEdit(true); 
-        } else if (appState === "CONCEPTS" && !document.getElementById("editConceptModalContainer").classList.contains("hidden")) {
-            if(typeof saveEditConcept === "function") saveEditConcept(true);
-        }
-        saveDatabase();
-    }, 1500);
+      
+    const firmLogEl = document.getElementById("logLinkedFirm");
+    if(firmLogEl) firmLogEl.innerHTML = firmOptions;
+    const firmEditEl = document.getElementById("editLinkedFirm");
+    if(firmEditEl) firmEditEl.innerHTML = firmOptions;
 }
 
 function initAutoSaveListeners() {

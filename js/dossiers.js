@@ -47,7 +47,7 @@ function addDossierFirm() {
       db.dossiers[name] = { firmType: "", locations: "", practice: [], clients: [], culture: "", schemes: [], applied: false, personalWhy: "", competencies: [] };
       currentDossierFirm = name;
       saveDatabase();
-      updateNexusDropdowns();
+      if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
       renderDossierList();
     }
 }
@@ -61,23 +61,27 @@ function manageDossierFirm(oldName, event) {
         if (confirm(`Delete the "${oldName}" dossier?`)) {
             db.targetFirms = db.targetFirms.filter(f => f !== oldName);
             delete db.dossiers[oldName];
-            db.factors.forEach(f => { if(f.linkedFirm === oldName) f.linkedFirm = ""; });
+            db.factors.forEach(f => { if(f && f.linkedFirm === oldName) f.linkedFirm = ""; });
             currentDossierFirm = db.targetFirms[0] || "";
-            saveDatabase(); updateNexusDropdowns(); renderDossierList();
+            saveDatabase(); 
+            if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns(); 
+            renderDossierList();
         }
     } else if (input !== oldName && !db.targetFirms.includes(input)) {
         const index = db.targetFirms.indexOf(oldName);
         if (index > -1) db.targetFirms[index] = input;
         db.dossiers[input] = db.dossiers[oldName];
         delete db.dossiers[oldName];
-        db.factors.forEach(f => { if(f.linkedFirm === oldName) f.linkedFirm = input; });
+        db.factors.forEach(f => { if(f && f.linkedFirm === oldName) f.linkedFirm = input; });
         currentDossierFirm = input;
-        saveDatabase(); updateNexusDropdowns(); renderDossierList();
+        saveDatabase(); 
+        if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns(); 
+        renderDossierList();
     }
 }
   
 function toggleDossierApplied() {
-    if(!currentDossierFirm) return;
+    if(!currentDossierFirm || !db.dossiers[currentDossierFirm]) return;
     db.dossiers[currentDossierFirm].applied = !db.dossiers[currentDossierFirm].applied;
     if (db.dossiers[currentDossierFirm].schemes) {
         db.dossiers[currentDossierFirm].schemes.forEach(s => s.applied = db.dossiers[currentDossierFirm].applied);
@@ -87,13 +91,16 @@ function toggleDossierApplied() {
 }
   
 function toggleSchemeApplied(firm, schemeIndex) {
-    db.dossiers[firm].schemes[schemeIndex].applied = !db.dossiers[firm].schemes[schemeIndex].applied;
-    saveDatabase();
-    renderDossierList(); 
+    if(db.dossiers[firm] && db.dossiers[firm].schemes && db.dossiers[firm].schemes[schemeIndex]) {
+        db.dossiers[firm].schemes[schemeIndex].applied = !db.dossiers[firm].schemes[schemeIndex].applied;
+        saveDatabase();
+        renderDossierList(); 
+    }
 }
   
 function getFirmPriority(firmName) {
     const d = db.dossiers[firmName];
+    if (!d) return { tier: 3, diff: Infinity };
     if (d.applied) return { tier: 4, diff: Infinity }; 
     if (!d.schemes || d.schemes.length === 0) return { tier: 3, diff: Infinity }; 
     
@@ -117,7 +124,6 @@ function getFirmPriority(firmName) {
         close.setHours(0,0,0,0);
         let diffDays = Math.ceil((close - today) / (1000 * 60 * 60 * 24));
         
-        // INTERCEPT ROLLING DEADLINES: Treat them as urgently open (0 days left internally)
         if (s.rolling === "Rolling" && s.openDate) {
             const open = new Date(s.openDate);
             open.setHours(0,0,0,0);
@@ -141,37 +147,44 @@ function getFirmPriority(firmName) {
   
 function renderDossierList() {
     const container = document.getElementById("dossierFirmList");
+    if (!container) return;
     container.innerHTML = "";
     
     if(!db.targetFirms || db.targetFirms.length === 0) {
-        container.innerHTML = `<p class="text-xs text-gray-500 italic mt-2">No custom target firms added yet. Click + Add above.</p>`;
-        document.getElementById("dossierContentWrapper").classList.add("hidden");
+        container.innerHTML = `<p class="text-xs text-slate-500 italic mt-2">No custom target firms added yet. Click + Add above.</p>`;
+        const wrapper = document.getElementById("dossierContentWrapper");
+        if(wrapper) wrapper.classList.add("hidden");
         return;
     }
 
-    document.getElementById("dossierContentWrapper").classList.remove("hidden");
+    const wrapper = document.getElementById("dossierContentWrapper");
+    if(wrapper) wrapper.classList.remove("hidden");
 
     let sortedFirms = [...db.targetFirms];
-    const searchTerm = document.getElementById("searchFirms") ? document.getElementById("searchFirms").value.toLowerCase() : "";
+    const searchBox = document.getElementById("searchFirms");
+    const searchTerm = searchBox ? String(searchBox.value || "").toLowerCase() : "";
     
     if (searchTerm) {
-        sortedFirms = sortedFirms.filter(f => f.toLowerCase().includes(searchTerm));
+        sortedFirms = sortedFirms.filter(f => String(f || "").toLowerCase().includes(searchTerm));
     }
     
     sortedFirms.sort((a, b) => {
-        if (dossierSortMode === "az") return a.localeCompare(b);
-        if (dossierSortMode === "za") return b.localeCompare(a);
+        const strA = String(a || "");
+        const strB = String(b || "");
+        
+        if (dossierSortMode === "az") return strA.localeCompare(strB);
+        if (dossierSortMode === "za") return strB.localeCompare(strA);
 
-        const pA = getFirmPriority(a);
-        const pB = getFirmPriority(b);
+        const pA = getFirmPriority(strA);
+        const pB = getFirmPriority(strB);
 
         if (pA.tier !== pB.tier) return pA.tier - pB.tier; 
         if (pA.tier === 1 || pA.tier === 3 || pA.tier === 4) {
-            if (pA.diff === pB.diff) return a.localeCompare(b);
+            if (pA.diff === pB.diff) return strA.localeCompare(strB);
             return pA.diff - pB.diff; 
         }
         if (pA.tier === 2) {
-            if (pA.diff === pB.diff) return a.localeCompare(b);
+            if (pA.diff === pB.diff) return strA.localeCompare(strB);
             return pA.diff - pB.diff; 
         }
         return 0;
@@ -184,35 +197,48 @@ function renderDossierList() {
     if(!currentDossierFirm) return;
 
     sortedFirms.forEach(firm => {
+        if (!firm) return;
         const p = getFirmPriority(firm);
-        const d = db.dossiers[firm];
+        const d = db.dossiers[firm] || {};
         let statusIndicator = "";
         
         if (p.tier === 4 || d.applied) {
-            statusIndicator = `<span class="text-[10px] bg-emerald-100 text-emerald-800 px-1 rounded font-bold ml-2">✓ Applied</span>`;
+            statusIndicator = `<span class="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 px-1.5 py-0.5 rounded-sm font-bold ml-2 border border-emerald-200 dark:border-emerald-800 shadow-sm shrink-0">✓ Applied</span>`;
         } else if (p.tier === 2) {
-            statusIndicator = `<span class="text-[10px] text-gray-400 ml-2">Past</span>`;
+            statusIndicator = `<span class="text-[10px] text-slate-400 dark:text-slate-500 ml-2 font-bold uppercase tracking-wider shrink-0">Past</span>`;
         } else if (p.tier === 1 && p.diff <= 14) {
-            statusIndicator = `<span class="text-[10px] text-red-500 animate-pulse font-bold ml-2">!</span>`;
+            statusIndicator = `<span class="text-[10px] text-red-500 dark:text-red-400 animate-pulse font-black ml-2 shrink-0">!</span>`;
         }
 
         const btn = document.createElement("button");
-        btn.className = `w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition flex justify-between items-center ${firm === currentDossierFirm ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`;
-        btn.innerHTML = `<span class="${(p.tier === 4 || d.applied) && firm !== currentDossierFirm ? 'opacity-50 line-through' : ''} flex items-center min-w-0"><span class="truncate">${firm}</span> ${statusIndicator}</span> <span onclick="manageDossierFirm('${firm}', event)" class="text-xs opacity-50 hover:opacity-100 shrink-0 ml-2">⚙️</span>`;
+        btn.className = `w-full text-left px-4 py-2.5 rounded-md text-sm font-bold transition flex justify-between items-center group ${firm === currentDossierFirm ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200'}`;
+        
+        const safeFirm = firm.replace(/'/g, "\\'");
+        
+        btn.innerHTML = `
+            <span class="${(p.tier === 4 || d.applied) && firm !== currentDossierFirm ? 'opacity-50' : ''} flex items-center min-w-0 flex-1">
+                <span class="truncate ${firm !== currentDossierFirm && (p.tier === 4 || d.applied) ? 'line-through' : ''}">${firm}</span> 
+                ${statusIndicator}
+            </span> 
+            <span onclick="manageDossierFirm('${safeFirm}', event)" class="text-xs opacity-0 group-hover:opacity-100 shrink-0 ml-2 p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded transition"><i data-lucide="settings" class="w-3.5 h-3.5"></i></span>
+        `;
+        
         btn.onclick = (e) => {
             if (e.target.closest('span[onclick]')) return;
             if (typeof autoSaveTimer !== 'undefined') clearTimeout(autoSaveTimer);
-            window.selectedDossierCards.clear();
+            if (typeof window.selectedDossierCards !== 'undefined') window.selectedDossierCards.clear();
             currentDossierFirm = firm;
             toggleDossierMode("view");
             renderDossierList(); 
             if (window.innerWidth < 768) {
-                document.getElementById('dossierSidebar').classList.add('-translate-x-full');
+                const sb = document.getElementById('dossierSidebar');
+                if(sb) sb.classList.add('-translate-x-full');
             }
         };
         container.appendChild(btn);
     });
 
+    if (window.lucide) window.lucide.createIcons();
     renderStrategyRoom();
 }
   
@@ -247,7 +273,7 @@ function renderStrategyRoom() {
                 appliedBtn.className = "font-bold px-4 py-2 rounded-lg text-sm transition shadow-sm print:hidden whitespace-nowrap flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white";
                 appliedBtn.innerHTML = "✅ Application Submitted";
             } else {
-                appliedBtn.className = "font-bold px-4 py-2 rounded-lg text-sm transition shadow-sm print:hidden whitespace-nowrap flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700";
+                appliedBtn.className = "font-bold px-4 py-2 rounded-lg text-sm transition shadow-sm print:hidden whitespace-nowrap flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200";
                 appliedBtn.innerHTML = "☐ Mark as Applied";
             }
         }
@@ -294,12 +320,12 @@ function renderStrategyRoom() {
                 const safeClose = s.closeDate ? new Date(s.closeDate).toLocaleDateString('en-GB') : '?';
   
                 deadlineHTML += `
-                  <div class="flex flex-col sm:flex-row justify-between sm:items-center bg-white border border-gray-200 p-3 rounded-lg shadow-sm gap-2 ${s.applied || d.applied ? 'opacity-50' : ''}">
+                  <div class="flex flex-col sm:flex-row justify-between sm:items-center bg-white dark:bg-[#0f172a] border border-gray-200 dark:border-slate-800 p-3 rounded-lg shadow-sm gap-2 ${s.applied || d.applied ? 'opacity-50' : ''}">
                       <div class="flex items-center gap-3 min-w-0">
                           <label class="flex items-center cursor-pointer shrink-0">
                               <input type="checkbox" ${s.applied || d.applied ? 'checked' : ''} onchange="toggleSchemeApplied('${currentDossierFirm.replace(/'/g, "\\'")}', ${s.idx})" class="w-4 h-4 text-emerald-600 rounded border-gray-300 focus:ring-emerald-500">
                           </label>
-                          <span class="text-sm font-bold text-gray-800 truncate ${s.applied || d.applied ? 'line-through' : ''}">${s.schemeType || 'Application'}</span>
+                          <span class="text-sm font-bold text-gray-800 dark:text-white truncate ${s.applied || d.applied ? 'line-through' : ''}">${s.schemeType || 'Application'}</span>
                           <div class="flex items-center gap-1 shrink-0">${daysLeftHTML}${rollingHTML}</div>
                       </div>
                       <span class="text-xs font-medium text-gray-500 shrink-0 sm:ml-auto pl-7 sm:pl-0">${safeOpen} – ${safeClose}</span>
@@ -313,7 +339,7 @@ function renderStrategyRoom() {
         
         const isChecked = (id) => window.selectedDossierCards.has(id) ? "checked" : "";
 
-        // RENDER DYNAMIC PRACTICE LIST
+        // RENDER PRACTICE LIST
         const pView = document.getElementById("dossierPracticeView"); 
         if(pView && pView.previousElementSibling) {
             pView.previousElementSibling.innerHTML = `<input type="checkbox" ${isChecked('practice')} onchange="window.toggleDossierCard('practice', event)" class="w-4 h-4 text-indigo-600 rounded cursor-pointer shrink-0 mt-0.5"> <span>⚖️</span> Core Practice Areas`;
@@ -324,26 +350,26 @@ function renderStrategyRoom() {
             if (d.practice.length === 0) {
                 pracList.innerHTML = "<p class='text-sm text-gray-400 italic py-2'>No practice areas logged.</p>";
             } else {
-                d.practice.sort((a,b) => a.heading.localeCompare(b.heading));
+                d.practice.sort((a,b) => String(a.heading || "").localeCompare(String(b.heading || "")));
                 d.practice.forEach((prac, idx) => {
                     const row = document.createElement('div');
-                    row.className = "pt-4 first:pt-0 flex flex-col gap-1.5 group border-b border-gray-100 last:border-0 pb-2 last:pb-0";
+                    row.className = "pt-4 first:pt-0 flex flex-col gap-1.5 group border-b border-gray-100 dark:border-slate-800 last:border-0 pb-2 last:pb-0";
                     row.innerHTML = `
                         <div class="flex justify-between items-start">
-                            <h4 class="font-extrabold text-indigo-900 text-sm break-words">${prac.heading}</h4>
+                            <h4 class="font-extrabold text-indigo-900 dark:text-indigo-400 text-sm break-words">${prac.heading}</h4>
                             <div class="flex gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity print:hidden shrink-0">
-                                <button onclick="window.openPracticeModal(${idx})" class="text-[10px] text-gray-500 hover:text-indigo-600 font-bold bg-gray-100 hover:bg-indigo-50 px-2 py-1 rounded transition border border-gray-200">Edit</button>
-                                <button onclick="window.deletePractice(${idx})" class="text-[10px] text-gray-500 hover:text-red-600 font-bold bg-gray-100 hover:bg-red-50 px-2 py-1 rounded transition border border-gray-200">Delete</button>
+                                <button onclick="window.openPracticeModal(${idx})" class="text-[10px] text-gray-500 hover:text-indigo-600 font-bold bg-gray-100 hover:bg-indigo-50 px-2 py-1 rounded transition border border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Edit</button>
+                                <button onclick="window.deletePractice(${idx})" class="text-[10px] text-gray-500 hover:text-red-600 font-bold bg-gray-100 hover:bg-red-50 px-2 py-1 rounded transition border border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Delete</button>
                             </div>
                         </div>
-                        <div class="prose prose-sm max-w-none text-gray-700 ql-editor p-0 break-words">${prac.body}</div>
+                        <div class="prose prose-sm max-w-none text-gray-700 dark:text-slate-300 ql-editor p-0 break-words">${prac.body}</div>
                     `;
                     pracList.appendChild(row);
                 });
             }
         }
 
-        // RENDER DYNAMIC CLIENTS LIST
+        // RENDER CLIENTS LIST
         const clView = document.getElementById("dossierClientsView"); 
         if(clView && clView.previousElementSibling) {
             clView.previousElementSibling.innerHTML = `<input type="checkbox" ${isChecked('clients')} onchange="window.toggleDossierCard('clients', event)" class="w-4 h-4 text-indigo-600 rounded cursor-pointer shrink-0 mt-0.5"> <span>🤝</span> Key Clients & Deals`;
@@ -354,19 +380,19 @@ function renderStrategyRoom() {
             if (d.clients.length === 0) {
                 clientsList.innerHTML = "<p class='text-sm text-gray-400 italic py-2'>No clients or deals logged.</p>";
             } else {
-                d.clients.sort((a,b) => a.heading.localeCompare(b.heading));
+                d.clients.sort((a,b) => String(a.heading || "").localeCompare(String(b.heading || "")));
                 d.clients.forEach((client, idx) => {
                     const row = document.createElement('div');
-                    row.className = "pt-4 first:pt-0 flex flex-col gap-1.5 group border-b border-gray-100 last:border-0 pb-2 last:pb-0";
+                    row.className = "pt-4 first:pt-0 flex flex-col gap-1.5 group border-b border-gray-100 dark:border-slate-800 last:border-0 pb-2 last:pb-0";
                     row.innerHTML = `
                         <div class="flex justify-between items-start">
-                            <h4 class="font-extrabold text-indigo-900 text-sm break-words">${client.heading}</h4>
+                            <h4 class="font-extrabold text-indigo-900 dark:text-indigo-400 text-sm break-words">${client.heading}</h4>
                             <div class="flex gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity print:hidden shrink-0">
-                                <button onclick="window.openClientsModal(${idx})" class="text-[10px] text-gray-500 hover:text-indigo-600 font-bold bg-gray-100 hover:bg-indigo-50 px-2 py-1 rounded transition border border-gray-200">Edit</button>
-                                <button onclick="window.deleteClients(${idx})" class="text-[10px] text-gray-500 hover:text-red-600 font-bold bg-gray-100 hover:bg-red-50 px-2 py-1 rounded transition border border-gray-200">Delete</button>
+                                <button onclick="window.openClientsModal(${idx})" class="text-[10px] text-gray-500 hover:text-indigo-600 font-bold bg-gray-100 hover:bg-indigo-50 px-2 py-1 rounded transition border border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Edit</button>
+                                <button onclick="window.deleteClients(${idx})" class="text-[10px] text-gray-500 hover:text-red-600 font-bold bg-gray-100 hover:bg-red-50 px-2 py-1 rounded transition border border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Delete</button>
                             </div>
                         </div>
-                        <div class="prose prose-sm max-w-none text-gray-700 ql-editor p-0 break-words">${client.body}</div>
+                        <div class="prose prose-sm max-w-none text-gray-700 dark:text-slate-300 ql-editor p-0 break-words">${client.body}</div>
                     `;
                     clientsList.appendChild(row);
                 });
@@ -374,8 +400,10 @@ function renderStrategyRoom() {
         }
 
         const cuView = document.getElementById("dossierCultureView"); 
-        if(cuView && cuView.previousElementSibling) {
-            cuView.previousElementSibling.innerHTML = `<input type="checkbox" ${isChecked('culture')} onchange="window.toggleDossierCard('culture', event)" class="w-4 h-4 text-indigo-600 rounded cursor-pointer shrink-0 mt-0.5"> <span>🧭</span> Culture & Structure`;
+        if(cuView) {
+            if(cuView.previousElementSibling) {
+                cuView.previousElementSibling.innerHTML = `<input type="checkbox" ${isChecked('culture')} onchange="window.toggleDossierCard('culture', event)" class="w-4 h-4 text-indigo-600 rounded cursor-pointer shrink-0 mt-0.5"> <span class="flex items-center gap-2"><i data-lucide="compass" class="w-4 h-4 text-slate-500"></i> Culture & Structure</span>`;
+            }
             cuView.innerHTML = d.culture || "<p class='italic text-gray-400'>No culture data logged.</p>";
         }
   
@@ -389,26 +417,25 @@ function renderStrategyRoom() {
         const pwView = document.getElementById("dossierPersonalWhyView");
         if(pwView) pwView.innerHTML = d.personalWhy || "<p class='italic text-gray-400'>No draft logged.</p>";
 
-        // RENDER DYNAMIC COMPETENCIES LIST
         const compList = document.getElementById("dossierCompetenciesList");
         if(compList) {
             compList.innerHTML = "";
             if (d.competencies.length === 0) {
                 compList.innerHTML = "<p class='text-sm text-gray-400 italic py-2'>No competencies mapped yet.</p>";
             } else {
-                d.competencies.sort((a,b) => a.heading.localeCompare(b.heading));
+                d.competencies.sort((a,b) => String(a.heading || "").localeCompare(String(b.heading || "")));
                 d.competencies.forEach((comp, idx) => {
                     const row = document.createElement('div');
                     row.className = "pt-4 first:pt-0 flex flex-col md:flex-row gap-2 md:gap-4 group";
                     row.innerHTML = `
-                        <div class="md:w-1/4 shrink-0 flex flex-col gap-1.5 border-b md:border-b-0 border-gray-100 pb-2 md:pb-0">
-                            <h4 class="font-extrabold text-indigo-900 text-sm break-words">${comp.heading}</h4>
+                        <div class="md:w-1/4 shrink-0 flex flex-col gap-1.5 border-b md:border-b-0 border-gray-100 dark:border-slate-800 pb-2 md:pb-0">
+                            <h4 class="font-extrabold text-indigo-900 dark:text-indigo-400 text-sm break-words">${comp.heading}</h4>
                             <div class="flex gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity print:hidden">
-                                <button onclick="window.openCompetencyModal(${idx})" class="text-[10px] text-gray-500 hover:text-indigo-600 font-bold bg-gray-100 hover:bg-indigo-50 px-2 py-1 rounded transition border border-gray-200">Edit</button>
-                                <button onclick="window.deleteCompetency(${idx})" class="text-[10px] text-gray-500 hover:text-red-600 font-bold bg-gray-100 hover:bg-red-50 px-2 py-1 rounded transition border border-gray-200">Delete</button>
+                                <button onclick="window.openCompetencyModal(${idx})" class="text-[10px] text-gray-500 hover:text-indigo-600 font-bold bg-gray-100 hover:bg-indigo-50 px-2 py-1 rounded transition border border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Edit</button>
+                                <button onclick="window.deleteCompetency(${idx})" class="text-[10px] text-gray-500 hover:text-red-600 font-bold bg-gray-100 hover:bg-red-50 px-2 py-1 rounded transition border border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Delete</button>
                             </div>
                         </div>
-                        <div class="md:w-3/4 prose prose-sm max-w-none text-gray-700 ql-editor p-0 break-words">${comp.body}</div>
+                        <div class="md:w-3/4 prose prose-sm max-w-none text-gray-700 dark:text-slate-300 ql-editor p-0 break-words">${comp.body}</div>
                     `;
                     compList.appendChild(row);
                 });
@@ -432,11 +459,10 @@ function renderStrategyRoom() {
         
         const safeFirm = String(currentDossierFirm || "").trim().toLowerCase();
         
-        let firmFactors = db.factors
+        let firmFactors = (db.factors || [])
             .map((f, i) => ({ factor: f, originalIndex: i }))
-            .filter(obj => obj.factor && obj.factor.linkedFirm && String(obj.factor.linkedFirm).trim().toLowerCase() === safeFirm);
+            .filter(obj => obj && obj.factor && obj.factor.linkedFirm && String(obj.factor.linkedFirm).trim().toLowerCase() === safeFirm);
 
-        // --- APPLY DYNAMIC NEXUS SORTING WITH LOCALSTORAGE ---
         const sortSelect = document.getElementById("sortDossierNexus");
         
         if (sortSelect && !sortSelect.dataset.loaded) {
@@ -454,13 +480,14 @@ function renderStrategyRoom() {
         if (sortMode === "newest") {
             firmFactors.reverse();
         } else if (sortMode === "az") {
-            firmFactors.sort((a, b) => (a.factor.title || "").localeCompare(b.factor.title || ""));
+            firmFactors.sort((a, b) => String(a.factor.title || "").localeCompare(String(b.factor.title || "")));
         } else if (sortMode === "za") {
-            firmFactors.sort((a, b) => (b.factor.title || "").localeCompare(a.factor.title || ""));
+            firmFactors.sort((a, b) => String(b.factor.title || "").localeCompare(String(a.factor.title || "")));
         }
         
         if(firmFactors.length === 0) {
-            nexusContainer.innerHTML = `<p class="text-sm text-gray-500 italic bg-white p-4 rounded-xl border border-gray-200 shadow-sm">No market intelligence linked to this firm yet.</p>`;
+            nexusContainer.innerHTML = `<p class="text-sm text-gray-500 italic bg-white dark:bg-[#0f172a] p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">No market intelligence linked to this firm yet.</p>`;
+            if (window.lucide) window.lucide.createIcons();
             return;
         }
   
@@ -468,57 +495,63 @@ function renderStrategyRoom() {
             const factor = item.factor;
             const originalIndex = item.originalIndex;
             const safeConcept = factor.linkedConcept ? String(factor.linkedConcept).replace(/'/g, "\\'") : '';
-            const nexusBadge = factor.linkedConcept ? `<button onclick="routeToConcept('${safeConcept}')" class="text-[10px] bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-0.5 rounded-full font-bold ml-2 border border-blue-200 transition">🔗 ${factor.linkedConcept}</button>` : '';
-            const competencyBadge = factor.competency ? `<span class="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold shadow-sm border border-purple-200 mt-2 md:ml-2 inline-block shrink-0">🎯 ${factor.competency}</span>` : '';
+            const nexusBadge = factor.linkedConcept ? `<button onclick="routeToConcept('${safeConcept}')" class="text-[10px] bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-0.5 rounded-full font-bold ml-2 border border-blue-200 transition dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">🔗 ${factor.linkedConcept}</button>` : '';
+            const competencyBadge = factor.competency ? `<span class="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold shadow-sm border border-purple-200 mt-2 md:ml-2 inline-block shrink-0 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800">🎯 ${factor.competency}</span>` : '';
             
             const card = document.createElement("div");
-            card.className = "bg-white border border-gray-200 rounded-xl p-4 md:p-5 shadow-sm print:break-inside-avoid print:border-gray-400 print:shadow-none group cursor-pointer transition hover:border-indigo-300";
+            card.className = "bg-white dark:bg-[#0f172a] border border-gray-200 dark:border-slate-800 rounded-xl p-4 md:p-5 shadow-sm print:break-inside-avoid print:border-gray-400 print:shadow-none group cursor-pointer transition hover:border-indigo-300 dark:hover:border-indigo-500";
             
             card.onclick = function(e) {
                 if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) return;
                 const body = this.querySelector('.nexus-body');
-                const icon = this.querySelector('.nexus-icon');
+                const icon = this.querySelector('.nexus-icon i');
                 if(body && icon) {
                     body.classList.toggle('hidden');
-                    icon.innerText = body.classList.contains('hidden') ? '▼' : '▲';
+                    if (body.classList.contains('hidden')) {
+                        icon.setAttribute('data-lucide', 'chevron-down');
+                    } else {
+                        icon.setAttribute('data-lucide', 'chevron-up');
+                    }
+                    if (window.lucide) window.lucide.createIcons();
                 }
             };
   
             card.innerHTML = `
             <div class="flex flex-col md:flex-row justify-between md:items-start gap-2">
             <div class="flex items-start gap-3 flex-1">
-                <input type="checkbox" ${isChecked(`intel_${originalIndex}`)} onchange="window.toggleDossierCard('intel_${originalIndex}', event)" class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer print:hidden shrink-0">
+                <input type="checkbox" ${isChecked(`intel_${originalIndex}`)} onchange="window.toggleDossierCard('intel_${originalIndex}', event)" class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer print:hidden shrink-0 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500">
                   <div class="flex flex-col min-w-0 w-full">
                     <div class="flex justify-between items-start w-full">
-                        <h4 class="font-bold text-gray-900 text-sm md:text-base group-hover:text-indigo-600 transition md:pr-4 print:text-black break-words">${factor.title || "Untitled Insight"}</h4>
-                        <span class="nexus-icon text-gray-400 text-xs ml-2 mt-1 shrink-0 print:hidden">▼</span>
+                        <h4 class="font-bold text-gray-900 dark:text-white text-sm md:text-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition md:pr-4 print:text-black break-words">${factor.title || "Untitled Insight"}</h4>
+                        <span class="nexus-icon text-gray-400 text-xs ml-2 mt-1 shrink-0 print:hidden"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
                     </div>
                     <div class="flex flex-wrap items-center gap-1">${nexusBadge}${competencyBadge}</div>
                   </div>
                 </div>
                 <div class="flex gap-2 shrink-0 items-center justify-end w-full md:w-auto">
-                  <span class="text-[10px] md:text-xs bg-gray-800 text-white px-2 py-1 rounded font-bold uppercase truncate max-w-[150px] print:bg-white print:border print:border-gray-300 print:text-gray-800">${factor.metric || factor.region || "Global"}</span>
-                  <span class="text-[10px] md:text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-bold uppercase print:bg-white print:border print:border-indigo-300 print:text-indigo-800">${factor.pestle || "General"}</span>
+                  <span class="text-[10px] md:text-xs bg-gray-800 dark:bg-slate-700 text-white px-2 py-1 rounded font-bold uppercase truncate max-w-[150px] print:bg-white print:border print:border-gray-300 print:text-gray-800">${factor.metric || factor.region || "Global"}</span>
+                  <span class="text-[10px] md:text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-1 rounded font-bold uppercase print:bg-white print:border print:border-indigo-300 print:text-indigo-800 border border-transparent dark:border-indigo-800">${factor.pestle || "General"}</span>
                 </div>
               </div>
               
-              <div class="nexus-body hidden border-t border-gray-100 pt-4 mt-4 print:border-gray-300 cursor-text" onclick="event.stopPropagation()">
-                <div class="prose prose-sm max-w-none text-gray-700 mb-4 print:text-black dict-highlight-target">${factor.description || ""}</div>
+              <div class="nexus-body hidden border-t border-gray-100 dark:border-slate-800 pt-4 mt-4 print:border-gray-300 cursor-text" onclick="event.stopPropagation()">
+                <div class="prose prose-sm max-w-none text-gray-700 dark:text-slate-300 mb-4 print:text-black dict-highlight-target dark:prose-invert">${factor.description || ""}</div>
                 ${factor.implications ? `
-                <div class="bg-indigo-50/50 rounded-lg p-3 md:p-4 border border-indigo-100 print:bg-white print:border-gray-300">
-                  <span class="text-xs font-bold text-indigo-800 uppercase tracking-wider print:text-black mb-2 block">Implications</span>
-                  <div class="prose prose-sm max-w-none text-gray-700 print:text-black dict-highlight-target">${factor.implications}</div>
+                <div class="bg-indigo-50/50 dark:bg-indigo-900/10 rounded-lg p-3 md:p-4 border border-indigo-100 dark:border-indigo-800/50 print:bg-white print:border-gray-300">
+                  <span class="text-xs font-bold text-indigo-800 dark:text-indigo-400 uppercase tracking-wider print:text-black mb-2 flex items-center gap-1.5"><i data-lucide="zap" class="w-3.5 h-3.5"></i> Implications</span>
+                  <div class="prose prose-sm max-w-none text-gray-700 dark:text-slate-300 print:text-black dict-highlight-target dark:prose-invert">${factor.implications}</div>
                 </div>` : ''}
                 ${factor.starExport ? `
-                <div class="bg-yellow-50/80 rounded-lg p-4 border border-yellow-200 mt-4 print:bg-white print:border-gray-300">
-                    <h5 class="text-yellow-800 font-bold text-xs uppercase mb-2 print:text-black">⭐ STAR Method Export</h5>
-                    <p class="text-sm text-yellow-900 print:text-black">${factor.starExport}</p>
+                <div class="bg-amber-50/80 dark:bg-amber-900/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800 mt-4 print:bg-white print:border-gray-300">
+                    <h5 class="text-amber-800 dark:text-amber-400 font-bold text-xs uppercase mb-2 print:text-black">⭐ STAR Method Export</h5>
+                    <p class="text-sm text-amber-900 dark:text-amber-200 print:text-black">${factor.starExport}</p>
                 </div>` : ''}
               </div>
             `;
             nexusContainer.appendChild(card);
         });
         
+        if (window.lucide) window.lucide.createIcons();
         if(typeof applyDictionaryHighlighting === 'function') {
             applyDictionaryHighlighting("dossierNexusFeed");
             applyDictionaryHighlighting("dossierPracticeView");
@@ -556,7 +589,6 @@ function saveDossierData() {
     db.dossiers[currentDossierFirm].firmType = document.getElementById("dossierFirmType").value;
     db.dossiers[currentDossierFirm].locations = document.getElementById("dossierLocations").value;
     
-    // Safety check to ensure we do not overwrite arrays with empty strings from the old editors
     if (typeof cultureQuill !== 'undefined') {
         db.dossiers[currentDossierFirm].culture = cultureQuill.root.innerHTML;
     }
@@ -603,13 +635,13 @@ window.switchDossierSubTab = function(tab) {
     if (!btnComm || !btnPers || !viewComm || !viewPers) return;
 
     if (tab === 'commercial') {
-        btnComm.className = "text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-md bg-white text-indigo-700 shadow-sm transition";
-        btnPers.className = "text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition";
+        btnComm.className = "text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-md bg-white dark:bg-slate-800 text-indigo-700 dark:text-white shadow-sm transition border border-slate-200 dark:border-slate-700";
+        btnPers.className = "text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition border border-transparent";
         viewComm.classList.remove('hidden');
         viewPers.classList.add('hidden');
     } else {
-        btnPers.className = "text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-md bg-white text-indigo-700 shadow-sm transition";
-        btnComm.className = "text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition";
+        btnPers.className = "text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-md bg-white dark:bg-slate-800 text-indigo-700 dark:text-white shadow-sm transition border border-slate-200 dark:border-slate-700";
+        btnComm.className = "text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition border border-transparent";
         viewPers.classList.remove('hidden');
         viewComm.classList.add('hidden');
     }
@@ -618,6 +650,7 @@ window.switchDossierSubTab = function(tab) {
 // --- COMPETENCIES CRUD ---
 window.openCompetencyModal = function(idx = -1) {
     document.getElementById('compModalContainer').classList.remove('hidden');
+    document.getElementById('compModalContainer').classList.add('flex');
     const d = db.dossiers[currentDossierFirm];
     
     if (idx >= 0 && d.competencies[idx]) {
@@ -653,6 +686,7 @@ window.saveCompetency = function() {
     saveDatabase();
     renderStrategyRoom();
     document.getElementById('compModalContainer').classList.add('hidden');
+    document.getElementById('compModalContainer').classList.remove('flex');
 };
 
 window.deleteCompetency = function(idx) {
@@ -666,24 +700,25 @@ window.deleteCompetency = function(idx) {
 // --- PRACTICE AREA CRUD ---
 window.openPracticeModal = function(idx = -1) {
     document.getElementById('practiceModalContainer').classList.remove('hidden');
+    document.getElementById('practiceModalContainer').classList.add('flex');
     const d = db.dossiers[currentDossierFirm];
     if (idx >= 0 && d.practice[idx]) {
         document.getElementById('practiceModalTitle').innerText = "Edit Practice Area";
         document.getElementById('practiceEditIndex').value = idx;
         document.getElementById('practiceHeadingInput').value = d.practice[idx].heading;
-        if(typeof practiceModalQuill !== 'undefined') practiceModalQuill.root.innerHTML = d.practice[idx].body;
+        if(typeof practiceQuill !== 'undefined') practiceQuill.root.innerHTML = d.practice[idx].body;
     } else {
         document.getElementById('practiceModalTitle').innerText = "Add Practice Area";
         document.getElementById('practiceEditIndex').value = "";
         document.getElementById('practiceHeadingInput').value = "";
-        if(typeof practiceModalQuill !== 'undefined') practiceModalQuill.root.innerHTML = "";
+        if(typeof practiceQuill !== 'undefined') practiceQuill.root.innerHTML = "";
     }
 };
 
 window.savePracticeFn = function() {
     const heading = document.getElementById('practiceHeadingInput').value.trim();
     if (!heading) return alert("Please enter a practice area name.");
-    const body = typeof practiceModalQuill !== 'undefined' ? practiceModalQuill.root.innerHTML : "";
+    const body = typeof practiceQuill !== 'undefined' ? practiceQuill.root.innerHTML : "";
     const idxStr = document.getElementById('practiceEditIndex').value;
     const d = db.dossiers[currentDossierFirm];
     if (!Array.isArray(d.practice)) d.practice = [];
@@ -691,6 +726,7 @@ window.savePracticeFn = function() {
     else d.practice.push({ heading, body });
     saveDatabase(); renderStrategyRoom();
     document.getElementById('practiceModalContainer').classList.add('hidden');
+    document.getElementById('practiceModalContainer').classList.remove('flex');
 };
 
 window.deletePractice = function(idx) {
@@ -703,24 +739,25 @@ window.deletePractice = function(idx) {
 // --- KEY CLIENTS CRUD ---
 window.openClientsModal = function(idx = -1) {
     document.getElementById('clientsModalContainer').classList.remove('hidden');
+    document.getElementById('clientsModalContainer').classList.add('flex');
     const d = db.dossiers[currentDossierFirm];
     if (idx >= 0 && d.clients[idx]) {
         document.getElementById('clientsModalTitle').innerText = "Edit Client / Deal";
         document.getElementById('clientsEditIndex').value = idx;
         document.getElementById('clientsHeadingInput').value = d.clients[idx].heading;
-        if(typeof clientsModalQuill !== 'undefined') clientsModalQuill.root.innerHTML = d.clients[idx].body;
+        if(typeof clientsQuill !== 'undefined') clientsQuill.root.innerHTML = d.clients[idx].body;
     } else {
         document.getElementById('clientsModalTitle').innerText = "Add Client / Deal";
         document.getElementById('clientsEditIndex').value = "";
         document.getElementById('clientsHeadingInput').value = "";
-        if(typeof clientsModalQuill !== 'undefined') clientsModalQuill.root.innerHTML = "";
+        if(typeof clientsQuill !== 'undefined') clientsQuill.root.innerHTML = "";
     }
 };
 
 window.saveClientsFn = function() {
     const heading = document.getElementById('clientsHeadingInput').value.trim();
     if (!heading) return alert("Please enter a client or deal name.");
-    const body = typeof clientsModalQuill !== 'undefined' ? clientsModalQuill.root.innerHTML : "";
+    const body = typeof clientsQuill !== 'undefined' ? clientsQuill.root.innerHTML : "";
     const idxStr = document.getElementById('clientsEditIndex').value;
     const d = db.dossiers[currentDossierFirm];
     if (!Array.isArray(d.clients)) d.clients = [];
@@ -728,6 +765,7 @@ window.saveClientsFn = function() {
     else d.clients.push({ heading, body });
     saveDatabase(); renderStrategyRoom();
     document.getElementById('clientsModalContainer').classList.add('hidden');
+    document.getElementById('clientsModalContainer').classList.remove('flex');
 };
 
 window.deleteClients = function(idx) {
@@ -749,7 +787,6 @@ async function generateWhyFirmAI(firmName) {
     btn.innerHTML = `<span>⏳</span> Analyzing Market Position...`;
     btn.disabled = true;
 
-    // Flatten new array format for Gemini injection
     const pracText = Array.isArray(firmData.practice) ? firmData.practice.map(p => `${p.heading}: ${p.body}`).join('\n') : "";
     const clientsText = Array.isArray(firmData.clients) ? firmData.clients.map(c => `${c.heading}: ${c.body}`).join('\n') : "";
 
@@ -804,9 +841,8 @@ function generateCheatSheet(firmName) {
         return;
     }
 
-    let intel = db.factors.filter(f => String(f.linkedFirm).trim().toLowerCase() === firmName.toLowerCase());
+    let intel = (db.factors || []).filter(f => f && f.linkedFirm && String(f.linkedFirm).trim().toLowerCase() === firmName.toLowerCase());
     
-    // Sync the cheat sheet sorting with LocalStorage to match UI
     let sortMode = localStorage.getItem('LEGAL_NEXUS_NEXUS_SORT') || "newest";
     const sortSelect = document.getElementById("sortDossierNexus");
     if (sortSelect && sortSelect.value) sortMode = sortSelect.value;
@@ -814,9 +850,9 @@ function generateCheatSheet(firmName) {
     if (sortMode === "newest") {
         intel.reverse();
     } else if (sortMode === "az") {
-        intel.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+        intel.sort((a, b) => String(a.title || "").localeCompare(String(b.title || "")));
     } else if (sortMode === "za") {
-        intel.sort((a, b) => (b.title || "").localeCompare(a.title || ""));
+        intel.sort((a, b) => String(b.title || "").localeCompare(String(a.title || "")));
     }
 
     let intelHtml = '';
@@ -850,7 +886,7 @@ function generateCheatSheet(firmName) {
     if (!container) return;
     
     container.innerHTML = `
-        <div class="max-w-4xl mx-auto pb-20">
+        <div class="max-w-4xl mx-auto pb-20 bg-white">
             <div class="flex justify-between items-start border-b-2 border-gray-900 pb-4 mb-6 print:border-b-2 print:pb-2">
                 <div>
                     <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">${firmName}</h1>
@@ -891,8 +927,7 @@ function generateCheatSheet(firmName) {
     `;
 
     document.getElementById('mainAppWrapper').classList.add('hidden');
-    document.getElementById('mainTopHeader').classList.add('hidden');
-    document.getElementById('mainTabs').classList.add('hidden');
+    document.getElementById('mainTabsWrapper').classList.add('hidden');
     const bottomNav = document.getElementById('mobileBottomNav');
     if(bottomNav) bottomNav.classList.add('hidden');
     
@@ -902,8 +937,7 @@ function generateCheatSheet(firmName) {
 function closeCheatSheet() {
     document.getElementById("cheatSheetContainer").classList.add("hidden");
     document.getElementById('mainAppWrapper').classList.remove('hidden');
-    document.getElementById('mainTopHeader').classList.remove('hidden');
-    document.getElementById('mainTabs').classList.remove('hidden');
+    document.getElementById('mainTabsWrapper').classList.remove('hidden');
     const bottomNav = document.getElementById('mobileBottomNav');
     if(bottomNav) bottomNav.classList.remove('hidden');
 }

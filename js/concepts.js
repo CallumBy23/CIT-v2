@@ -18,13 +18,19 @@ window.updateReverseToggleUI = function() {
         if (window.isReverseFlashcards) {
             if (textSpan) textSpan.innerText = "Front: Definition";
             btn.classList.replace('bg-white', 'bg-indigo-50');
-            btn.classList.replace('text-gray-700', 'text-indigo-700');
-            btn.classList.replace('border-gray-300', 'border-indigo-300');
+            btn.classList.replace('text-slate-700', 'text-indigo-700');
+            btn.classList.replace('border-slate-300', 'border-indigo-300');
+            
+            // Dark mode overrides
+            btn.classList.add('dark:bg-slate-800', 'dark:text-indigo-400', 'dark:border-indigo-500');
         } else {
             if (textSpan) textSpan.innerText = "Front: Term";
             btn.classList.replace('bg-indigo-50', 'bg-white');
-            btn.classList.replace('text-indigo-700', 'text-gray-700');
-            btn.classList.replace('border-indigo-300', 'border-gray-300');
+            btn.classList.replace('text-indigo-700', 'text-slate-700');
+            btn.classList.replace('border-indigo-300', 'border-slate-300');
+            
+            // Dark mode overrides
+            btn.classList.remove('dark:bg-slate-800', 'dark:text-indigo-400', 'dark:border-indigo-500');
         }
     });
 };
@@ -57,15 +63,15 @@ window.renderAlphabetBar = function(source) {
         const baseClass = "px-2.5 py-1 text-[11px] font-bold rounded cursor-pointer transition shrink-0 border ";
         const activeClass = isActive 
             ? "bg-indigo-600 text-white border-indigo-700 shadow-inner" 
-            : "bg-white text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-800 shadow-sm";
+            : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white";
         return `<button onclick="window.toggleAlphabetFilter('${letter}', '${source}')" class="${baseClass} ${activeClass}">${letter}</button>`;
     }).join('');
 };
 
 function saveConcept() {
     const title = document.getElementById("conceptTitle").value;
-    const htmlBody = quillEditor.root.innerHTML;
-    if (!title || htmlBody === "<p><br></p>") return;
+    const htmlBody = typeof quillEditor !== 'undefined' ? quillEditor.root.innerHTML : "";
+    if (!title || htmlBody === "<p><br></p>" || htmlBody === "") return;
 
     const catToSave = (!currentConceptCategory || currentConceptCategory === "All") ? (db.conceptCategories[0] || "General") : currentConceptCategory;
     
@@ -77,14 +83,14 @@ function saveConcept() {
       date: new Date().toLocaleDateString(), isCollapsed: false, score: ""
     });
     
-    saveDatabase(); 
+    if(typeof saveDatabase === 'function') saveDatabase(); 
     if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns(); 
     renderConcepts();
     
     document.getElementById("conceptTitle").value = ""; 
     document.getElementById("conceptSubTag").value = ""; 
-    quillEditor.setContents([]);
-    if(typeof diagramTempBase64 !== 'undefined') diagramTempBase64 = "";
+    if(typeof quillEditor !== 'undefined') quillEditor.setContents([]);
+    if(typeof diagramTempBase64 !== 'undefined') window.diagramTempBase64 = "";
     
     const preview = document.getElementById("newConceptDiagramPreview");
     if(preview) {
@@ -98,178 +104,197 @@ function saveConcept() {
 function renderConcepts() {
     const container = document.getElementById("conceptsContainer");
     if (!container) return;
-    container.innerHTML = "";
-    if (typeof currentVisibleConceptIndices !== 'undefined') currentVisibleConceptIndices = [];
+    
+    try {
+        container.innerHTML = "";
+        if (typeof currentVisibleConceptIndices !== 'undefined') window.currentVisibleConceptIndices = [];
 
-    // --- 1. BUILD MASTERY DASHBOARD WIDGET (RIGHT SIDEBAR) ---
-    const widgetContainer = document.getElementById("conceptMasteryWidget");
-    if (widgetContainer) {
-        const catStats = {};
-        
-        (db.concepts || []).forEach(c => {
-            if (c.category && c.category !== "Interview Vault" && c.category !== "All") {
-                if (!catStats[c.category]) catStats[c.category] = { total: 0, mastered: 0 };
-                catStats[c.category].total++;
-                if (c.srs && (c.srs.mastered || c.srs.interval >= 21)) {
-                    catStats[c.category].mastered++;
+        // --- 1. BUILD MASTERY DASHBOARD WIDGET (RIGHT SIDEBAR) ---
+        const widgetContainer = document.getElementById("conceptMasteryWidget");
+        if (widgetContainer) {
+            const catStats = {};
+            
+            (db.concepts || []).forEach(c => {
+                if (c && c.category && c.category !== "Interview Vault" && c.category !== "All") {
+                    if (!catStats[c.category]) catStats[c.category] = { total: 0, mastered: 0 };
+                    catStats[c.category].total++;
+                    if (c.srs && (c.srs.mastered || c.srs.interval >= 21)) {
+                        catStats[c.category].mastered++;
+                    }
+                }
+            });
+
+            let masteryHTML = `<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-5 shadow-sm print:hidden w-full flex flex-col">
+                <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100 mb-5 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0"><i data-lucide="target" class="w-4 h-4 text-emerald-500"></i> Concept Mastery</h3>
+                <div class="flex flex-col gap-5 max-h-[400px] overflow-y-auto pr-2 pb-10 scrollbar-hide">`;
+
+            let hasData = false;
+            for (const [cat, data] of Object.entries(catStats)) {
+                if (data.total === 0) continue;
+                hasData = true;
+                const pct = Math.round((data.mastered / data.total) * 100);
+                
+                let barColor = pct === 100 ? 'bg-amber-400' : (pct > 50 ? 'bg-emerald-400' : 'bg-indigo-500');
+                let textColor = pct === 100 ? 'text-amber-500 dark:text-amber-400' : (pct > 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400');
+
+                masteryHTML += `
+                    <div class="flex flex-col w-full">
+                        <div class="flex justify-between text-[10px] font-bold mb-2 uppercase tracking-wider">
+                            <span class="text-slate-600 dark:text-slate-400 truncate mr-2">${cat}</span>
+                            <span class="${textColor}">${pct}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden shadow-inner">
+                            <div class="${barColor} h-full rounded-full transition-all duration-700 shadow-sm" style="width: ${pct}%"></div>
+                        </div>
+                    </div>`;
+            }
+            masteryHTML += `</div></div>`;
+            
+            if (hasData) {
+                widgetContainer.innerHTML = masteryHTML;
+                widgetContainer.classList.remove('hidden');
+            } else {
+                widgetContainer.innerHTML = '';
+                widgetContainer.classList.add('hidden');
+            }
+        }
+
+        const searchBox = document.getElementById("searchConcepts");
+        const term = searchBox ? String(searchBox.value || "").toLowerCase() : "";
+        let filtered = (db.concepts || []).filter(c => c && c.category !== "Interview Vault");
+
+        if (typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All") {
+            filtered = filtered.filter(c => c.category === currentConceptCategory);
+        }
+
+        if (term) {
+            filtered = filtered.filter(c => 
+                String(c.title || "").toLowerCase().includes(term) || 
+                String(c.body || "").toLowerCase().includes(term)
+            );
+        }
+
+        if (window.activeConceptAlpha && window.activeConceptAlpha.size > 0) {
+            filtered = filtered.filter(c => {
+                const titleStr = String(c.title || "").trim();
+                if (!titleStr) return false;
+                const firstLetter = titleStr.charAt(0).toUpperCase();
+                return window.activeConceptAlpha.has(firstLetter);
+            });
+        }
+
+        if (filtered.length === 0) {
+            container.innerHTML = `<div class="p-8 text-center bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-md print:hidden"><p class="text-sm font-medium text-slate-500 dark:text-slate-400">No concepts match your search or filters.</p></div>`;
+            return;
+        }
+
+        let indexedConcepts = filtered.map(c => ({ concept: c, originalIndex: db.concepts.indexOf(c) }));
+        const sortBox = document.getElementById("sortConcepts");
+        const sortMode = sortBox ? sortBox.value : "newest";
+
+        if (sortMode === "newest") {
+            indexedConcepts.reverse();
+        } else if (sortMode === "az") {
+            indexedConcepts.sort((a, b) => String(a.concept.title || "").localeCompare(String(b.concept.title || "")));
+        } else if (sortMode === "za") {
+            indexedConcepts.sort((a, b) => String(b.concept.title || "").localeCompare(String(a.concept.title || "")));
+        }
+
+        indexedConcepts.forEach(({concept, originalIndex}) => {
+            if (typeof currentVisibleConceptIndices !== 'undefined') window.currentVisibleConceptIndices.push(originalIndex);
+            const isCollapsed = concept.isCollapsed !== false;
+            const isChecked = typeof window.selectedConcepts !== 'undefined' && window.selectedConcepts.has(originalIndex) ? "checked" : "";
+            
+            let srsBadge = '';
+            if (concept.srs && concept.srs.mastered) {
+                 srsBadge = `<span class="text-[10px] bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded font-bold border border-amber-200 dark:border-amber-800 mt-2 inline-block">🏆 Mastered</span>`;
+            } else if (!concept.srs || !concept.srs.nextReview) {
+                 srsBadge = `<span class="text-[10px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded font-bold border border-indigo-200 dark:border-indigo-800 mt-2 inline-block">✨ New Card</span>`;
+            } else {
+                const now = new Date().getTime();
+                if (concept.srs.nextReview <= now) {
+                    srsBadge = `<span class="text-[10px] bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-0.5 rounded font-bold border border-red-200 dark:border-red-800 mt-2 inline-block">⚠️ Due Review</span>`;
+                } else {
+                    const days = Math.ceil((concept.srs.nextReview - now) / (1000 * 60 * 60 * 24));
+                    srsBadge = `<span class="text-[10px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-200 dark:border-emerald-800 mt-2 inline-block">⏳ Next: ${days}d</span>`;
                 }
             }
-        });
 
-        let masteryHTML = `<div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl print:hidden w-full flex flex-col">
-            <h3 class="text-sm font-bold text-slate-100 mb-5 flex items-center gap-2 border-b border-slate-700 pb-3 shrink-0"><span>📈</span> Concept Mastery Analytics</h3>
-            <div class="flex flex-col gap-5 max-h-[400px] overflow-y-auto pr-2 pb-24 scrollbar-hide">`;
+            const subTagHTML = concept.subTag ? `<span class="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded font-bold uppercase mt-2 inline-block border border-slate-200 dark:border-slate-700 mr-2">${concept.subTag}</span>` : '';
+            const diagramHTML = concept.diagram ? `<div class="mt-4"><img src="${concept.diagram}" class="w-full max-h-64 object-contain rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"></div>` : '';
 
-        let hasData = false;
-        for (const [cat, data] of Object.entries(catStats)) {
-            if (data.total === 0) continue;
-            hasData = true;
-            const pct = Math.round((data.mastered / data.total) * 100);
+            const card = document.createElement("div");
+            card.className = "bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-md p-4 md:p-5 shadow-sm print:break-inside-avoid print:border-slate-400 print:shadow-none group cursor-pointer transition hover:border-indigo-400 dark:hover:border-indigo-500 w-full";
             
-            let barColor = pct === 100 ? 'bg-amber-400' : (pct > 50 ? 'bg-emerald-400' : 'bg-indigo-500');
-            let textColor = pct === 100 ? 'text-amber-400' : (pct > 50 ? 'text-emerald-400' : 'text-indigo-400');
+            card.onclick = function(e) {
+                if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) return;
+                const body = this.querySelector('.nexus-body');
+                const icon = this.querySelector('.nexus-icon i');
+                if(body && icon) {
+                    body.classList.toggle('hidden');
+                    if (body.classList.contains('hidden')) {
+                        icon.setAttribute('data-lucide', 'chevron-down');
+                    } else {
+                        icon.setAttribute('data-lucide', 'chevron-up');
+                    }
+                    if (window.lucide) window.lucide.createIcons();
+                    db.concepts[originalIndex].isCollapsed = body.classList.contains('hidden');
+                    if (typeof saveDatabase === 'function') saveDatabase();
+                }
+            };
 
-            masteryHTML += `
-                <div class="flex flex-col w-full">
-                    <div class="flex justify-between text-[11px] font-bold mb-2 uppercase tracking-wider">
-                        <span class="text-slate-300 truncate mr-2">${cat}</span>
-                        <span class="${textColor}">${pct}%</span>
+            card.innerHTML = `
+              <div class="flex flex-col md:flex-row justify-between md:items-start mb-3 group gap-2">
+                <div class="flex items-start gap-3 flex-1">
+                  <input type="checkbox" ${isChecked} onchange="toggleConceptSelection(${originalIndex}, event)" class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer print:hidden shrink-0 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500">
+                  <div class="flex flex-col min-w-0 w-full">
+                    <div class="flex justify-between items-start w-full cursor-pointer" onclick="db.concepts[${originalIndex}].isCollapsed = !${isCollapsed}; renderConcepts(); if(typeof saveDatabase === 'function') saveDatabase();">
+                      <h4 class="font-bold text-slate-900 dark:text-white text-sm md:text-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition md:pr-4 print:text-black break-words leading-snug">${concept.title || "Untitled Concept"}</h4>
+                      <div class="flex items-center gap-2 shrink-0 ml-2 mt-1 md:mt-0">
+                         <button onclick="openEditConceptModal(${originalIndex}); event.stopPropagation();" class="text-[10px] md:text-xs font-bold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition print:hidden flex items-center gap-1.5 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-slate-700 px-2 py-1 rounded-sm border border-slate-200 dark:border-slate-700 hover:border-indigo-200 shadow-sm"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Edit</span></button>
+                         <span class="nexus-icon text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition print:hidden"><i data-lucide="${isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-4 h-4"></i></span>
+                      </div>
                     </div>
-                    <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden shadow-inner border border-slate-700">
-                        <div class="${barColor} h-full rounded-full transition-all duration-700 shadow-[0_0_10px_currentColor]" style="width: ${pct}%"></div>
-                    </div>
-                </div>`;
-        }
-        masteryHTML += `</div></div>`;
-        
-        if (hasData) {
-            widgetContainer.innerHTML = masteryHTML;
-            widgetContainer.classList.remove('hidden');
-        } else {
-            widgetContainer.innerHTML = '';
-            widgetContainer.classList.add('hidden');
-        }
-    }
-
-    const searchBox = document.getElementById("searchConcepts");
-    const term = searchBox ? searchBox.value.toLowerCase() : "";
-    let filtered = (db.concepts || []).filter(c => c.category !== "Interview Vault");
-
-    if (typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All") {
-        filtered = filtered.filter(c => c.category === currentConceptCategory);
-    }
-
-    if (term) {
-        filtered = filtered.filter(c => 
-            (c.title && c.title.toLowerCase().includes(term)) || 
-            (c.body && c.body.toLowerCase().includes(term))
-        );
-    }
-
-    if (window.activeConceptAlpha && window.activeConceptAlpha.size > 0) {
-        filtered = filtered.filter(c => {
-            if (!c.title) return false;
-            const firstLetter = c.title.charAt(0).toUpperCase();
-            return window.activeConceptAlpha.has(firstLetter);
-        });
-    }
-
-    if (filtered.length === 0) {
-        container.innerHTML += `<p class="text-slate-500 italic mt-4 print:hidden">No records match your search or filter.</p>`;
-        return;
-    }
-
-    let indexedConcepts = filtered.map(c => ({ concept: c, originalIndex: db.concepts.indexOf(c) }));
-    const sortBox = document.getElementById("sortConcepts");
-    const sortMode = sortBox ? sortBox.value : "newest";
-
-    if (sortMode === "newest") indexedConcepts.reverse();
-    else if (sortMode === "az") indexedConcepts.sort((a, b) => (a.concept.title || "").localeCompare(b.concept.title || ""));
-    else if (sortMode === "za") indexedConcepts.sort((a, b) => (b.concept.title || "").localeCompare(a.concept.title || ""));
-
-    indexedConcepts.forEach(({concept, originalIndex}) => {
-        if (typeof currentVisibleConceptIndices !== 'undefined') currentVisibleConceptIndices.push(originalIndex);
-        const isCollapsed = concept.isCollapsed !== false;
-        const isChecked = typeof window.selectedConcepts !== 'undefined' && window.selectedConcepts.has(originalIndex) ? "checked" : "";
-        
-        let srsBadge = '';
-        if (concept.srs && concept.srs.mastered) {
-             srsBadge = `<span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-bold border border-amber-200 mt-2 inline-block">🏆 Mastered</span>`;
-        } else if (!concept.srs || !concept.srs.nextReview) {
-             srsBadge = `<span class="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold border border-blue-200 mt-2 inline-block">✨ New Card</span>`;
-        } else {
-            const now = new Date().getTime();
-            if (concept.srs.nextReview <= now) {
-                srsBadge = `<span class="text-[10px] bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold border border-red-200 mt-2 inline-block">⚠️ Due Review</span>`;
-            } else {
-                const days = Math.ceil((concept.srs.nextReview - now) / (1000 * 60 * 60 * 24));
-                srsBadge = `<span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold border border-emerald-200 mt-2 inline-block">⏳ Next: ${days}d</span>`;
-            }
-        }
-
-        const subTagHTML = concept.subTag ? `<span class="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold uppercase mt-2 inline-block border border-blue-200 mr-2">${concept.subTag}</span>` : '';
-        const diagramHTML = concept.diagram ? `<div class="mt-4"><img src="${concept.diagram}" class="w-full max-h-64 object-contain rounded-lg border border-slate-200 bg-white"></div>` : '';
-
-        const card = document.createElement("div");
-        card.className = "bg-white border border-slate-200 rounded-xl p-4 md:p-5 shadow-sm print:break-inside-avoid print:border-slate-400 print:shadow-none group cursor-pointer transition hover:border-blue-300 w-full";
-        
-        card.onclick = function(e) {
-            if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) return;
-            const body = this.querySelector('.nexus-body');
-            const icon = this.querySelector('.nexus-icon');
-            if(body && icon) {
-                body.classList.toggle('hidden');
-                icon.innerText = body.classList.contains('hidden') ? '▼' : '▲';
-                db.concepts[originalIndex].isCollapsed = body.classList.contains('hidden');
-                saveDatabase();
-            }
-        };
-
-        card.innerHTML = `
-          <div class="flex flex-col md:flex-row justify-between md:items-start mb-3 group gap-2">
-            <div class="flex items-start gap-3 flex-1">
-              <input type="checkbox" ${isChecked} onchange="toggleConceptSelection(${originalIndex}, event)" class="mt-1 w-5 h-5 text-blue-600 rounded cursor-pointer print:hidden shrink-0">
-              <div class="flex flex-col min-w-0 w-full">
-                <div class="flex justify-between items-start w-full cursor-pointer" onclick="db.concepts[${originalIndex}].isCollapsed = !${isCollapsed}; renderConcepts(); saveDatabase();">
-                  <h4 class="font-bold text-slate-900 text-sm md:text-base group-hover:text-blue-600 transition md:pr-4 print:text-black break-words">${concept.title || "Untitled Concept"}</h4>
-                  <div class="flex items-center gap-3 shrink-0 ml-2 mt-1 md:mt-0">
-                     <button onclick="openEditConceptModal(${originalIndex}); event.stopPropagation();" class="text-[10px] md:text-xs font-bold text-slate-500 hover:text-indigo-600 transition print:hidden flex items-center gap-1 bg-white hover:bg-indigo-50 px-2 py-1 rounded border border-slate-200 hover:border-indigo-200 shadow-sm"><span>✏️</span> Edit</button>
-                     <span class="nexus-icon text-gray-400 text-xs mt-0.5 print:hidden">${isCollapsed ? '▼' : '▲'}</span>
+                    <div class="flex flex-wrap items-center gap-1 mt-1.5">${subTagHTML}${srsBadge}</div>
                   </div>
                 </div>
-                <div class="flex flex-wrap items-center gap-1 mt-1">${subTagHTML}${srsBadge}</div>
+                <div class="flex gap-2 shrink-0 items-center justify-end w-full md:w-auto">
+                  <span class="text-[10px] md:text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-sm font-bold uppercase border border-slate-200 dark:border-slate-700 print:bg-white print:text-black print:border-slate-300 shrink-0 shadow-inner">${concept.category || "General"}</span>
+                </div>
               </div>
-            </div>
-            <div class="flex gap-2 shrink-0 items-center justify-end w-full md:w-auto">
-              <span class="text-[10px] md:text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded font-bold uppercase border border-slate-200 print:bg-white print:text-black print:border-slate-300 shrink-0">${concept.category || "General"}</span>
-            </div>
-          </div>
-          <div class="nexus-body ${isCollapsed ? 'hidden print:block' : 'block'} border-t border-slate-100 pt-4 mt-4 print:border-slate-300 cursor-text" onclick="event.stopPropagation()">
-            <div class="prose prose-sm md:prose-base max-w-none text-slate-700 leading-relaxed mb-4 print:text-black dict-highlight-target">${concept.body || ""}</div>
-            ${diagramHTML}
-            <div class="mt-4 flex gap-3 print:hidden">
-              <button onclick="deleteConcept(${originalIndex})" class="flex-1 md:flex-none text-xs bg-red-50 hover:bg-red-100 text-red-600 font-bold py-1.5 md:py-1 px-3 rounded transition shadow-sm">🗑️ Delete</button>
-            </div>
-          </div>
-        `;
-        container.appendChild(card);
-    });
-    if(typeof applyDictionaryHighlighting === 'function') applyDictionaryHighlighting("conceptsContainer");
+              <div class="nexus-body ${isCollapsed ? 'hidden print:block' : 'block'} border-t border-slate-100 dark:border-slate-800 pt-4 mt-4 print:border-slate-300 cursor-text" onclick="event.stopPropagation()">
+                <div class="prose prose-sm md:prose-base max-w-none text-slate-700 dark:text-slate-200 leading-relaxed mb-4 print:text-black dict-highlight-target dark:prose-invert">${concept.body || ""}</div>
+                ${diagramHTML}
+                <div class="mt-4 flex gap-3 print:hidden">
+                  <button onclick="deleteConcept(${originalIndex})" class="flex-1 md:flex-none text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 font-bold py-1.5 px-3 rounded-sm transition shadow-sm flex items-center justify-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</button>
+                </div>
+              </div>
+            `;
+            container.appendChild(card);
+        });
+        
+        if (window.lucide) window.lucide.createIcons();
+        if (typeof applyDictionaryHighlighting === 'function') applyDictionaryHighlighting("conceptsContainer");
+
+    } catch (err) {
+        console.error("Critical rendering error in concepts.js:", err);
+        container.innerHTML = `<div class="p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md print:hidden"><h3 class="text-red-700 dark:text-red-400 font-bold">Data Rendering Error</h3><p class="text-red-600 dark:text-red-300 text-sm mt-2">A corrupt record caused the page to stop drawing. Error details: ${err.message}</p></div>`;
+    }
 }
 
 function openEditConceptModal(index) {
     const c = db.concepts[index];
     document.getElementById("editConceptIndex").value = index;
-    document.getElementById("editConceptTitle").value = c.title;
+    document.getElementById("editConceptTitle").value = c.title || "";
     document.getElementById("editConceptSubTag").value = c.subTag || "";
     
     const catSelect = document.getElementById("editConceptCategory");
     if(catSelect) {
         catSelect.innerHTML = db.conceptCategories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
-        catSelect.value = c.category;
+        catSelect.value = c.category || db.conceptCategories[0];
     }
     
-    if(typeof editQuillEditor !== 'undefined') editQuillEditor.root.innerHTML = c.body;
+    if(window.editQuillEditor) window.editQuillEditor.root.innerHTML = c.body || "";
 
     const previewImg = document.getElementById("editConceptDiagramPreview");
     if (previewImg) {
@@ -293,7 +318,7 @@ window.toggleConceptSelection = function(index, event) {
     event.stopPropagation();
     if (event.target.checked) window.selectedConcepts.add(index);
     else window.selectedConcepts.delete(index);
-    updateMassDeleteConceptBtn();
+    if(typeof updateMassDeleteConceptBtn === 'function') updateMassDeleteConceptBtn();
 };
 
 window.updateMassDeleteConceptBtn = function() {
@@ -301,7 +326,8 @@ window.updateMassDeleteConceptBtn = function() {
     if (!btn) return;
     if (window.selectedConcepts.size > 0) {
         btn.classList.remove('hidden');
-        btn.innerText = `🗑️ Delete (${window.selectedConcepts.size})`;
+        btn.innerHTML = `<i data-lucide="trash" class="w-3.5 h-3.5"></i> Delete (${window.selectedConcepts.size})`;
+        if (window.lucide) window.lucide.createIcons();
     } else {
         btn.classList.add('hidden');
     }
@@ -319,7 +345,7 @@ window.massDeleteConcepts = function() {
         window.selectedConcepts.clear();
         updateMassDeleteConceptBtn();
         if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
-        saveDatabase();
+        if(typeof saveDatabase === 'function') saveDatabase();
         renderConcepts();
     }
 };
@@ -336,7 +362,7 @@ function deleteConcept(index) {
             updateMassDeleteConceptBtn();
         }
         if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
-        saveDatabase();
+        if(typeof saveDatabase === 'function') saveDatabase();
         renderConcepts();
     }
 }
@@ -365,11 +391,11 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
         if (!firm.srs) firm.srs = {};
         
         let practiceBody = (Array.isArray(firm.practice) && firm.practice.length > 0) 
-            ? firm.practice.map(p => `<h4>${p.heading}</h4>${p.body}`).join('<hr class="my-4 border-gray-200">') 
+            ? firm.practice.map(p => `<h4>${p.heading}</h4>${p.body}`).join('<hr class="my-4 border-slate-200 dark:border-slate-700">') 
             : "<p>No data logged.</p>";
             
         let clientsBody = (Array.isArray(firm.clients) && firm.clients.length > 0) 
-            ? firm.clients.map(p => `<h4>${p.heading}</h4>${p.body}`).join('<hr class="my-4 border-gray-200">') 
+            ? firm.clients.map(p => `<h4>${p.heading}</h4>${p.body}`).join('<hr class="my-4 border-slate-200 dark:border-slate-700">') 
             : "<p>No data logged.</p>";
 
         let possibleCards = [
@@ -379,7 +405,7 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
         ];
 
         (db.factors || []).forEach((f, idx) => {
-            if (f.linkedFirm && f.linkedFirm.toLowerCase() === currentDossierFirm.toLowerCase()) {
+            if (f.linkedFirm && String(f.linkedFirm).trim().toLowerCase() === String(currentDossierFirm).toLowerCase()) {
                 possibleCards.push({
                     id: `intel_${idx}`,
                     category: 'Market Intelligence',
@@ -437,8 +463,8 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
             if (source === 'concepts' && typeof currentConceptCategory !== 'undefined') {
                 activeCat = currentConceptCategory;
                 specificAlpha = window.activeConceptAlpha;
-            } else if (source === 'dictionary' && typeof currentDictCategory !== 'undefined') {
-                activeCat = currentDictCategory;
+            } else if (source === 'dictionary' && typeof window.currentDictCategory !== 'undefined') {
+                activeCat = window.currentDictCategory;
                 specificAlpha = window.activeDictAlpha;
             }
         } catch(e) {}
@@ -452,7 +478,7 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
                 
                 let matchesAlpha = true;
                 if (specificAlpha && specificAlpha.size > 0) {
-                    const titleToCheck = obj.item.title || obj.item.term || "";
+                    const titleToCheck = String(obj.item.title || obj.item.term || "").trim();
                     if (!titleToCheck) matchesAlpha = false;
                     else matchesAlpha = specificAlpha.has(titleToCheck.charAt(0).toUpperCase());
                 }
@@ -521,7 +547,7 @@ function renderCurrentFlashcard() {
         alert("Session Complete! Great job maintaining your commercial knowledge.");
         document.getElementById("flashcardModal").classList.add("hidden");
         document.getElementById("flashcardModal").classList.remove("flex");
-        if (currentFlashcardSource === 'concepts') renderConcepts();
+        if (currentFlashcardSource === 'concepts' && typeof renderConcepts === 'function') renderConcepts();
         else if (currentFlashcardSource === 'dictionary' && typeof renderDictionary === 'function') renderDictionary();
         return;
     }
@@ -529,26 +555,23 @@ function renderCurrentFlashcard() {
     const itemObj = flashcardQueue[currentFlashcardIndex];
     const item = itemObj.item;
     
-    // BI-DIRECTIONAL LOGIC: Bound to UI Toggle State
     const isReverse = !item.isDossier && window.isReverseFlashcards;
     itemObj.isReverse = isReverse;
 
     const category = item.category || "General";
-    const title = item.title || item.term || "Untitled";
-    const body = item.body || item.definition || item.content || "No data logged.";
+    const title = String(item.title || item.term || "Untitled");
+    const body = String(item.body || item.definition || item.content || "No data logged.");
 
     document.getElementById("flashcardCounter").innerText = `Card ${currentFlashcardIndex + 1} of ${flashcardQueue.length}`;
     document.getElementById("fcCategory").innerText = category;
     document.getElementById("fcBackCategory").innerText = category;
 
-    // RENDER FRONT BASED ON REVERSE STATUS
     if (isReverse) {
         document.getElementById("fcTitle").classList.add("hidden");
         const fcFrontBody = document.getElementById("fcFrontBody");
         if (fcFrontBody) {
             fcFrontBody.classList.remove("hidden");
             
-            // REDACTION LOGIC: Automatically black out the exact term from the definition
             let redactedBody = body;
             if (title && title !== "Untitled") {
                 const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -600,30 +623,29 @@ function flipFlashcard() {
         controls[4].querySelector("span:last-child").innerText = masterInt + "d+";
     }
 
-    let titleStr = qItem.item.title || qItem.item.term || "Untitled";
-    let bodyHtml = qItem.item.body || qItem.item.definition || "No content.";
+    let titleStr = String(qItem.item.title || qItem.item.term || "Untitled");
+    let bodyHtml = String(qItem.item.body || qItem.item.definition || "No content.");
 
     if (currentFlashcardSource === 'concepts' && qItem.item.diagram) {
-        bodyHtml = `<img src="${qItem.item.diagram}" class="w-full max-h-60 object-contain rounded-lg border border-slate-200 mb-4 bg-slate-50">` + bodyHtml;
+        bodyHtml = `<img src="${qItem.item.diagram}" class="w-full max-h-60 object-contain rounded-md border border-slate-200 dark:border-slate-700 mb-4 bg-white dark:bg-slate-800">` + bodyHtml;
     }
 
-    // CONTEXTUAL MARKET INJECTION
     let contextHtml = '';
     const titleToSearch = titleStr;
     if (titleToSearch && typeof db !== 'undefined' && db.factors) {
         const relatedFactors = db.factors.filter(f => 
-            (f.linkedConcept && f.linkedConcept.toLowerCase() === titleToSearch.toLowerCase()) || 
-            (f.description && f.description.toLowerCase().includes(titleToSearch.toLowerCase()))
+            (f.linkedConcept && String(f.linkedConcept).toLowerCase() === titleToSearch.toLowerCase()) || 
+            (f.description && String(f.description).toLowerCase().includes(titleToSearch.toLowerCase()))
         );
         if (relatedFactors.length > 0) {
-            contextHtml = `<div class="mt-6 pt-6 border-t border-slate-200">
-                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Live Market Context</h4>
+            contextHtml = `<div class="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800">
+                <h4 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Live Market Context</h4>
                 <div class="flex flex-col gap-3">
                     ${relatedFactors.slice(0,3).map(f => `
-                        <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
-                            <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">${f.linkedFirm || f.workspace || "Market Factor"}</span>
-                            <p class="text-sm font-bold text-indigo-900">${f.title}</p>
-                            ${f.metric ? `<p class="text-xs text-indigo-700 mt-1"><strong>Metric:</strong> ${f.metric}</p>` : ''}
+                        <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-lg p-3">
+                            <span class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider block mb-1">${f.linkedFirm || f.workspace || "Market Factor"}</span>
+                            <p class="text-sm font-bold text-indigo-900 dark:text-indigo-200">${f.title}</p>
+                            ${f.metric ? `<p class="text-xs text-indigo-700 dark:text-indigo-300 mt-1"><strong>Metric:</strong> ${f.metric}</p>` : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -631,10 +653,9 @@ function flipFlashcard() {
         }
     }
 
-    // RENDER BACK BASED ON REVERSE STATUS
     if (qItem.isReverse) {
         document.getElementById("fcBackTitle").innerText = "Term Revealed";
-        document.getElementById("fcBody").innerHTML = `<h2 class="text-3xl md:text-4xl font-extrabold text-indigo-700 mb-6 pb-4 border-b border-slate-200">${titleStr}</h2>` + bodyHtml + contextHtml;
+        document.getElementById("fcBody").innerHTML = `<h2 class="text-3xl md:text-4xl font-extrabold text-indigo-600 dark:text-indigo-400 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">${titleStr}</h2>` + bodyHtml + contextHtml;
     } else {
         document.getElementById("fcBackTitle").innerText = titleStr;
         document.getElementById("fcBody").innerHTML = bodyHtml + contextHtml;
@@ -710,7 +731,7 @@ function processFlashcardResult(rating) {
         dataSource[qItem.originalIndex].srs = srsData;
     }
     
-    saveDatabase(); 
+    if(typeof saveDatabase === 'function') saveDatabase(); 
     currentFlashcardIndex++;
     renderCurrentFlashcard();
 }
@@ -769,9 +790,9 @@ async function evaluateFeynman() {
 
     const qItem = flashcardQueue[currentFlashcardIndex];
     const isConcept = currentFlashcardSource === 'concepts';
-    const term = isConcept ? (qItem.item.title || "Concept") : (qItem.item.term || "Term");
+    const term = isConcept ? String(qItem.item.title || "Concept") : String(qItem.item.term || "Term");
     
-    const rawDefinition = isConcept ? (qItem.item.body || "") : (qItem.item.definition || "");
+    const rawDefinition = isConcept ? String(qItem.item.body || "") : String(qItem.item.definition || "");
     const cleanDefinition = rawDefinition.replace(/<[^>]*>?/gm, '');
 
     const aiPrompt = `Act as an expert commercial law tutor. I am using the Feynman Technique to explain a concept simply.
@@ -783,8 +804,9 @@ async function evaluateFeynman() {
     In 2 to 3 very short sentences, evaluate my attempt. Is it accurate? Did I explain it simply, or did I rely on jargon? What critical piece did I miss?`;
 
     try {
-        await new Promise(resolve => setTimeout(resolve, 1500)); 
-        const aiResponse = "Your explanation captures the core mechanic perfectly. However, you relied slightly on the term 'equity' without explaining it. Next time, clarify that it means ownership shares.";
+        const aiResponse = typeof callGeminiApi === 'function' 
+            ? await callGeminiApi(aiPrompt) 
+            : "System simulated response. Grader requires API connection.";
 
         document.getElementById('feynmanFeedbackContent').innerText = aiResponse;
         document.getElementById('feynmanFeedback').classList.remove('hidden');

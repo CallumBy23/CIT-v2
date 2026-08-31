@@ -31,90 +31,116 @@ function renderFeed() {
   
   container.innerHTML = "";
   currentVisibleFactorIndices = [];
-  const term = document.getElementById("searchFeed").value.toLowerCase();
+  const term = String(document.getElementById("searchFeed").value || "").toLowerCase();
   
-  let filtered = db.factors.filter(f => 
+  let filtered = (db.factors || []).filter(f => 
+      f && 
       (currentWorkspace === "All" || f.workspace === currentWorkspace) && 
       (activePestleFilter === "All" || f.pestle === activePestleFilter)
   );
 
-  if (term) filtered = filtered.filter(f => (f.title && f.title.toLowerCase().includes(term)) || (f.description && f.description.toLowerCase().includes(term)));
+  if (term) {
+      filtered = filtered.filter(f => 
+          String(f.title || "").toLowerCase().includes(term) || 
+          String(f.description || "").toLowerCase().includes(term)
+      );
+  }
   
-  if (filtered.length === 0) return container.innerHTML = `<p class="text-gray-500 italic mt-4 print:hidden">No records match.</p>`;
+  if (filtered.length === 0) {
+      container.innerHTML = `<p class="text-slate-500 italic mt-4 print:hidden">No records match.</p>`;
+      return;
+  }
 
   let indexedFactors = filtered.map(f => ({ factor: f, originalIndex: db.factors.indexOf(f) }));
   const sortMode = document.getElementById("sortFeed").value;
-  if (sortMode === "newest") indexedFactors.reverse();
-  else if (sortMode === "az") indexedFactors.sort((a, b) => a.factor.title.localeCompare(b.factor.title));
-  else if (sortMode === "za") indexedFactors.sort((a, b) => b.factor.title.localeCompare(a.factor.title));
+  
+  // SAFE SORTING: Casts to string to prevent crashes on numerical data
+  if (sortMode === "newest") {
+      indexedFactors.reverse();
+  } else if (sortMode === "az") {
+      indexedFactors.sort((a, b) => String(a.factor.title || "").localeCompare(String(b.factor.title || "")));
+  } else if (sortMode === "za") {
+      indexedFactors.sort((a, b) => String(b.factor.title || "").localeCompare(String(a.factor.title || "")));
+  }
 
   indexedFactors.forEach(({factor, originalIndex}) => {
     currentVisibleFactorIndices.push(originalIndex);
     const isCollapsed = factor.isCollapsed !== false;
-    const isChecked = selectedFactors.has(originalIndex) ? "checked" : "";
-    const nexusBadge = factor.linkedConcept ? `<button onclick="routeToConcept('${factor.linkedConcept.replace(/'/g, "\\'")}')" class="text-[10px] bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-0.5 rounded-full font-bold shadow-sm border border-blue-200 inline-block mt-2 shrink-0 transition">🔗 ${factor.linkedConcept}</button>` : '';
-    const firmBadge = factor.linkedFirm ? `<button onclick="routeToFirm('${factor.linkedFirm.replace(/'/g, "\\'")}')" class="text-[10px] bg-gray-200 text-gray-800 hover:bg-gray-300 px-2 py-0.5 rounded-full font-bold shadow-sm border border-gray-300 inline-block mt-2 md:ml-2 shrink-0 transition">🏢 ${factor.linkedFirm}</button>` : '';
-    const competencyBadge = (currentWorkspace === "Interview Vault" && factor.competency) ? `<span class="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold shadow-sm border border-purple-200 mt-2 md:ml-2 inline-block shrink-0">🎯 ${factor.competency}</span>` : '';
-    const scoreBadge = factor.score ? `<span class="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold px-2 py-0.5 rounded-full mt-2 md:ml-2 inline-block shrink-0">🏆 ${factor.score}</span>` : '';
+    const isChecked = typeof selectedFactors !== 'undefined' && selectedFactors.has(originalIndex) ? "checked" : "";
+    
+    const safeConcept = factor.linkedConcept ? String(factor.linkedConcept).replace(/'/g, "\\'") : "";
+    const safeFirm = factor.linkedFirm ? String(factor.linkedFirm).replace(/'/g, "\\'") : "";
+    
+    const nexusBadge = factor.linkedConcept ? `<button onclick="routeToConcept('${safeConcept}')" class="text-[10px] bg-blue-100 text-blue-800 hover:bg-blue-200 px-2 py-0.5 rounded-full font-bold shadow-sm border border-blue-200 inline-block mt-2 shrink-0 transition dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">🔗 ${factor.linkedConcept}</button>` : '';
+    const firmBadge = factor.linkedFirm ? `<button onclick="routeToFirm('${safeFirm}')" class="text-[10px] bg-slate-200 text-slate-800 hover:bg-slate-300 px-2 py-0.5 rounded-full font-bold shadow-sm border border-slate-300 inline-block mt-2 md:ml-2 shrink-0 transition dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">🏢 ${factor.linkedFirm}</button>` : '';
+    const competencyBadge = (currentWorkspace === "Interview Vault" && factor.competency) ? `<span class="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold shadow-sm border border-purple-200 mt-2 md:ml-2 inline-block shrink-0 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800">🎯 ${factor.competency}</span>` : '';
+    const scoreBadge = factor.score ? `<span class="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold px-2 py-0.5 rounded-full mt-2 md:ml-2 inline-block shrink-0 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">🏆 ${factor.score}</span>` : '';
 
     const starHTML = (currentWorkspace === "Interview Vault" && factor.starExport) ? 
-                     `<div class="bg-yellow-50/80 rounded-lg p-4 border border-yellow-200 mt-4 print:bg-white print:border-gray-300"><h5 class="text-yellow-800 font-bold text-xs uppercase mb-2 print:text-black">⭐ STAR Method Export</h5><p class="text-sm text-yellow-900 print:text-black">${factor.starExport}</p></div>` : 
-                     (currentWorkspace === "Interview Vault" ? `<button onclick="exportToStar(${originalIndex})" class="mt-4 w-full md:w-auto bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-bold px-3 py-2 rounded shadow-sm flex items-center justify-center gap-1 print:hidden" id="star-btn-${originalIndex}">⭐ Export to STAR format</button>` : '');
+                     `<div class="bg-amber-50/80 dark:bg-amber-900/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800 mt-4 print:bg-white print:border-slate-300"><h5 class="text-amber-800 dark:text-amber-400 font-bold text-xs uppercase mb-2 print:text-black">⭐ STAR Method Export</h5><p class="text-sm text-amber-900 dark:text-amber-200 print:text-black">${factor.starExport}</p></div>` : 
+                     (currentWorkspace === "Interview Vault" ? `<button onclick="exportToStar(${originalIndex})" class="mt-4 w-full md:w-auto bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded shadow-sm flex items-center justify-center gap-1 print:hidden" id="star-btn-${originalIndex}">⭐ Export to STAR format</button>` : '');
 
     const card = document.createElement("div");
-    card.className = "bg-white border border-gray-200 rounded-xl p-4 md:p-5 shadow-sm print:break-inside-avoid print:border-gray-400 print:shadow-none group cursor-pointer transition hover:border-indigo-300";
+    card.className = "bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-md p-4 md:p-5 shadow-sm print:break-inside-avoid print:border-slate-400 print:shadow-none group cursor-pointer transition hover:border-indigo-400 dark:hover:border-indigo-500";
     
     card.onclick = function(e) {
         if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) return;
         const body = this.querySelector('.nexus-body');
-        const icon = this.querySelector('.nexus-icon');
+        const icon = this.querySelector('.nexus-icon i');
         if(body && icon) {
             body.classList.toggle('hidden');
-            icon.innerText = body.classList.contains('hidden') ? '▼' : '▲';
+            if (body.classList.contains('hidden')) {
+                icon.setAttribute('data-lucide', 'chevron-down');
+            } else {
+                icon.setAttribute('data-lucide', 'chevron-up');
+            }
+            if (window.lucide) window.lucide.createIcons();
             db.factors[originalIndex].isCollapsed = body.classList.contains('hidden');
-            saveDatabase();
+            if (typeof saveDatabase === 'function') saveDatabase();
         }
     };
 
     card.innerHTML = `
       <div class="flex flex-col md:flex-row justify-between md:items-start mb-3 group gap-2">
         <div class="flex items-start gap-3 flex-1">
-          <input type="checkbox" ${isChecked} onchange="toggleFactorSelection(${originalIndex}, event)" class="mt-1 w-5 h-5 text-indigo-600 rounded print:hidden cursor-pointer shrink-0">
+          <input type="checkbox" ${isChecked} onchange="toggleFactorSelection(${originalIndex}, event)" class="mt-1 w-4 h-4 text-indigo-600 rounded print:hidden cursor-pointer shrink-0 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500">
           <div class="flex flex-col min-w-0 w-full">
             <div class="flex justify-between items-start w-full">
-                <h4 class="font-bold text-gray-900 text-sm md:text-base group-hover:text-indigo-600 transition md:pr-4 print:text-black break-words">${factor.title}</h4>
-                <span class="nexus-icon text-gray-400 text-xs ml-2 mt-1 shrink-0 print:hidden">${isCollapsed ? '▼' : '▲'}</span>
+                <h4 class="font-bold text-slate-900 dark:text-white text-sm md:text-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition md:pr-4 print:text-black break-words leading-snug">${factor.title || "Untitled Insight"}</h4>
+                <span class="nexus-icon text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition print:hidden"><i data-lucide="${isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-4 h-4"></i></span>
             </div>
             <div class="flex flex-wrap items-center gap-1">${nexusBadge}${firmBadge}${competencyBadge}${scoreBadge}</div>
           </div>
         </div>
         <div class="flex gap-2 shrink-0 items-center justify-end w-full md:w-auto">
-          <span class="text-[10px] md:text-xs bg-gray-800 text-white px-2 py-1 rounded font-bold uppercase truncate max-w-[150px] print:bg-white print:border print:border-gray-300 print:text-gray-800">${factor.metric || factor.region}</span>
-          <span class="text-[10px] md:text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-bold uppercase print:bg-white print:border print:border-indigo-300 print:text-indigo-800">${factor.pestle}</span>
+          <span class="text-[10px] md:text-xs bg-slate-800 dark:bg-slate-700 text-white px-2 py-1 rounded-sm font-bold uppercase truncate max-w-[150px] print:bg-white print:border print:border-slate-300 print:text-slate-800">${factor.metric || factor.region || "Global"}</span>
+          <span class="text-[10px] md:text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-1 rounded-sm font-bold uppercase border border-transparent dark:border-indigo-800 print:bg-white print:border print:border-indigo-300 print:text-indigo-800">${factor.pestle || "Assessment"}</span>
         </div>
       </div>
-      <div class="nexus-body ${isCollapsed ? 'hidden print:block' : 'block'} border-t border-gray-100 pt-4 mt-4 print:border-gray-300 cursor-text" onclick="event.stopPropagation()">
+      <div class="nexus-body ${isCollapsed ? 'hidden print:block' : 'block'} border-t border-slate-100 dark:border-slate-800 pt-4 mt-4 print:border-slate-300 cursor-text" onclick="event.stopPropagation()">
         
-        <div class="prose prose-sm max-w-none text-gray-700 mb-4 print:text-black dict-highlight-target">${factor.description || ""}</div>
+        <div class="prose prose-sm md:prose-base max-w-none text-slate-700 dark:text-slate-200 mb-4 print:text-black dict-highlight-target dark:prose-invert">${factor.description || ""}</div>
         
         ${currentWorkspace !== "Interview Vault" ? `
-        <div class="bg-indigo-50/50 rounded-lg p-3 md:p-4 border border-indigo-100 print:bg-white print:border-gray-300">
+        <div class="bg-indigo-50/50 dark:bg-indigo-900/10 rounded-lg p-3 md:p-4 border border-indigo-100 dark:border-indigo-800/50 print:bg-white print:border-slate-300">
           <div class="flex flex-col md:flex-row justify-between md:items-center mb-2 gap-2">
-            <span class="text-xs font-bold text-indigo-800 uppercase tracking-wider print:text-black">Implications</span>
-            <button onclick="synthesizeFactorAi(${originalIndex})" class="w-full md:w-auto text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold py-1.5 md:py-1 px-3 rounded transition flex justify-center items-center gap-1 shadow-sm print:hidden shrink-0">✨ Synthesize AI</button>
+            <span class="text-xs font-bold text-indigo-800 dark:text-indigo-400 uppercase tracking-wider print:text-black flex items-center gap-1.5"><i data-lucide="zap" class="w-3.5 h-3.5"></i> Implications</span>
+            <button onclick="synthesizeFactorAi(${originalIndex})" class="w-full md:w-auto text-xs bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-bold py-1.5 md:py-1 px-3 rounded-sm transition flex justify-center items-center gap-1.5 shadow-sm print:hidden shrink-0 border border-indigo-200 dark:border-indigo-700"><i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Synthesize AI</button>
           </div>
-          <div class="prose prose-sm max-w-none text-gray-700 print:text-black dict-highlight-target" id="implication-text-${originalIndex}">${factor.implications || "<p>Click 'Synthesize AI' to generate.</p>"}</div>
+          <div class="prose prose-sm max-w-none text-slate-700 dark:text-slate-300 print:text-black dict-highlight-target dark:prose-invert" id="implication-text-${originalIndex}">${factor.implications || "<p>Click 'Synthesize AI' to generate commercial implications.</p>"}</div>
         </div>` : ''}
         ${starHTML}
         <div class="mt-4 flex gap-3 print:hidden">
-          <button onclick="openEditModal(${originalIndex})" class="flex-1 md:flex-none text-xs bg-gray-100 hover:bg-gray-200 text-indigo-600 font-bold py-1.5 md:py-1 px-3 rounded transition">Edit / Move</button>
-          <button onclick="deleteFactor(${originalIndex})" class="flex-1 md:flex-none text-xs bg-red-50 hover:bg-red-100 text-red-600 font-bold py-1.5 md:py-1 px-3 rounded transition">Delete</button>
+          <button onclick="openEditModal(${originalIndex})" class="flex-1 md:flex-none text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold py-1.5 px-3 rounded-sm transition flex justify-center items-center gap-1.5"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit / Move</button>
+          <button onclick="deleteFactor(${originalIndex})" class="flex-1 md:flex-none text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-bold py-1.5 px-3 rounded-sm transition flex justify-center items-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</button>
         </div>
       </div>
     `;
     container.appendChild(card);
   });
-  applyDictionaryHighlighting("cardsContainer");
+  
+  if (window.lucide) window.lucide.createIcons();
+  if (typeof applyDictionaryHighlighting === 'function') applyDictionaryHighlighting("cardsContainer");
 }
 
 function saveManualFactor() {

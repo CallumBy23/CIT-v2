@@ -44,12 +44,33 @@ async function loadDatabase() {
 
     db.playbooks = db.playbooks || {}; 
 
-    updateNexusDropdowns();
-    if(appState === "INTELLIGENCE") { document.getElementById("sortFeed").value = uiPrefs.intelSort; renderTabs(); renderFeed(); }
-    else if (appState === "CONCEPTS") { document.getElementById("sortConcepts").value = uiPrefs.conceptSort; renderTabs(); renderConcepts(); }
-    else if (appState === "DOSSIERS") { document.getElementById("sortDossiers").value = uiPrefs.dossierSort || "deadline"; renderDossierList(); }
-    else if (appState === "PLAYBOOKS") { if(typeof renderPlaybookList === 'function') renderPlaybookList(); }
-    else if (appState === "DICTIONARY") { document.getElementById("sortDictionary").value = uiPrefs.dictSort; renderDictionary(); }
+    if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
+    
+    if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { 
+        const sortEl = document.getElementById("sortFeed");
+        if (sortEl) sortEl.value = uiPrefs.intelSort || "newest"; 
+        renderTabs(); 
+        renderFeed(); 
+    }
+    else if (appState === "CONCEPTS" && typeof renderConcepts === 'function') { 
+        const sortEl = document.getElementById("sortConcepts");
+        if (sortEl) sortEl.value = uiPrefs.conceptSort || "newest"; 
+        renderTabs(); 
+        renderConcepts(); 
+    }
+    else if (appState === "DOSSIERS" && typeof renderDossierList === 'function') { 
+        const sortEl = document.getElementById("sortDossiers");
+        if (sortEl) sortEl.value = uiPrefs.dossierSort || "deadline"; 
+        renderDossierList(); 
+    }
+    else if (appState === "PLAYBOOKS" && typeof renderPlaybookList === 'function') { 
+        renderPlaybookList(); 
+    }
+    else if (appState === "DICTIONARY" && typeof renderDictionary === 'function') { 
+        const sortEl = document.getElementById("sortDictionary");
+        if (sortEl) sortEl.value = uiPrefs.dictSort || "az"; 
+        renderDictionary(); 
+    }
     
     try {
         const response = await fetch(SCRIPT_URL);
@@ -58,47 +79,46 @@ async function loadDatabase() {
           const loadedDb = await response.json();
           const serverLastUpdated = loadedDb.lastUpdated || 0;
         
-        const localDataCount = (db.factors?.length || 0) + (db.concepts?.length || 0);
-        const serverDataCount = (loadedDb.factors?.length || 0) + (loadedDb.concepts?.length || 0);
+          const localDataCount = (db.factors?.length || 0) + (db.concepts?.length || 0) + (db.dictionary?.length || 0);
+          const serverDataCount = (loadedDb.factors?.length || 0) + (loadedDb.concepts?.length || 0) + (loadedDb.dictionary?.length || 0);
+          
+          const isServerNewer = serverLastUpdated > localLastUpdated;
+          const isServerHeavier = serverDataCount > localDataCount;
+          
+          if (loadedDb && !loadedDb.error && typeof loadedDb === "object" && !Array.isArray(loadedDb)) {
+              if (isServerNewer || isServerHeavier || localDataCount === 0) {
+                  db = {
+                      workspaces: loadedDb.workspaces || db.workspaces,
+                      factors: (loadedDb.factors && loadedDb.factors.length > 0) ? loadedDb.factors : (db.factors || []),
+                      conceptCategories: loadedDb.conceptCategories || db.conceptCategories,
+                      dictCategories: loadedDb.dictCategories || db.dictCategories, 
+                      concepts: (loadedDb.concepts && loadedDb.concepts.length > 0) ? loadedDb.concepts : (db.concepts || []),
+                      dossiers: (loadedDb.dossiers && Object.keys(loadedDb.dossiers).length > 0) ? loadedDb.dossiers : (db.dossiers || {}),
+                      dictionary: (loadedDb.dictionary && loadedDb.dictionary.length > 0) ? loadedDb.dictionary : (db.dictionary || []),
+                      targetFirms: (loadedDb.targetFirms && loadedDb.targetFirms.length > 0) ? loadedDb.targetFirms : (db.targetFirms || []),
+                      macroMetrics: loadedDb.macroMetrics || db.macroMetrics || {}, 
+                      playbooks: loadedDb.playbooks || db.playbooks || {},
+                      lastUpdated: serverLastUpdated > 0 ? serverLastUpdated : new Date().getTime()
+                  };
+                  if (!db.conceptCategories.includes("Interview Vault")) db.conceptCategories.push("Interview Vault");
+                  if (!db.workspaces.includes("Interview Vault")) db.workspaces.push("Interview Vault");
         
-        const isServerNewer = serverLastUpdated >= localLastUpdated;
-        const isServerHeavier = serverDataCount > localDataCount;
-        
-        if (loadedDb && !loadedDb.error && typeof loadedDb === "object" && !Array.isArray(loadedDb)) {
-            
-            if (isServerNewer || isServerHeavier) {
-                db = {
-                    workspaces: loadedDb.workspaces || db.workspaces,
-                    factors: loadedDb.factors || [],
-                    conceptCategories: loadedDb.conceptCategories || db.conceptCategories,
-                    dictCategories: loadedDb.dictCategories || db.dictCategories, 
-                    concepts: loadedDb.concepts || [],
-                    dossiers: loadedDb.dossiers || {},
-                    dictionary: loadedDb.dictionary || [],
-                    targetFirms: loadedDb.targetFirms || [],
-                    macroMetrics: loadedDb.macroMetrics || {}, 
-                    playbooks: loadedDb.playbooks || db.playbooks || {},
-                    lastUpdated: serverLastUpdated > 0 ? serverLastUpdated : new Date().getTime()
-                };
-                if (!db.conceptCategories.includes("Interview Vault")) db.conceptCategories.push("Interview Vault");
-                if (!db.workspaces.includes("Interview Vault")) db.workspaces.push("Interview Vault");
-      
-                saveToLocalCache();
-                setOnlineStatus(true);
-                
-                updateNexusDropdowns();
-                if(appState === "INTELLIGENCE") { renderTabs(); renderFeed(); }
-                else if (appState === "CONCEPTS") { renderTabs(); renderConcepts(); }
-                else if (appState === "DOSSIERS") { renderDossierList(); }
-                else if (appState === "PLAYBOOKS") { if(typeof renderPlaybookList === 'function') renderPlaybookList(); }
-                else if (appState === "DICTIONARY") { renderDictionary(); }
-                
-            } else if (serverLastUpdated < localLastUpdated) {
-                setOnlineStatus(true, "Local data is newer. Syncing up to cloud on next save.");
-            }
-        } else {
-            setOnlineStatus(false, loadedDb.error || "Received malformed data or an internal Apps Script error.");
-        }
+                  saveToLocalCache();
+                  setOnlineStatus(true);
+                  
+                  if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
+                  
+                  if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { renderTabs(); renderFeed(); }
+                  else if (appState === "CONCEPTS" && typeof renderConcepts === 'function') { renderTabs(); renderConcepts(); }
+                  else if (appState === "DOSSIERS" && typeof renderDossierList === 'function') { renderDossierList(); }
+                  else if (appState === "PLAYBOOKS" && typeof renderPlaybookList === 'function') { renderPlaybookList(); }
+                  else if (appState === "DICTIONARY" && typeof renderDictionary === 'function') { renderDictionary(); }
+              } else if (serverLastUpdated < localLastUpdated) {
+                  setOnlineStatus(true, "Local data is newer. Syncing up to cloud on next save.");
+              }
+          } else {
+              setOnlineStatus(false, loadedDb.error || "Received malformed data or an internal Apps Script error.");
+          }
       } else {
           setOnlineStatus(false, `HTTP Error: ${response.status} - ${response.statusText}`);
       }
@@ -107,7 +127,7 @@ async function loadDatabase() {
     }
     
     if(typeof window.renderMacroWidget === 'function') window.renderMacroWidget();
-    checkDailyBriefing();
+    if(typeof checkDailyBriefing === 'function') checkDailyBriefing();
 }
   
 async function saveDatabase() {
@@ -141,7 +161,8 @@ function saveToLocalCache() {
     } catch (e) {
         if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
             console.warn("LocalStorage quota exceeded! Your diagrams/rich text are too large for offline cache. Continuing to sync to cloud...");
-            document.getElementById('statusText').innerText = "Syncing (Cache Full)";
+            const statusText = document.getElementById('statusText');
+            if (statusText) statusText.innerText = "Syncing (Cache Full)";
         }
     }
 }
@@ -149,6 +170,7 @@ function saveToLocalCache() {
 function setOnlineStatus(isOnline, errorMsg = "") {
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');
+    if (!dot || !text) return;
     
     if (isOnline) {
         dot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]";
@@ -158,15 +180,11 @@ function setOnlineStatus(isOnline, errorMsg = "") {
         dot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]";
         text.innerText = "Offline (Hover for Error)";
         text.title = errorMsg;
-        if (errorMsg && !window.hasAlertedError) { 
-            alert("Database Debug Error:\n\n" + errorMsg);
-            window.hasAlertedError = true;
-        }
     }
 }
   
 function openManualBriefing() {
-    checkDailyBriefing(true);
+    if(typeof checkDailyBriefing === 'function') checkDailyBriefing(true);
 }
   
 function checkDailyBriefing(isManual = false) {
@@ -179,11 +197,11 @@ function checkDailyBriefing(isManual = false) {
     
     let urgentFirms = [];
     for (const [firm, data] of Object.entries(db.dossiers || {})) {
-        if (data.applied) continue;
+        if (!data || data.applied) continue;
 
         if (data.schemes && data.schemes.length > 0) {
             data.schemes.forEach(s => {
-                if(s.closeDate && !s.applied) {
+                if(s && s.closeDate && !s.applied) {
                     const close = new Date(s.closeDate);
                     close.setHours(0,0,0,0);
                     const open = s.openDate ? new Date(s.openDate) : null;
@@ -214,8 +232,8 @@ function checkDailyBriefing(isManual = false) {
         briefingHTML += `</ul>`;
     }
   
-    const dueConcepts = (db.concepts || []).filter(c => c.srs && c.srs.nextReview <= new Date().getTime() && c.category !== "Interview Vault");
-    const dueDictTerms = (db.dictionary || []).filter(d => d.srs && d.srs.nextReview <= new Date().getTime());
+    const dueConcepts = (db.concepts || []).filter(c => c && c.srs && c.srs.nextReview <= new Date().getTime() && c.category !== "Interview Vault");
+    const dueDictTerms = (db.dictionary || []).filter(d => d && d.srs && d.srs.nextReview <= new Date().getTime());
     const totalDue = dueConcepts.length + dueDictTerms.length;
 
     if (totalDue > 0) {
@@ -226,14 +244,14 @@ function checkDailyBriefing(isManual = false) {
         if (dueConcepts.length > 0) {
             briefingHTML += `<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 rounded-lg shadow-sm">
                 <p class="text-sm text-blue-900 dark:text-blue-200 mb-2">You have <strong>${dueConcepts.length}</strong> core concepts due for memory review.</p>
-                <button onclick="switchState('CONCEPTS'); document.getElementById('dailyBriefingModal').classList.add('hidden'); setTimeout(() => startFlashcardSession('concepts'), 300);" class="text-xs bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-bold px-3 py-2 rounded transition shadow-md w-full">Review Concepts</button>
+                <button onclick="switchState('CONCEPTS'); document.getElementById('dailyBriefingModal').classList.add('hidden'); setTimeout(() => openFlashcardDashboard('concepts'), 300);" class="text-xs bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-bold px-3 py-2 rounded transition shadow-md w-full">Review Concepts</button>
             </div>`;
         }
 
         if (dueDictTerms.length > 0) {
             briefingHTML += `<div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-3 rounded-lg shadow-sm">
                 <p class="text-sm text-purple-900 dark:text-purple-200 mb-2">You have <strong>${dueDictTerms.length}</strong> dictionary terms due for memory review.</p>
-                <button onclick="switchState('DICTIONARY'); document.getElementById('dailyBriefingModal').classList.add('hidden'); setTimeout(() => startFlashcardSession('dictionary'), 300);" class="text-xs bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white font-bold px-3 py-2 rounded transition shadow-md w-full">Review Dictionary</button>
+                <button onclick="switchState('DICTIONARY'); document.getElementById('dailyBriefingModal').classList.add('hidden'); setTimeout(() => openFlashcardDashboard('dictionary'), 300);" class="text-xs bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white font-bold px-3 py-2 rounded transition shadow-md w-full">Review Dictionary</button>
             </div>`;
         }
 

@@ -37,8 +37,8 @@ window.saveConceptEditFn = function() {
             db.concepts[idx].category = catEl.value;
         }
         
-        if (typeof editQuillEditor !== 'undefined') {
-            db.concepts[idx].body = editQuillEditor.root.innerHTML;
+        if (window.editQuillEditor) {
+            db.concepts[idx].body = window.editQuillEditor.root.innerHTML;
         }
         
         if(typeof saveDatabase === 'function') saveDatabase();
@@ -64,7 +64,8 @@ window.recordActivity = function() {
         streakData.last = today;
         localStorage.setItem('LEGAL_NEXUS_STREAK', JSON.stringify(streakData));
     }
-    document.getElementById('streakCount').innerText = streakData.count;
+    const streakEl = document.getElementById('streakCount');
+    if (streakEl) streakEl.innerText = streakData.count;
 };
 
 window.initStreak = function() {
@@ -77,7 +78,8 @@ window.initStreak = function() {
     if (streakData.last !== today && streakData.last !== yesterdayStr) {
         streakData.count = 0; 
     }
-    document.getElementById('streakCount').innerText = streakData.count;
+    const streakEl = document.getElementById('streakCount');
+    if (streakEl) streakEl.innerText = streakData.count;
 };
 
 window.runAutoTagger = function(text) {
@@ -97,12 +99,12 @@ window.runAutoTagger = function(text) {
 
 window.routeToFirm = function(firmName) {
     if (typeof closeOmnibar === 'function') closeOmnibar();
-    const cleanName = String(firmName).trim().toLowerCase();
+    const cleanName = String(firmName || "").trim().toLowerCase();
     
-    let foundFirm = (db.targetFirms || []).find(f => f.toLowerCase() === cleanName);
+    let foundFirm = (db.targetFirms || []).find(f => String(f || "").toLowerCase() === cleanName);
     if (!foundFirm) {
         const dossierKeys = Object.keys(db.dossiers || {});
-        foundFirm = dossierKeys.find(f => f.toLowerCase() === cleanName);
+        foundFirm = dossierKeys.find(f => String(f || "").toLowerCase() === cleanName);
     }
     
     if(foundFirm) {
@@ -120,15 +122,15 @@ window.routeToFirm = function(firmName) {
 
 window.routeToConcept = function(conceptName) {
     if (typeof closeOmnibar === 'function') closeOmnibar();
-    const cleanSearchTerm = String(conceptName).trim().toLowerCase();
-    const concept = (db.concepts || []).find(c => (c.title || "").trim().toLowerCase() === cleanSearchTerm);
+    const cleanSearchTerm = String(conceptName || "").trim().toLowerCase();
+    const concept = (db.concepts || []).find(c => c && String(c.title || "").trim().toLowerCase() === cleanSearchTerm);
 
     if (typeof currentConceptCategory !== 'undefined') currentConceptCategory = "All"; 
 
     const searchBox = document.getElementById("searchConcepts");
     if (searchBox) searchBox.value = concept ? concept.title : conceptName;
 
-    switchState('CONCEPTS');
+    switchState('DASHBOARD');
     if (typeof renderConcepts === 'function') renderConcepts();
     if (typeof renderTabs === 'function') renderTabs();
 };
@@ -168,82 +170,81 @@ window.saveQuickAdd = function() {
 };
 
 window.onload = async () => {
-  const currentTheme = localStorage.getItem('theme');
-  if (currentTheme === 'dark' || (!currentTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
-  }
-  initStreak();
-
-  if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(err => console.log('Service Worker failed:', err));
-  }
-
-  const cachedPrefs = localStorage.getItem('LEGAL_NEXUS_UIPREFS');
-  if (cachedPrefs) {
-      try { 
-          uiPrefs = { ...uiPrefs, ...JSON.parse(cachedPrefs) }; 
-          dossierSortMode = uiPrefs.dossierSort || "deadline";
-      } catch(e){}
-  }
-
-  try {
-      const initQuill = (selector, options) => {
-          const el = document.querySelector(selector);
-          return el ? new Quill(el, options) : null;
-      };
-
-      quillEditor = initQuill('#conceptBodyQuill', { modules: { toolbar: '#quillToolbar' }, theme: 'snow' });
-      editQuillEditor = initQuill('#editConceptBodyQuill', { modules: { toolbar: '#editConceptToolbar' }, theme: 'snow' });
-      
-      cultureQuill = initQuill('#dossierCultureQuill', { modules: { toolbar: '#toolbar-culture' }, theme: 'snow' });
-      personalWhyQuill = initQuill('#dossierPersonalWhyQuill', { modules: { toolbar: '#toolbar-personal-why' }, theme: 'snow' });
-      compModalQuill = initQuill('#compModalQuill', { modules: { toolbar: '#toolbar-comp-modal' }, theme: 'snow' });
-      practiceQuill = initQuill('#practiceModalQuill', { modules: { toolbar: '#toolbar-practice-modal' }, theme: 'snow' });
-      clientsQuill = initQuill('#clientsModalQuill', { modules: { toolbar: '#toolbar-clients-modal' }, theme: 'snow' });
-
-      intelLogQuill = initQuill('#logContextQuill', { modules: { toolbar: '#toolbar-intel-log' }, theme: 'snow', placeholder: 'Commercial Context & Facts...' });
-      intelEditDescQuill = initQuill('#editDescriptionQuill', { modules: { toolbar: '#toolbar-intel-edit-desc' }, theme: 'snow' });
-      intelEditImplQuill = initQuill('#editImplicationsQuill', { modules: { toolbar: '#toolbar-intel-edit-impl' }, theme: 'snow' });
-
-      [quillEditor, editQuillEditor, cultureQuill, personalWhyQuill, compModalQuill, practiceQuill, clientsQuill, intelLogQuill, intelEditDescQuill, intelEditImplQuill].forEach(q => {
-        if (q) {
-            q.root.setAttribute('spellcheck', 'true');
-            q.root.setAttribute('lang', 'en-GB');
-            if (typeof scheduleAutoSave === 'function') q.on('text-change', scheduleAutoSave);
-        }
-      });
-
-      if (intelLogQuill) {
-          intelLogQuill.on('text-change', () => {
-              runAutoTagger(intelLogQuill.getText());
-          });
-      }
-
-      if (typeof initCanvasEvents === 'function') initCanvasEvents();
-      if (typeof initOmnibarListener === 'function') initOmnibarListener();
-      if (typeof initAutoSaveListeners === 'function') initAutoSaveListeners();
-      
-      window.addEventListener('offline', () => setOnlineStatus(false, "Network disconnected."));
-      window.addEventListener('online', () => setOnlineStatus(true));
-  } catch(e) {
-      console.error("Initialization error:", e);
-  }
+    const currentTheme = localStorage.getItem('theme');
+    if (currentTheme === 'dark' || (!currentTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+    }
+    initStreak();
   
-  if (typeof saveDatabase === 'function') {
-      const originalSaveDatabase = saveDatabase;
-      window.saveDatabase = async function() {
-          recordActivity();
-          return originalSaveDatabase.apply(this, arguments);
-      };
-  }
-
-  if(typeof window.renderAlphabetBar === 'function') {
-      window.renderAlphabetBar('concepts');
-      window.renderAlphabetBar('dictionary');
-  }
-
-  if(typeof window.updateReverseToggleUI === 'function') window.updateReverseToggleUI();
-
-  switchState("INTELLIGENCE");
-  if (typeof loadDatabase === 'function') await loadDatabase();
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('Service Worker failed:', err));
+    }
+  
+    const cachedPrefs = localStorage.getItem('LEGAL_NEXUS_UIPREFS');
+    if (cachedPrefs) {
+        try { 
+            uiPrefs = { ...uiPrefs, ...JSON.parse(cachedPrefs) }; 
+            dossierSortMode = uiPrefs.dossierSort || "deadline";
+        } catch(e){}
+    }
+  
+    try {
+        const initQuill = (selector, options) => {
+            const el = document.querySelector(selector);
+            return el ? new Quill(el, options) : null;
+        };
+  
+        // Explicitly bind to window to prevent Strict-Mode crashes
+        window.quillEditor = initQuill('#conceptBodyQuill', { modules: { toolbar: '#quillToolbar' }, theme: 'snow' });
+        window.editQuillEditor = initQuill('#editConceptBodyQuill', { modules: { toolbar: '#editConceptToolbar' }, theme: 'snow' });
+        window.cultureQuill = initQuill('#dossierCultureQuill', { modules: { toolbar: '#toolbar-culture' }, theme: 'snow' });
+        window.personalWhyQuill = initQuill('#dossierPersonalWhyQuill', { modules: { toolbar: '#toolbar-personal-why' }, theme: 'snow' });
+        window.compModalQuill = initQuill('#compModalQuill', { modules: { toolbar: '#toolbar-comp-modal' }, theme: 'snow' });
+        window.practiceQuill = initQuill('#practiceModalQuill', { modules: { toolbar: '#toolbar-practice-modal' }, theme: 'snow' });
+        window.clientsQuill = initQuill('#clientsModalQuill', { modules: { toolbar: '#toolbar-clients-modal' }, theme: 'snow' });
+        window.intelLogQuill = initQuill('#logContextQuill', { modules: { toolbar: '#toolbar-intel-log' }, theme: 'snow', placeholder: 'Commercial Context & Facts...' });
+        window.intelEditDescQuill = initQuill('#editDescriptionQuill', { modules: { toolbar: '#toolbar-intel-edit-desc' }, theme: 'snow' });
+        window.intelEditImplQuill = initQuill('#editImplicationsQuill', { modules: { toolbar: '#toolbar-intel-edit-impl' }, theme: 'snow' });
+  
+        [window.quillEditor, window.editQuillEditor, window.cultureQuill, window.personalWhyQuill, window.compModalQuill, window.practiceQuill, window.clientsQuill, window.intelLogQuill, window.intelEditDescQuill, window.intelEditImplQuill].forEach(q => {
+          if (q) {
+              q.root.setAttribute('spellcheck', 'true');
+              q.root.setAttribute('lang', 'en-GB');
+              if (typeof scheduleAutoSave === 'function') q.on('text-change', scheduleAutoSave);
+          }
+        });
+  
+        if (window.intelLogQuill) {
+            window.intelLogQuill.on('text-change', () => {
+                runAutoTagger(window.intelLogQuill.getText());
+            });
+        }
+  
+        if (typeof initCanvasEvents === 'function') initCanvasEvents();
+        if (typeof initOmnibarListener === 'function') initOmnibarListener();
+        if (typeof initAutoSaveListeners === 'function') initAutoSaveListeners();
+        
+        window.addEventListener('offline', () => { if (typeof setOnlineStatus === 'function') setOnlineStatus(false, "Network disconnected."); });
+        window.addEventListener('online', () => { if (typeof setOnlineStatus === 'function') setOnlineStatus(true); });
+    } catch(e) {
+        console.error("Initialization error:", e);
+    }
+    
+    if (typeof saveDatabase === 'function') {
+        const originalSaveDatabase = saveDatabase;
+        window.saveDatabase = async function() {
+            recordActivity();
+            return originalSaveDatabase.apply(this, arguments);
+        };
+    }
+  
+    if(typeof window.renderAlphabetBar === 'function') {
+        window.renderAlphabetBar('concepts');
+        window.renderAlphabetBar('dictionary');
+    }
+  
+    if(typeof window.updateReverseToggleUI === 'function') window.updateReverseToggleUI();
+  
+    switchState("DASHBOARD");
+    if (typeof loadDatabase === 'function') await loadDatabase();
 };

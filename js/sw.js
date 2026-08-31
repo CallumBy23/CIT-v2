@@ -1,10 +1,11 @@
-const CACHE_NAME = 'legal-nexus-cache-v2';
+const CACHE_NAME = 'legal-nexus-cache-v3'; // Bumped to v3 to force cache flush
 const urlsToCache = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './icon.jpg',
+  './icon.png', // Fixed to .png to match your manifest
   './css/styles.css',
+  './css/overrides.css', // Added missing css
   './js/config.js',
   './js/utils.js',
   './js/database.js',
@@ -15,10 +16,16 @@ const urlsToCache = [
   './js/intel.js',
   './js/concepts.js',
   './js/dossiers.js',
-  './js/ai-engine.js'
+  './js/ai-engine.js',
+  './js/graph.js',
+  './js/playbooks.js', // Added missing file
+  './js/dashboard.js', // Added missing file
+  './js/main.js'       // Added missing file
 ];
 
 self.addEventListener('install', event => {
+  // Force the waiting service worker to become the active service worker
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
@@ -31,6 +38,8 @@ self.addEventListener('fetch', event => {
 });
 
 self.addEventListener('activate', event => {
+  // Claim clients immediately so the new SW takes control
+  event.waitUntil(self.clients.claim());
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
