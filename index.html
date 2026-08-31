@@ -518,10 +518,36 @@
                                     window.saveMacroMetrics = function(event) {
                                         if(typeof db === 'undefined') return;
                                         db.macroMetrics = db.macroMetrics || {};
+                                        db.macroMetrics.history = db.macroMetrics.history || {};
+                                        
+                                        const nowMs = new Date().getTime();
                                         
                                         metricKeys.forEach(id => {
                                             const el = document.getElementById(id);
-                                            if (el) db.macroMetrics[id] = el.value;
+                                            if (el && el.value.trim() !== '') {
+                                                db.macroMetrics[id] = el.value;
+                                                
+                                                // Extract the raw number to graph it (removes %, $, commas)
+                                                const numVal = parseFloat(el.value.replace(/[^0-9.-]+/g,""));
+                                                
+                                                if (!isNaN(numVal)) {
+                                                    db.macroMetrics.history[id] = db.macroMetrics.history[id] || [];
+                                                    const hist = db.macroMetrics.history[id];
+                                                    
+                                                    if (hist.length > 0) {
+                                                        // Prevent duplicate entries on the same day; just overwrite today's value
+                                                        const lastDate = new Date(hist[hist.length-1].d);
+                                                        const todayDate = new Date(nowMs);
+                                                        if (lastDate.toDateString() === todayDate.toDateString()) {
+                                                            hist[hist.length-1].v = numVal; 
+                                                        } else {
+                                                            hist.push({ d: nowMs, v: numVal });
+                                                        }
+                                                    } else {
+                                                        hist.push({ d: nowMs, v: numVal });
+                                                    }
+                                                }
+                                            }
                                         });
                                         
                                         const intEl = document.getElementById('macroInterval');
@@ -540,6 +566,9 @@
                                                 btn.innerHTML = originalText;
                                                 if (window.lucide) window.lucide.createIcons();
                                             }, 2000);
+                                            
+                                            // Instantly re-render the dashboard graphs with the new data point
+                                            if(typeof renderDashboard === 'function') renderDashboard();
                                         }
                                     };
 

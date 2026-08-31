@@ -46,8 +46,10 @@ async function loadDatabase() {
 
     if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
     
-    if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { 
+    if(appState === "DASHBOARD" && typeof renderDashboard === 'function') { renderDashboard(); }
+    else if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { 
         const sortEl = document.getElementById("sortFeed");
+        // ... rest of code
         if (sortEl) sortEl.value = uiPrefs.intelSort || "newest"; 
         renderTabs(); 
         renderFeed(); 
@@ -107,9 +109,9 @@ async function loadDatabase() {
                   setOnlineStatus(true);
                   
                   if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
-                  
-                  if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { renderTabs(); renderFeed(); }
-                  else if (appState === "CONCEPTS" && typeof renderConcepts === 'function') { renderTabs(); renderConcepts(); }
+                
+                if(appState === "DASHBOARD" && typeof renderDashboard === 'function') { renderDashboard(); }
+                  else if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { renderTabs(); renderFeed(); }
                   else if (appState === "DOSSIERS" && typeof renderDossierList === 'function') { renderDossierList(); }
                   else if (appState === "PLAYBOOKS" && typeof renderPlaybookList === 'function') { renderPlaybookList(); }
                   else if (appState === "DICTIONARY" && typeof renderDictionary === 'function') { renderDictionary(); }
