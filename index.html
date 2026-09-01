@@ -9,6 +9,8 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   
   <!-- Fonts: Inter (UI) & Merriweather (Headings) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,6 +45,24 @@
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/overrides.css">
   <style>
+    /* DYNAMIC ISLAND & SAFE AREA COMPATIBILITY UTILITIES */
+    :root {
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+    }
+    .pt-safe { padding-top: var(--sat) !important; }
+    .pb-safe { padding-bottom: var(--sab) !important; }
+    .pl-safe { padding-left: var(--sal) !important; }
+    .pr-safe { padding-right: var(--sar) !important; }
+    .mt-safe { margin-top: var(--sat) !important; }
+    .mb-safe { margin-bottom: var(--sab) !important; }
+
+    /* SMART SAFE AREA PADDINGS: Preserves 24px desktop padding while protecting against iPhone notches */
+    .pt-safe-sidebar { padding-top: max(1.5rem, var(--sat)) !important; }
+    .pb-safe-sidebar { padding-bottom: max(1.5rem, var(--sab)) !important; }
+
     /* ENTERPRISE UI OVERRIDES */
     #mainTabsWrapper {
         background-color: transparent !important;
@@ -60,10 +80,10 @@
         box-shadow: none !important;
     }
 
-    #cardsContainer > div, #conceptsContainer > div, #dossierNexusFeed > div, #dictionaryContainer > div {
+    #cardsContainer > div, #conceptsContainer > div, #dossierNexusFeed > div, #dictionaryContainer > div, #vaultContainer > div {
         transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
     }
-    #cardsContainer > div:hover, #conceptsContainer > div:hover, #dossierNexusFeed > div:hover, #dictionaryContainer > div:hover {
+    #cardsContainer > div:hover, #conceptsContainer > div:hover, #dossierNexusFeed > div:hover, #dictionaryContainer > div:hover, #vaultContainer > div:hover {
         transform: translateY(-2px);
         box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025) !important;
         border-color: #cbd5e1 !important;
@@ -72,20 +92,23 @@
     .dark #cardsContainer > div, 
     .dark #conceptsContainer > div, 
     .dark #dictionaryContainer > div, 
-    .dark #dossierNexusFeed > div {
+    .dark #dossierNexusFeed > div,
+    .dark #vaultContainer > div {
         background-color: #0f172a !important; 
         border-color: #1e293b !important;
     }
     .dark #cardsContainer > div:hover, 
     .dark #conceptsContainer > div:hover, 
     .dark #dictionaryContainer > div:hover, 
-    .dark #dossierNexusFeed > div:hover {
+    .dark #dossierNexusFeed > div:hover,
+    .dark #vaultContainer > div:hover {
         border-color: #334155 !important;
         box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3) !important;
     }
     .dark #cardsContainer > div h4, 
     .dark #conceptsContainer > div h4, 
-    .dark #dictionaryContainer > div h4 {
+    .dark #dictionaryContainer > div h4,
+    .dark #vaultContainer > div h4 {
         color: #f8fafc !important; 
     }
     .dark .nexus-body .prose, .dark .dict-highlight-target {
@@ -102,6 +125,22 @@
     /* Bulletproof Sidebar Collapse Classes */
     .sidebar-hidden { display: none !important; }
     .sidebar-visible { display: flex !important; position: absolute; z-index: 100; height: 100%; top: 0; left: 0; box-shadow: 10px 0 25px rgba(0,0,0,0.5); }
+    
+    /* Bulletproof Sidebar Light/Dark Standardization */
+    #mainSidebar nav button:not(.bg-indigo-600) { color: #475569 !important; background-color: transparent !important; }
+    #mainSidebar nav button:not(.bg-indigo-600):hover { background-color: #f1f5f9 !important; color: #0f172a !important; }
+    .dark #mainSidebar nav button:not(.bg-indigo-600) { color: #94a3b8 !important; background-color: transparent !important; }
+    .dark #mainSidebar nav button:not(.bg-indigo-600):hover { background-color: #1e293b !important; color: #f8fafc !important; }
+
+    /* Eliminate Double-Boxing on Quill Editors */
+    .ql-container.ql-snow { border: none !important; }
+    .ql-toolbar.ql-snow { 
+        border-top: none !important; 
+        border-left: none !important; 
+        border-right: none !important; 
+        border-bottom: 1px solid #e2e8f0 !important; 
+    }
+    .dark .ql-toolbar.ql-snow { border-bottom-color: #1e293b !important; }
   </style>
   <script>
     // Global safety nets
@@ -119,6 +158,18 @@
             sb.classList.toggle('sidebar-visible');
         }
     };
+
+    window.togglePlaybookSidebarDesktop = function(btn) {
+        const sb = document.getElementById("playbooksSidebar");
+        if (!sb) return;
+        sb.classList.toggle("!hidden");
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.setAttribute('data-lucide', sb.classList.contains("!hidden") ? 'panel-left' : 'panel-left-close');
+            if (window.lucide) window.lucide.createIcons();
+        }
+        if (typeof window.resetPlaybookView === 'function') setTimeout(window.resetPlaybookView, 300);
+    };
   </script>
 </head>
 <body class="text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-[#0b1120] font-sans overflow-hidden transition-colors duration-300">
@@ -130,7 +181,7 @@
   </div>
 
   <!-- GLOBAL OMNIBAR -->
-  <div id="omnibarContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] hidden flex-col items-center pt-[10vh] px-4 pb-safe print:hidden" onclick="if(event.target===this) closeOmnibar()">
+  <div id="omnibarContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] hidden flex-col items-center pt-[10vh] px-4 pb-safe pt-safe print:hidden" onclick="if(event.target===this) closeOmnibar()">
     <div class="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-md shadow-2xl overflow-hidden flex flex-col animate-fade-in-up border border-slate-300 dark:border-slate-700">
         <div class="flex items-center px-4 py-3 border-b border-slate-200 dark:border-slate-800">
             <i data-lucide="search" class="w-5 h-5 text-slate-400 mr-3"></i>
@@ -142,7 +193,7 @@
   </div>
 
   <!-- UNIVERSAL QUICK ADD MODAL -->
-  <div id="quickAddModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] hidden flex-col items-center pt-[15vh] px-4 pb-safe print:hidden" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
+  <div id="quickAddModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] hidden flex-col items-center pt-[15vh] px-4 pb-safe pt-safe print:hidden" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
     <div class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-md shadow-2xl overflow-hidden flex flex-col animate-fade-in-up border border-slate-300 dark:border-slate-700">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
             <h3 class="font-bold font-serif text-slate-800 dark:text-slate-100 flex items-center gap-2"><i data-lucide="zap" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i> Universal Quick Add <span class="text-[10px] font-sans font-normal text-slate-500 bg-slate-200 dark:bg-slate-800 px-1.5 rounded-sm ml-2 shadow-inner border border-slate-300 dark:border-slate-700">Cmd+Shift+Y</span></h3>
@@ -167,13 +218,13 @@
   <div class="flex h-[100dvh] w-full overflow-hidden">
     
     <!-- LEFT SIDEBAR (Desktop) -->
-    <aside id="mainSidebar" class="w-64 bg-[#111827] dark:bg-[#0f172a] border-r border-slate-800 flex flex-col transition-all duration-300 z-50 hidden md:flex shrink-0">
+    <aside id="mainSidebar" class="w-64 bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 z-50 hidden md:flex shrink-0 pt-safe">
         <!-- Logo -->
-        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-800 shrink-0">
-            <h1 class="text-xl font-serif font-black text-white flex items-center gap-2">
-                <i data-lucide="scale" class="w-5 h-5 text-indigo-500"></i> Legal Nexus
+        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-800 shrink-0">
+            <h1 class="text-xl font-serif font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <i data-lucide="scale" class="w-5 h-5 text-indigo-600 dark:text-indigo-500"></i> Legal Nexus
             </h1>
-            <button onclick="toggleMainSidebar()" class="md:hidden text-slate-400 hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+            <button onclick="toggleMainSidebar()" class="md:hidden text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
         </div>
         
         <!-- Nav Links -->
@@ -181,54 +232,53 @@
             <button id="btnSideDashboard" onclick="switchState('DASHBOARD'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold bg-indigo-600 text-white shadow-sm transition">
                 <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
             </button>
-            <button id="btnSideConcepts" onclick="switchState('CONCEPTS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <button id="btnSideConcepts" onclick="switchState('CONCEPTS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="book-open" class="w-4 h-4"></i> Concepts
             </button>
-            <button id="btnSideIntel" onclick="switchState('INTELLIGENCE'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <button id="btnSideIntel" onclick="switchState('INTELLIGENCE'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="globe" class="w-4 h-4"></i> Intel
             </button>
-            <button id="btnSideDossiers" onclick="switchState('DOSSIERS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <button id="btnSideDossiers" onclick="switchState('DOSSIERS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="building-2" class="w-4 h-4"></i> Dossiers
             </button>
-            <button id="btnSideDictionary" onclick="switchState('DICTIONARY'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <button id="btnSideDictionary" onclick="switchState('DICTIONARY'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="library" class="w-4 h-4"></i> Dictionary
             </button>
-            <button id="btnSidePlaybooks" onclick="switchState('PLAYBOOKS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <button id="btnSidePlaybooks" onclick="switchState('PLAYBOOKS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="git-merge" class="w-4 h-4"></i> Deals
             </button>
-            <button id="btnSideGraph" onclick="switchState('GRAPH'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <button id="btnSideGraph" onclick="switchState('GRAPH'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="network" class="w-4 h-4"></i> Graph
             </button>
             
             <div class="pt-6 pb-2">
-                <p class="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tools</p>
+                <p class="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tools</p>
             </div>
-            <button onclick="openManualBriefing(); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <button onclick="openManualBriefing(); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="clipboard-list" class="w-4 h-4"></i> Briefing
             </button>
-            <button onclick="switchState('CONCEPTS'); setTimeout(() => { currentConceptCategory = 'Interview Vault'; renderTabs(); renderConcepts(); }, 100); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
-                <div class="flex items-center gap-3"><i data-lucide="lock" class="w-4 h-4"></i> Vault</div>
-                <i data-lucide="star" class="w-3 h-3 text-amber-500"></i>
+            <button id="btnSideVault" onclick="switchState('VAULT'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
+                <i data-lucide="lock" class="w-4 h-4"></i> Vault
             </button>
-            <button id="btnSideSettings" onclick="switchState('SETTINGS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <button id="btnSideSettings" onclick="switchState('SETTINGS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="settings" class="w-4 h-4"></i> Settings
             </button>
         </nav>
         
         <!-- Bottom Status Area -->
-        <div class="p-4 border-t border-slate-800 shrink-0 bg-slate-900 dark:bg-[#0f172a]">
+        <div class="p-4 border-t border-slate-200 dark:border-slate-800 shrink-0 bg-slate-50 dark:bg-[#0f172a]">
             <div class="flex items-center gap-2.5 mb-4 px-1">
                 <div id="statusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                <span id="statusText" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex-1 truncate">Synced</span>
-                <div id="streakBadge" class="flex items-center gap-1 bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded-sm text-[10px] font-bold shadow-sm" title="Daily Engagement Streak">
+                <span id="statusText" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex-1 truncate">Synced</span>
+                <div id="streakBadge" class="flex items-center gap-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-sm text-[10px] font-bold shadow-sm border border-slate-200 dark:border-slate-700" title="Daily Engagement Streak">
                     <i data-lucide="flame" class="w-3 h-3 text-orange-500"></i> <span id="streakCount">0</span>
                 </div>
             </div>
-            <div class="flex items-center gap-3 bg-slate-800 p-2.5 rounded-md border border-slate-700 cursor-pointer hover:border-slate-500 transition" onclick="switchState('SETTINGS'); if(window.innerWidth<768) toggleMainSidebar();">
+            <div class="flex items-center gap-3 bg-white dark:bg-slate-800 p-2.5 rounded-md border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 transition shadow-sm" onclick="switchState('SETTINGS'); if(window.innerWidth<768) toggleMainSidebar();">
                 <div class="w-8 h-8 rounded bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">CB</div>
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-bold text-white truncate">Callum B.</p>
-                    <p class="text-[10px] text-slate-400 uppercase tracking-wider truncate">Premium Plan</p>
+                    <p class="text-sm font-bold text-slate-900 dark:text-white truncate">Callum B.</p>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">Premium Plan</p>
                 </div>
             </div>
         </div>
@@ -237,32 +287,34 @@
     <!-- RIGHT MAIN WRAPPER -->
     <div class="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-[#0b1120] relative overflow-hidden h-full">
         
-        <!-- TOP HEADER -->
-        <header id="mainTopHeader" class="h-16 flex items-center justify-between px-4 md:px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shrink-0 z-20 transition-colors duration-300">
-            <div class="flex items-center gap-4 flex-1">
-                <!-- Sidebar Toggle (Mobile & Desktop) -->
-                <button class="text-slate-500 hover:text-slate-800 dark:hover:text-white transition p-1" onclick="toggleMainSidebar()" title="Toggle Sidebar">
-                    <i data-lucide="menu" class="w-6 h-6"></i>
-                </button>
-                
-                <!-- Omnibar Search Trigger -->
-                <div class="hidden sm:flex items-center gap-3 px-4 py-2 bg-slate-100 dark:bg-[#0b1120] border border-slate-200 dark:border-slate-800 rounded-md w-full max-w-md cursor-text hover:border-indigo-400 dark:hover:border-indigo-500 transition shadow-inner" onclick="toggleOmnibar()">
-                    <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
-                    <span class="text-sm text-slate-500 flex-1">Search concepts, firms, topics...</span>
-                    <kbd class="hidden lg:inline-block text-[10px] font-mono bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 text-slate-500 dark:text-slate-400 font-bold">⌘K</kbd>
+        <!-- TOP HEADER (Dynamic Island / Notch Proof) -->
+        <header id="mainTopHeader" class="pt-safe h-[calc(4rem+var(--sat))] flex items-end pb-3 px-4 md:px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shrink-0 z-20 transition-colors duration-300">
+            <div class="flex items-center justify-between w-full h-10">
+                <div class="flex items-center gap-4 flex-1">
+                    <!-- Sidebar Toggle (Mobile & Desktop) -->
+                    <button class="text-slate-500 hover:text-slate-800 dark:hover:text-white transition p-1" onclick="toggleMainSidebar()" title="Toggle Sidebar">
+                        <i data-lucide="menu" class="w-6 h-6"></i>
+                    </button>
+                    
+                    <!-- Omnibar Search Trigger -->
+                    <div class="hidden sm:flex items-center gap-3 px-4 py-2 bg-slate-100 dark:bg-[#0b1120] border border-slate-200 dark:border-slate-800 rounded-md w-full max-w-md cursor-text hover:border-indigo-400 dark:hover:border-indigo-500 transition shadow-inner" onclick="toggleOmnibar()">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                        <span class="text-sm text-slate-500 flex-1">Search concepts, firms, topics...</span>
+                        <kbd class="hidden lg:inline-block text-[10px] font-mono bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 text-slate-500 dark:text-slate-400 font-bold">⌘K</kbd>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="flex items-center gap-1 md:gap-2 shrink-0">
-                <button onclick="toggleDarkMode()" class="text-slate-500 hover:text-slate-800 dark:hover:text-white transition p-2" title="Toggle Theme"><i data-lucide="sun-moon" class="w-5 h-5"></i></button>
-                <button onclick="openManualBriefing()" class="text-slate-500 hover:text-slate-800 dark:hover:text-white transition p-2 relative" title="View Briefing">
-                    <i data-lucide="bell" class="w-5 h-5"></i>
-                    <span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-indigo-500 rounded-full border-2 border-white dark:border-[#0f172a]"></span>
-                </button>
-                <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
-                <button onclick="downloadLocalBackup()" class="hidden lg:flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition px-2"><i data-lucide="download" class="w-4 h-4"></i> Backup</button>
-                <button onclick="window.print()" class="hidden lg:flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition px-2"><i data-lucide="printer" class="w-4 h-4"></i> Print</button>
-                <button onclick="openImportModal()" class="hidden xl:flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition px-2"><i data-lucide="upload" class="w-4 h-4"></i> Import</button>
+                
+                <div class="flex items-center gap-1 md:gap-2 shrink-0">
+                    <button onclick="toggleDarkMode()" class="text-slate-500 hover:text-slate-800 dark:hover:text-white transition p-2" title="Toggle Theme"><i data-lucide="sun-moon" class="w-5 h-5"></i></button>
+                    <button onclick="openManualBriefing()" class="text-slate-500 hover:text-slate-800 dark:hover:text-white transition p-2 relative" title="View Briefing">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                        <span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-indigo-500 rounded-full border-2 border-white dark:border-[#0f172a]"></span>
+                    </button>
+                    <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
+                    <button onclick="downloadLocalBackup()" class="hidden lg:flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition px-2"><i data-lucide="download" class="w-4 h-4"></i> Backup</button>
+                    <button onclick="window.print()" class="hidden lg:flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition px-2"><i data-lucide="printer" class="w-4 h-4"></i> Print</button>
+                    <button onclick="openImportModal()" class="hidden xl:flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition px-2"><i data-lucide="upload" class="w-4 h-4"></i> Import</button>
+                </div>
             </div>
         </header>
 
@@ -271,7 +323,7 @@
             <div class="flex overflow-x-auto scrollbar-hide w-full" id="mainTabs"></div>
         </div>
 
-        <!-- APP VIEWS CONTAINER (min-h-0 prevents overflow pushing nav bar down) -->
+        <!-- APP VIEWS CONTAINER -->
         <main id="mainAppWrapper" class="flex-1 flex flex-col relative w-full min-h-0 bg-slate-50 dark:bg-[#0b1120] overflow-hidden">
             
             <!-- 1. DASHBOARD MODULE -->
@@ -286,7 +338,6 @@
                             <i data-lucide="plus" class="w-4 h-4"></i> Log Concept
                         </button>
                     </div>
-                    <!-- Dashboard Grid Scaffolding -->
                     <div class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="dashboardGrid">
                         <div class="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-10 text-center text-slate-500 font-bold">
                             Dashboard Module loading...
@@ -311,14 +362,21 @@
                 </div>
             </div>
 
-            <!-- 3. MARKET INTELLIGENCE -->
+            <!-- 3. INTERVIEW VAULT MODULE -->
+            <div id="appVault" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120] text-slate-800 dark:text-slate-200">
+                <div class="max-w-[1600px] mx-auto w-full">
+                    <div id="vaultContainer" class="space-y-4 pb-10 w-full"></div>
+                </div>
+            </div>
+
+            <!-- 4. MARKET INTELLIGENCE -->
             <div id="appIntelligence" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-slate-50 dark:bg-[#0b1120]">
               <button onclick="toggleAppSidebar('intelLogSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Insight">
                 <i data-lucide="plus" class="w-5 h-5"></i> <span>Log Insight</span>
               </button>
 
-              <div id="intelLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden shadow-xl md:shadow-none pb-24 md:pb-6 h-full flex flex-col md:hidden shrink-0">
-                <button onclick="toggleAppSidebar('intelLogSidebar')" class="absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
+              <div id="intelLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden shadow-xl md:shadow-none pb-24 md:pb-6 h-full flex flex-col md:hidden shrink-0 pt-safe-sidebar">
+                <button onclick="toggleAppSidebar('intelLogSidebar')" class="absolute top-6 right-6 mt-safe text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
                 <h2 class="text-lg font-serif font-black text-slate-900 dark:text-white mb-4 mt-6 md:mt-0 shrink-0">Log Factor: <span id="formWsLabel" class="text-indigo-600 dark:text-indigo-400 font-sans font-bold text-sm ml-1">General Market</span></h2>
                 
                 <div class="space-y-4 flex-1">
@@ -421,17 +479,16 @@
                     </div>
                 </div>
             </div>
-        </div> <!-- CLOSING INTELLIGENCE -->
+        </div>
 
-            <!-- 4. CORE CONCEPTS -->
+            <!-- 5. CORE CONCEPTS -->
             <div id="appConcepts" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-slate-50 dark:bg-[#0b1120]">
-                <!-- PROFESSIONAL FAB: ACTION PILL -->
                 <button onclick="toggleAppSidebar('conceptLogSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Concept">
                     <i data-lucide="plus" class="w-5 h-5"></i> <span>Log Concept</span>
                 </button>
 
-                <div id="conceptLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex-col shadow-xl md:shadow-none pb-24 md:pb-6 h-full md:hidden shrink-0">
-                    <button onclick="toggleAppSidebar('conceptLogSidebar')" class="absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
+                <div id="conceptLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex-col shadow-xl md:shadow-none pb-24 md:pb-6 h-full md:hidden shrink-0 pt-safe-sidebar">
+                    <button onclick="toggleAppSidebar('conceptLogSidebar')" class="absolute top-6 right-6 mt-safe text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
                     <h2 class="text-lg font-serif font-black text-slate-900 dark:text-white mb-4 mt-6 md:mt-0 shrink-0">Log Concept: <span id="formConceptLabel" class="text-indigo-600 dark:text-indigo-400 font-sans font-bold text-sm ml-1">Corporate</span></h2>
                     
                     <div class="space-y-4 flex-1 flex flex-col">
@@ -464,7 +521,6 @@
                             </div>
                             <h1 class="hidden print:block text-3xl font-serif font-bold mb-6 border-b pb-2 text-black">Knowledge Library: <span id="printConceptTitle">Corporate / M&A</span></h1>
 
-                            <!-- Search & Filter Bar -->
                             <div class="flex flex-col gap-3 w-full mb-6 print:hidden">
                                 <div class="flex items-center gap-3 w-full overflow-x-auto scrollbar-hide shrink-0">
                                     <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest shrink-0 mr-2">Core Concepts</h2>
@@ -514,12 +570,11 @@
                               </div>
                               <div class="flex flex-wrap md:flex-nowrap gap-3 border-t border-slate-700/50 pt-4 relative z-10">
                                 <button onclick="generateConceptInterview()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Concept Interview</button>
-                                <button onclick="generateDeconstructor()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="hammer" class="w-3.5 h-3.5"></i> Deconstruct</button>
+                                <button onclick="generateConceptDeconstructor()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="hammer" class="w-3.5 h-3.5"></i> Deconstruct</button>
                                 <button onclick="generateKnowledgeTest()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="target" class="w-3.5 h-3.5"></i> Knowledge Test</button>
                               </div>
                             </div>
                             
-                            <!-- THE CONTENT GOES HERE -->
                             <div id="conceptsContainer" class="space-y-4 pb-10 print:space-y-6 print:pb-0 w-full"></div>
                         </div>
                         
@@ -528,18 +583,16 @@
                         </div>
                     </div>
                 </div>
-            </div> <!-- NOW PROPERLY CLOSED -->
+            </div>
 
-            <!-- 5. FIRM DOSSIERS -->
+            <!-- 6. FIRM DOSSIERS -->
             <div id="appDossiers" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120]">
-                
-                <!-- PROFESSIONAL FAB: ACTION PILL -->
                 <button onclick="document.getElementById('dossierSidebar').classList.toggle('-translate-x-full')" class="md:hidden fixed bottom-20 right-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2">
                     <i data-lucide="menu" class="w-5 h-5"></i> <span>Firms</span>
                 </button>
 
-                <div id="dossierSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex flex-col shadow-xl md:shadow-none pb-24 md:pb-6 h-full shrink-0">
-                    <button onclick="document.getElementById('dossierSidebar').classList.add('-translate-x-full')" class="md:hidden absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 transition z-50"><i data-lucide="x" class="w-6 h-6"></i></button>
+                <div id="dossierSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex flex-col shadow-xl md:shadow-none pb-24 md:pb-6 h-full shrink-0 pt-safe-sidebar">
+                    <button onclick="document.getElementById('dossierSidebar').classList.add('-translate-x-full')" class="md:hidden absolute top-6 right-6 mt-safe text-slate-400 hover:text-slate-800 transition z-50"><i data-lucide="x" class="w-6 h-6"></i></button>
                     <div class="flex justify-between items-center mb-4 mt-6 md:mt-0 shrink-0 flex-wrap gap-2">
                       <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Target Firms</h2>
                       <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-sm p-1 border border-slate-200 dark:border-slate-700">
@@ -669,18 +722,16 @@
                         </div>
                     </div>
                 </div>
-            </div> <!-- NOW PROPERLY CLOSED -->
+            </div>
 
-            <!-- 6. DICTIONARY APP -->
+            <!-- 7. DICTIONARY APP -->
             <div id="appDictionary" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120]">
-              
-              <!-- PROFESSIONAL FAB: ACTION PILL -->
               <button onclick="toggleAppSidebar('dictSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Define Term">
                 <i data-lucide="plus" class="w-5 h-5"></i> <span>Add Term</span>
               </button>
 
-              <div id="dictSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden shadow-xl md:shadow-none pb-24 md:pb-6 h-full flex-col md:hidden shrink-0">
-                <button onclick="toggleAppSidebar('dictSidebar')" class="absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
+              <div id="dictSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden shadow-xl md:shadow-none pb-24 md:pb-6 h-full flex-col md:hidden shrink-0 pt-safe-sidebar">
+                <button onclick="toggleAppSidebar('dictSidebar')" class="absolute top-6 right-6 mt-safe text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
                 <h2 class="text-lg font-serif font-black text-slate-900 dark:text-white mb-4 mt-6 md:mt-0">Define a Term</h2>
                 
                 <input type="hidden" id="editDictIndex" value="">
@@ -695,7 +746,6 @@
               </div>
 
               <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full">
-                <!-- Split Column Layout -->
                 <div class="max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 items-start"> 
                     <div class="flex-1 min-w-0 w-full space-y-6 order-2 lg:order-1">
                         <div class="print:hidden border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
@@ -743,18 +793,18 @@
 
                 </div>
               </div>
-            </div> <!-- NOW PROPERLY CLOSED -->
+            </div>
 
-            <!-- 7. NEXUS GRAPH (FORCE-DIRECTED MATRIX) -->
+            <!-- 8. NEXUS GRAPH (FORCE-DIRECTED MATRIX) -->
             <div id="appGraph" class="flex-1 flex-col hidden w-full h-full relative bg-slate-50 dark:bg-slate-950 overflow-hidden transition-colors duration-300">
               <div class="absolute top-4 left-4 z-20 flex flex-wrap gap-2 items-center bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-2 rounded-md border border-slate-200 dark:border-slate-800 shadow-md print:hidden">
                 <span class="text-xs font-bold text-slate-800 dark:text-slate-200 px-2 uppercase tracking-wider flex items-center gap-1.5"><i data-lucide="network" class="w-4 h-4"></i> The Nexus</span>
                 <div class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
-                <button onclick="resetGraphView()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-2 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 flex items-center gap-1"><i data-lucide="maximize" class="w-3 h-3"></i> Reset View</button>
-                <button onclick="toggleGraphPhysics()" id="btnTogglePhysics" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-2 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 flex items-center gap-1"><i data-lucide="pause" class="w-3 h-3"></i> Pause Physics</button>
+                <button onclick="resetGraphView()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-2 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 flex items-center gap-1"><i data-lucide="maximize" class="w-3.5 h-3.5"></i> Reset View</button>
+                <button onclick="toggleGraphPhysics()" id="btnTogglePhysics" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-2 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 flex items-center gap-1"><i data-lucide="pause" class="w-3.5 h-3.5"></i> Pause Physics</button>
               </div>
               <div id="networkCanvas" class="absolute inset-0 w-full h-full outline-none cursor-grab active:cursor-grabbing"></div>
-              <div id="graphDrawer" class="absolute top-0 right-0 h-full w-full sm:w-96 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl p-6 overflow-y-auto transform translate-x-full transition-transform duration-300 z-30 flex flex-col">
+              <div id="graphDrawer" class="absolute top-0 right-0 h-full w-full sm:w-96 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl p-6 overflow-y-auto transform translate-x-full transition-transform duration-300 z-30 flex flex-col pb-safe">
                 <div class="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 shrink-0">
                   <div>
                     <span id="graphDrawerBadge" class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-sm border border-indigo-100 dark:border-indigo-800">Insight</span>
@@ -764,17 +814,14 @@
                 </div>
                 <div id="graphDrawerContent" class="flex-1 text-sm text-slate-700 dark:text-slate-300 space-y-3 leading-relaxed prose prose-sm max-w-none dark:prose-invert"></div>
               </div>
-            </div> <!-- CLOSED -->
+            </div>
 
-            <!-- 8. DEAL ANATOMY (PLAYBOOKS) -->
+            <!-- 9. DEAL ANATOMY (PLAYBOOKS) -->
             <div id="appPlaybooks" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120]">
-                
-                <!-- PROFESSIONAL FAB: ACTION PILL -->
-                <button onclick="toggleAppSidebar('playbooksSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_8px_30px_rgb(79,70,229,0.3)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2"><i data-lucide="menu" class="w-5 h-5"></i> <span>Playbooks</span></button>
+                <button onclick="toggleAppSidebar('playbooksSidebar')" class="md:hidden fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_8px_30px_rgb(79,70,229,0.3)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2"><i data-lucide="menu" class="w-5 h-5"></i> <span>Playbooks</span></button>
 
-                <!-- Playbooks Sidebar -->
-                <div id="playbooksSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[300px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex flex-col shadow-xl md:shadow-none pb-24 md:pb-6 pt-6 h-full shrink-0">
-                    <button onclick="toggleAppSidebar('playbooksSidebar')" class="md:hidden absolute top-6 right-6 mt-[env(safe-area-inset-top)] text-slate-400 hover:text-slate-800 transition z-50"><i data-lucide="x" class="w-6 h-6"></i></button>
+                <div id="playbooksSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[300px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex flex-col shadow-xl md:shadow-none pb-24 md:pb-6 h-full shrink-0 pt-safe-sidebar">
+                    <button onclick="toggleAppSidebar('playbooksSidebar')" class="md:hidden absolute top-6 right-6 mt-safe text-slate-400 hover:text-slate-800 transition z-50"><i data-lucide="x" class="w-6 h-6"></i></button>
                     <div class="flex justify-between items-center mb-4 mt-6 md:mt-0 shrink-0 border-b border-slate-200 dark:border-slate-800 pb-3">
                         <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Playbooks</h2>
                         <button onclick="addPlaybook()" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-2 py-0.5 rounded-sm transition shadow-sm">Add</button>
@@ -784,15 +831,20 @@
 
                 <div class="flex-1 flex flex-col min-w-0 h-full relative bg-transparent">
                   <div class="z-20 flex flex-wrap gap-2 items-center bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-3 shadow-sm shrink-0 print:hidden">
+                      <button onclick="window.togglePlaybookSidebarDesktop(this)" class="hidden md:flex text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition shrink-0 ml-1 mr-1" title="Toggle Sidebar">
+                          <i data-lucide="panel-left-close" class="w-5 h-5"></i>
+                      </button>
                       <span id="activePlaybookLabel" class="text-xs font-bold text-slate-800 dark:text-slate-200 px-2 uppercase tracking-wider">Select a Playbook</span>
                       <div class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
+                      <button onclick="window.zoomPlaybook('in')" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-1.5"><i data-lucide="zoom-in" class="w-3.5 h-3.5"></i> Zoom In</button>
+                      <button onclick="window.zoomPlaybook('out')" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-1.5"><i data-lucide="zoom-out" class="w-3.5 h-3.5"></i> Zoom Out</button>
                       <button onclick="resetPlaybookView()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-1.5"><i data-lucide="maximize" class="w-3.5 h-3.5"></i> Center</button>
                       <button onclick="exportPlaybookToConcept()" class="bg-white hover:bg-slate-50 text-slate-800 dark:bg-slate-800 dark:text-slate-200 font-bold px-3 py-1 rounded-sm text-xs transition border border-slate-300 dark:border-slate-700 shadow-sm flex items-center gap-1.5"><i data-lucide="camera" class="w-3.5 h-3.5"></i> Export to KMS</button>
                   </div>
                   <div id="playbookCanvas" class="flex-1 w-full relative outline-none cursor-grab active:cursor-grabbing"></div>
               </div>
 
-                <div id="playbookDrawer" class="absolute top-0 right-0 h-full w-full sm:w-[400px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl p-6 overflow-y-auto transform translate-x-full transition-transform duration-300 z-30 flex flex-col pb-32 md:pb-6">
+                <div id="playbookDrawer" class="absolute top-0 right-0 h-full w-full sm:w-[400px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl p-6 overflow-y-auto transform translate-x-full transition-transform duration-300 z-30 flex flex-col pb-32 md:pb-6 pb-safe">
                     <div class="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3 mb-4 shrink-0">
                         <div>
                             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-sm border border-slate-200 dark:border-slate-700">Node Properties</span>
@@ -829,12 +881,12 @@
                         </div>
                     </div>
                 </div>
-            </div> <!-- NOW PROPERLY CLOSED -->
+            </div>
 
         </main>
         
-        <!-- BOTTOM NAVIGATION (MOBILE ONLY) -->
-        <div id="mobileBottomNav" class="md:hidden shrink-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-around items-start z-[50] print:hidden pb-[env(safe-area-inset-bottom)] transition-colors duration-300">
+        <!-- BOTTOM NAVIGATION (Mobile with Home Indicator Inset) -->
+        <div id="mobileBottomNav" class="md:hidden shrink-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-around items-start z-[50] print:hidden pb-safe transition-colors duration-300">
             <button onclick="switchState('DASHBOARD')" id="mobNavDashboard" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="layout-dashboard" class="w-5 h-5"></i> Home</button>
             <button onclick="switchState('INTELLIGENCE')" id="mobNavIntel" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="globe" class="w-5 h-5"></i> Intel</button>
             <button onclick="switchState('CONCEPTS')" id="mobNavConcepts" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="book-open" class="w-5 h-5"></i> KMS</button>
@@ -842,15 +894,15 @@
             <button onclick="switchState('PLAYBOOKS')" id="mobNavPlaybooks" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="git-merge" class="w-5 h-5"></i> Deals</button>
         </div>
     </div>
-  </div> <!-- /MAIN APP CONTAINER -->
+  </div>
 
   <!-- TOAST NOTIFICATION CONTAINER -->
-  <div id="toastContainer" class="fixed bottom-4 right-4 md:bottom-8 md:right-8 z-[9999] flex flex-col-reverse gap-3 pointer-events-none print:hidden"></div>
+  <div id="toastContainer" class="fixed bottom-4 right-4 md:bottom-8 md:right-8 z-[9999] flex flex-col-reverse gap-3 pointer-events-none print:hidden pb-safe pr-safe"></div>
 
   <!-- MODALS -->
 
   <!-- EXPANDED GRAPH MODAL -->
-  <div id="macroGraphModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] hidden flex-col items-center justify-center p-4 md:p-8 transition-all opacity-0 pointer-events-none" onclick="if(event.target===this) window.closeExpandedGraph()">
+  <div id="macroGraphModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] hidden flex-col items-center justify-center p-4 md:p-8 transition-all opacity-0 pointer-events-none pt-safe pb-safe" onclick="if(event.target===this) window.closeExpandedGraph()">
       <div id="macroGraphModalInner" class="bg-white dark:bg-[#0f172a] rounded-xl w-full max-w-5xl shadow-2xl flex flex-col relative overflow-hidden border border-slate-200 dark:border-slate-700 transition-transform transform scale-95 duration-200">
           <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 p-4 md:p-6 bg-slate-50 dark:bg-slate-900/50">
               <div>
@@ -869,7 +921,6 @@
           </div>
           <div class="p-6 md:p-8 w-full overflow-x-auto custom-scrollbar">
               <div id="expandedGraphContainer" class="w-full min-w-[600px] h-[40vh] md:h-[400px] relative">
-                  <!-- SVG Injected Here -->
               </div>
           </div>
       </div>
@@ -1048,7 +1099,7 @@
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Evidence / STAR Example</label>
                 <div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[200px] shadow-sm">
                     <div id="toolbar-comp-modal" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1 sticky top-0 z-[50]">
-                        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button></span>
+                        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span>
                         <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
                     </div>
                     <div id="compModalQuill" class="flex-1 bg-white dark:bg-slate-900 h-40 dark:text-white"></div>
@@ -1079,7 +1130,7 @@
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Details & Context</label>
                 <div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[200px] shadow-sm">
                     <div id="toolbar-practice-modal" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1 sticky top-0 z-[50]">
-                        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button></span>
+                        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span>
                         <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
                     </div>
                     <div id="practiceModalQuill" class="flex-1 bg-white dark:bg-slate-900 h-40 dark:text-white"></div>
@@ -1110,7 +1161,7 @@
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Details & Context</label>
                 <div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[200px] shadow-sm">
                     <div id="toolbar-clients-modal" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1 sticky top-0 z-[50]">
-                        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button></span>
+                        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span>
                         <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
                     </div>
                     <div id="clientsModalQuill" class="flex-1 bg-white dark:bg-slate-900 h-40 dark:text-white"></div>
@@ -1136,7 +1187,6 @@
         <button onclick="document.getElementById('flashcardDashboardModal').classList.add('hidden'); document.getElementById('flashcardDashboardModal').classList.remove('flex');" class="text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
       </div>
       <div class="p-6 flex flex-col gap-4">
-        <!-- Red Queue -->
         <button onclick="launchQueue('red')" class="w-full flex items-center justify-between p-4 rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-red-300 dark:hover:border-red-800 transition group shadow-sm">
           <div class="flex items-center gap-4">
             <div class="w-3 h-3 rounded-full bg-red-500 shadow-sm shrink-0"></div>
@@ -1148,7 +1198,6 @@
           <span class="text-xl font-extrabold text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform" id="fcRedCount">0</span>
         </button>
         
-        <!-- Orange Queue -->
         <button onclick="launchQueue('orange')" class="w-full flex items-center justify-between p-4 rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-orange-300 dark:hover:border-orange-800 transition group shadow-sm">
           <div class="flex items-center gap-4">
             <div class="w-3 h-3 rounded-full bg-orange-500 shadow-sm shrink-0"></div>
@@ -1160,7 +1209,6 @@
           <span class="text-xl font-extrabold text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform" id="fcOrangeCount">0</span>
         </button>
 
-        <!-- Yellow Queue -->
         <button onclick="launchQueue('yellow')" class="w-full flex items-center justify-between p-4 rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-yellow-300 dark:hover:border-yellow-800 transition group shadow-sm">
           <div class="flex items-center gap-4">
             <div class="w-3 h-3 rounded-full bg-amber-400 shadow-sm shrink-0"></div>
@@ -1172,7 +1220,6 @@
           <span class="text-xl font-extrabold text-yellow-600 dark:text-yellow-400 group-hover:scale-110 transition-transform" id="fcYellowCount">0</span>
         </button>
 
-        <!-- Green Queue -->
         <button onclick="launchQueue('green')" class="w-full flex items-center justify-between p-4 rounded-sm border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-300 dark:hover:border-emerald-800 transition group shadow-sm">
           <div class="flex items-center gap-4">
             <div class="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shrink-0"></div>
@@ -1203,7 +1250,7 @@
   </div>
 
   <!-- DATABASE IMPORT MODAL -->
-  <div id="backupModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4 print:hidden pt-safe" onclick="if(event.target===this) document.getElementById('backupModalContainer').classList.add('hidden')">
+  <div id="backupModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('backupModalContainer').classList.add('hidden')">
     <div class="bg-white dark:bg-slate-900 rounded-md max-w-2xl w-full p-6 shadow-xl relative max-h-full overflow-y-auto border border-slate-300 dark:border-slate-700">
       <button onclick="document.getElementById('backupModalContainer').classList.add('hidden')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
       <h3 class="text-xl font-serif font-black text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Database Import Config</h3>
@@ -1231,7 +1278,6 @@
         <button onclick="closeRssTriage()" class="text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
       </div>
       <div id="rssTriageList" class="p-4 md:p-6 overflow-y-auto flex-1 space-y-3 md:space-y-4">
-          <!-- Incoming Articles Injected Here -->
       </div>
       <div class="p-4 md:p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end gap-3 shrink-0">
         <button onclick="closeRssTriage()" class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 font-bold py-2 px-4 rounded-sm transition text-sm">Cancel</button>
@@ -1244,28 +1290,23 @@
   <div id="flashcardModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] hidden flex-col items-center justify-center p-4 pt-safe pb-safe" onclick="if(event.target===this) closeFlashcards()">
     <div class="w-full max-w-3xl flex flex-col items-center h-full max-h-[85vh] relative animate-fade-in-up">
       
-      <!-- Counter & Close -->
       <div class="w-full flex justify-between items-center mb-4 shrink-0 px-2">
         <span class="text-slate-400 font-bold tracking-widest uppercase text-xs border border-slate-700 bg-slate-800 px-3 py-1 rounded-sm shadow-inner" id="flashcardCounter">Card 1 of 5</span>
         <button onclick="closeFlashcards()" class="text-slate-400 hover:text-white transition"><i data-lucide="x" class="w-7 h-7"></i></button>
       </div>
 
-      <!-- Flashcard Body -->
       <div class="w-full flex-1 bg-white dark:bg-slate-900 rounded-md shadow-2xl overflow-hidden flex flex-col relative border border-slate-300 dark:border-slate-700" id="flashcardContainer">
         
         <!-- FRONT OF CARD -->
         <div id="flashcardFront" class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-[#0b1120] transition" onclick="flipFlashcard()">
             <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 px-3 py-1 rounded-sm shadow-sm" id="fcCategory">Category</span>
             
-            <!-- Standard Front: Term -->
             <h2 class="text-3xl md:text-5xl font-serif font-black text-slate-900 dark:text-white leading-tight" id="fcTitle">Concept Title</h2>
             
-            <!-- Reverse Front: Definition -->
             <div id="fcFrontBody" class="hidden text-base md:text-xl font-medium text-slate-700 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed overflow-y-auto max-h-[50vh] text-left p-6 border border-slate-200 dark:border-slate-700 rounded-sm bg-white dark:bg-slate-800 shadow-inner"></div>
             
             <p class="text-slate-400 mt-10 text-xs uppercase tracking-widest animate-pulse font-bold" id="fcInstruction">(Tap or click to reveal answer)</p>
             
-            <!-- OPTIONAL FEYNMAN DRAWER -->
             <div class="mt-8 w-full max-w-lg z-10 cursor-default" onclick="event.stopPropagation()">
                 <button onclick="toggleFeynmanDrawer(this)" id="btnShowFeynman" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center gap-1.5 mx-auto border border-slate-200 dark:border-slate-700 hover:border-slate-400 rounded-sm px-4 py-1.5 bg-white dark:bg-slate-900 shadow-sm">
                     <i data-lucide="pen-tool" class="w-3 h-3"></i> Optional: Try Feynman Technique
@@ -1293,21 +1334,19 @@
             </div>
             
             <div class="flex-1 overflow-y-auto flex flex-col">
-                <!-- AI FEEDBACK BOX (Hidden unless Feynman is used) -->
                 <div id="feynmanFeedback" class="hidden m-6 md:m-8 mb-0 p-5 bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-sm shadow-inner shrink-0">
                    <h4 class="text-[10px] font-bold text-slate-800 dark:text-slate-300 uppercase tracking-widest mb-2 flex items-center gap-1.5"><i data-lucide="bot" class="w-3.5 h-3.5"></i> AI Grader Feedback</h4>
                    <div id="feynmanFeedbackContent" class="text-sm text-slate-700 dark:text-slate-200 font-medium leading-relaxed"></div>
                 </div>
 
                 <div class="p-6 md:p-8 prose prose-sm md:prose-base max-w-none dark:prose-invert" id="fcBody">
-                  <!-- Rich text injected here -->
                 </div>
             </div>
         </div>
       </div>
 
-      <!-- Controls (Hidden initially) -->
-      <div id="flashcardControls" class="w-full grid grid-cols-5 gap-2 md:gap-3 mt-4 shrink-0 hidden">
+      <!-- Controls -->
+      <div id="flashcardControls" class="w-full grid grid-cols-5 gap-2 md:gap-3 mt-4 shrink-0 hidden pb-safe">
         <button onclick="processFlashcardResult('forgot')" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-3 md:py-4 rounded-md text-xs flex flex-col items-center transition shadow-md"><i data-lucide="rotate-ccw" class="w-5 h-5 mb-1 text-red-500"></i> <span class="uppercase text-[10px] md:text-xs">Forgot</span> <span class="text-[9px] font-normal text-slate-400 mt-1">&lt; 1m</span></button>
         <button onclick="processFlashcardResult('hard')" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-3 md:py-4 rounded-md text-xs flex flex-col items-center transition shadow-md"><i data-lucide="brain" class="w-5 h-5 mb-1 text-orange-500"></i> <span class="uppercase text-[10px] md:text-xs">Hard</span> <span class="text-[9px] font-normal text-slate-400 mt-1">2d</span></button>
         <button onclick="processFlashcardResult('good')" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-3 md:py-4 rounded-md text-xs flex flex-col items-center transition shadow-md"><i data-lucide="thumbs-up" class="w-5 h-5 mb-1 text-indigo-500"></i> <span class="uppercase text-[10px] md:text-xs">Good</span> <span class="text-[9px] font-normal text-slate-400 mt-1">4d</span></button>
@@ -1319,11 +1358,9 @@
   </div>
 
   <!-- CHEAT SHEET PRINT CONTAINER -->
-  <div id="cheatSheetContainer" class="hidden absolute inset-0 bg-white dark:bg-slate-950 z-[99999] p-4 md:p-8 min-h-[100dvh] overflow-y-auto print:p-0"></div>
+  <div id="cheatSheetContainer" class="hidden absolute inset-0 bg-white dark:bg-slate-950 z-[99999] p-4 md:p-8 min-h-[100dvh] overflow-y-auto print:p-0 pt-safe pb-safe"></div>
 
-  <!-- ========================================== -->
   <!-- JAVASCRIPT LOGIC (MODULAR) -->
-  <!-- ========================================== -->
   <script src="js/config.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/database.js"></script>
@@ -1335,12 +1372,13 @@
   <script src="js/concepts.js"></script>
   <script src="js/dossiers.js"></script>
   <script src="js/ai-engine.js"></script>
+  <script src="js/vault.js"></script>
   <script src="js/graph.js"></script>
   <script src="js/playbooks.js"></script> 
   <script src="js/dashboard.js"></script>
   <script src="js/main.js"></script>
 
-  <!-- Lucide Icon Auto-Renderer (Safe Version) -->
+  <!-- Lucide Icon Auto-Renderer -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) window.lucide.createIcons();

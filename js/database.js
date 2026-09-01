@@ -1,5 +1,34 @@
 // DATABASE FETCHING & SAVING & BRIEFINGS
 // ==========================================
+
+// --- MACRO DATA COMPRESSION FIREWALL ---
+function compressMacroData(historyArray) {
+    if (!historyArray || !Array.isArray(historyArray)) return [];
+    
+    // 1. Calculate 5-Year Cutoff
+    const fiveYearsAgo = new Date();
+    fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+    const cutoffTime = fiveYearsAgo.getTime();
+
+    // 2. Filter out old data
+    const recentData = historyArray.filter(p => p && p.d >= cutoffTime);
+
+    // 3. Group by Year-Month to find the first entry of each month
+    const monthlyMap = new Map();
+    recentData.forEach(p => {
+        const d = new Date(p.d);
+        const monthKey = `${d.getFullYear()}-${d.getMonth()}`; 
+        
+        // If month not logged yet, OR this data point is earlier in the month, overwrite it
+        if (!monthlyMap.has(monthKey) || p.d < monthlyMap.get(monthKey).d) {
+            monthlyMap.set(monthKey, p);
+        }
+    });
+
+    // 4. Return sorted chronologically
+    return Array.from(monthlyMap.values()).sort((a, b) => a.d - b.d);
+}
+
 async function loadDatabase() {
     const localCached = localStorage.getItem("LEGAL_NEXUS_DB");
     let localLastUpdated = 0;
@@ -18,6 +47,7 @@ async function loadDatabase() {
           if (parsed.dictCategories) db.dictCategories = parsed.dictCategories; 
           if (parsed.macroMetrics) db.macroMetrics = parsed.macroMetrics; 
           if (parsed.playbooks) db.playbooks = parsed.playbooks;
+          if (parsed.vault) db.vault = parsed.vault; 
           db.lastUpdated = localLastUpdated;
       } catch (e) {
           console.warn("Local cache parsing failed.", e);
@@ -26,11 +56,9 @@ async function loadDatabase() {
   
     db.workspaces = db.workspaces || [];
     if (!db.workspaces.includes("General Market")) db.workspaces.unshift("General Market");
-    if (!db.workspaces.includes("Interview Vault")) db.workspaces.push("Interview Vault");
     
     db.conceptCategories = db.conceptCategories || [];
-    if (db.conceptCategories.length === 0) db.conceptCategories = ["Corporate / M&A", "Capital Markets", "Intellectual Property", "Commercial Contracts", "Dispute Resolution", "Interview Vault"];
-    if (!db.conceptCategories.includes("Interview Vault")) db.conceptCategories.push("Interview Vault");
+    if (db.conceptCategories.length === 0) db.conceptCategories = ["Corporate / M&A", "Capital Markets", "Intellectual Property", "Commercial Contracts", "Dispute Resolution"];
 
     db.dictCategories = db.dictCategories || [];
     if (db.dictCategories.length === 0) db.dictCategories = ["General", "Corporate / M&A", "Capital Markets", "Dispute Resolution", "Private Wealth"];
@@ -43,13 +71,13 @@ async function loadDatabase() {
     }
 
     db.playbooks = db.playbooks || {}; 
+    db.vault = db.vault || []; 
 
     if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
     
     if(appState === "DASHBOARD" && typeof renderDashboard === 'function') { renderDashboard(); }
     else if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { 
         const sortEl = document.getElementById("sortFeed");
-        // ... rest of code
         if (sortEl) sortEl.value = uiPrefs.intelSort || "newest"; 
         renderTabs(); 
         renderFeed(); 
@@ -73,6 +101,9 @@ async function loadDatabase() {
         if (sortEl) sortEl.value = uiPrefs.dictSort || "az"; 
         renderDictionary(); 
     }
+    else if (appState === "VAULT" && typeof window.renderVault === 'function') {
+        window.renderVault();
+    }
     
     try {
         const response = await fetch(SCRIPT_URL);
@@ -81,8 +112,8 @@ async function loadDatabase() {
           const loadedDb = await response.json();
           const serverLastUpdated = loadedDb.lastUpdated || 0;
         
-          const localDataCount = (db.factors?.length || 0) + (db.concepts?.length || 0) + (db.dictionary?.length || 0);
-          const serverDataCount = (loadedDb.factors?.length || 0) + (loadedDb.concepts?.length || 0) + (loadedDb.dictionary?.length || 0);
+          const localDataCount = (db.factors?.length || 0) + (db.concepts?.length || 0) + (db.dictionary?.length || 0) + (db.vault?.length || 0);
+          const serverDataCount = (loadedDb.factors?.length || 0) + (loadedDb.concepts?.length || 0) + (loadedDb.dictionary?.length || 0) + (loadedDb.vault?.length || 0);
           
           const isServerNewer = serverLastUpdated > localLastUpdated;
           const isServerHeavier = serverDataCount > localDataCount;
@@ -90,31 +121,31 @@ async function loadDatabase() {
           if (loadedDb && !loadedDb.error && typeof loadedDb === "object" && !Array.isArray(loadedDb)) {
               if (isServerNewer || isServerHeavier || localDataCount === 0) {
                   db = {
-                      workspaces: loadedDb.workspaces || db.workspaces,
+                      workspaces: (loadedDb.workspaces && loadedDb.workspaces.length > 0) ? loadedDb.workspaces : db.workspaces,
                       factors: (loadedDb.factors && loadedDb.factors.length > 0) ? loadedDb.factors : (db.factors || []),
-                      conceptCategories: loadedDb.conceptCategories || db.conceptCategories,
-                      dictCategories: loadedDb.dictCategories || db.dictCategories, 
+                      conceptCategories: (loadedDb.conceptCategories && loadedDb.conceptCategories.length > 0) ? loadedDb.conceptCategories : db.conceptCategories,
+                      dictCategories: (loadedDb.dictCategories && loadedDb.dictCategories.length > 0) ? loadedDb.dictCategories : db.dictCategories, 
                       concepts: (loadedDb.concepts && loadedDb.concepts.length > 0) ? loadedDb.concepts : (db.concepts || []),
                       dossiers: (loadedDb.dossiers && Object.keys(loadedDb.dossiers).length > 0) ? loadedDb.dossiers : (db.dossiers || {}),
                       dictionary: (loadedDb.dictionary && loadedDb.dictionary.length > 0) ? loadedDb.dictionary : (db.dictionary || []),
                       targetFirms: (loadedDb.targetFirms && loadedDb.targetFirms.length > 0) ? loadedDb.targetFirms : (db.targetFirms || []),
-                      macroMetrics: loadedDb.macroMetrics || db.macroMetrics || {}, 
-                      playbooks: loadedDb.playbooks || db.playbooks || {},
+                      macroMetrics: (loadedDb.macroMetrics && Object.keys(loadedDb.macroMetrics).length > 0) ? loadedDb.macroMetrics : (db.macroMetrics || {}), 
+                      playbooks: (loadedDb.playbooks && Object.keys(loadedDb.playbooks).length > 0) ? loadedDb.playbooks : (db.playbooks || {}),
+                      vault: (loadedDb.vault && loadedDb.vault.length > 0) ? loadedDb.vault : (db.vault || []), 
                       lastUpdated: serverLastUpdated > 0 ? serverLastUpdated : new Date().getTime()
                   };
-                  if (!db.conceptCategories.includes("Interview Vault")) db.conceptCategories.push("Interview Vault");
-                  if (!db.workspaces.includes("Interview Vault")) db.workspaces.push("Interview Vault");
         
                   saveToLocalCache();
                   setOnlineStatus(true);
                   
                   if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
                 
-                if(appState === "DASHBOARD" && typeof renderDashboard === 'function') { renderDashboard(); }
+                  if(appState === "DASHBOARD" && typeof renderDashboard === 'function') { renderDashboard(); }
                   else if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { renderTabs(); renderFeed(); }
                   else if (appState === "DOSSIERS" && typeof renderDossierList === 'function') { renderDossierList(); }
                   else if (appState === "PLAYBOOKS" && typeof renderPlaybookList === 'function') { renderPlaybookList(); }
                   else if (appState === "DICTIONARY" && typeof renderDictionary === 'function') { renderDictionary(); }
+                  else if (appState === "VAULT" && typeof window.renderVault === 'function') { window.renderVault(); }
               } else if (serverLastUpdated < localLastUpdated) {
                   setOnlineStatus(true, "Local data is newer. Syncing up to cloud on next save.");
               }
@@ -133,6 +164,15 @@ async function loadDatabase() {
 }
   
 async function saveDatabase() {
+    // FIREWALL: Aggressively compress metrics arrays right before pushing to Google Sheets
+    if (db.macroMetrics) {
+        for (const key in db.macroMetrics) {
+            if (db.macroMetrics[key] && Array.isArray(db.macroMetrics[key].history)) {
+                db.macroMetrics[key].history = compressMacroData(db.macroMetrics[key].history);
+            }
+        }
+    }
+
     db.lastUpdated = new Date().getTime(); 
     saveToLocalCache();
   
@@ -234,7 +274,7 @@ function checkDailyBriefing(isManual = false) {
         briefingHTML += `</ul>`;
     }
   
-    const dueConcepts = (db.concepts || []).filter(c => c && c.srs && c.srs.nextReview <= new Date().getTime() && c.category !== "Interview Vault");
+    const dueConcepts = (db.concepts || []).filter(c => c && c.srs && c.srs.nextReview <= new Date().getTime());
     const dueDictTerms = (db.dictionary || []).filter(d => d && d.srs && d.srs.nextReview <= new Date().getTime());
     const totalDue = dueConcepts.length + dueDictTerms.length;
 

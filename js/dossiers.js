@@ -40,6 +40,15 @@ window.toggleSelectAllDossier = function() {
     });
 };
 
+// Full-screen sidebar toggle for desktop
+window.toggleDossierSidebarDesktop = function() {
+    const sb = document.getElementById("dossierSidebar");
+    if (!sb) return;
+    sb.classList.toggle("!hidden");
+    window.renderStrategyRoom(); 
+    if (window.lucide) window.lucide.createIcons();
+};
+
 function addDossierFirm() {
     const name = prompt("Enter Target Firm Name:");
     if (name && !db.targetFirms.includes(name)) {
@@ -107,6 +116,7 @@ function getFirmPriority(firmName) {
     const today = new Date();
     today.setHours(0,0,0,0);
     
+    let nearestRollingDiff = Infinity;
     let nearestActiveDiff = Infinity;
     let newestExpiredDiff = -Infinity;
     let allApplied = true;
@@ -124,15 +134,13 @@ function getFirmPriority(firmName) {
         close.setHours(0,0,0,0);
         let diffDays = Math.ceil((close - today) / (1000 * 60 * 60 * 24));
         
-        if (s.rolling === "Rolling" && s.openDate) {
-            const open = new Date(s.openDate);
-            open.setHours(0,0,0,0);
-            if (today >= open && today <= close) {
-                diffDays = 0; 
-            }
-        }
+        const open = s.openDate ? new Date(s.openDate) : null;
+        if(open) open.setHours(0,0,0,0);
+        const isRollingOpen = (s.rolling === "Rolling" && open && today >= open && today <= close);
         
-        if (diffDays >= 0) {
+        if (isRollingOpen) {
+            if (diffDays < nearestRollingDiff) nearestRollingDiff = diffDays;
+        } else if (diffDays >= 0) {
             if (diffDays < nearestActiveDiff) nearestActiveDiff = diffDays;
         } else {
             if (diffDays > newestExpiredDiff) newestExpiredDiff = diffDays; 
@@ -140,6 +148,8 @@ function getFirmPriority(firmName) {
     });
 
     if (allApplied) return { tier: 4, diff: Infinity };
+    // Tier 0 = Rolling Open, Tier 1 = Standard Open, Tier 2 = Expired, Tier 3 = Unknown
+    if (nearestRollingDiff !== Infinity) return { tier: 0, diff: nearestRollingDiff }; 
     if (nearestActiveDiff !== Infinity) return { tier: 1, diff: nearestActiveDiff }; 
     if (newestExpiredDiff !== -Infinity) return { tier: 2, diff: Math.abs(newestExpiredDiff) }; 
     return { tier: 3, diff: Infinity }; 
@@ -179,7 +189,9 @@ function renderDossierList() {
         const pB = getFirmPriority(strB);
 
         if (pA.tier !== pB.tier) return pA.tier - pB.tier; 
-        if (pA.tier === 1 || pA.tier === 3 || pA.tier === 4) {
+        
+        // Properly sorts rolling (Tier 0) and standard (Tier 1) open applications by deadline
+        if (pA.tier === 0 || pA.tier === 1 || pA.tier === 3 || pA.tier === 4) {
             if (pA.diff === pB.diff) return strA.localeCompare(strB);
             return pA.diff - pB.diff; 
         }
@@ -206,8 +218,10 @@ function renderDossierList() {
             statusIndicator = `<span class="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 px-1.5 py-0.5 rounded-sm font-bold ml-2 border border-emerald-200 dark:border-emerald-800 shadow-sm shrink-0">✓ Applied</span>`;
         } else if (p.tier === 2) {
             statusIndicator = `<span class="text-[10px] text-slate-400 dark:text-slate-500 ml-2 font-bold uppercase tracking-wider shrink-0">Past</span>`;
+        } else if (p.tier === 0) {
+            statusIndicator = `<span class="text-[10px] text-red-500 dark:text-red-400 animate-pulse font-black ml-2 shrink-0" title="Rolling Application Open!">!</span>`;
         } else if (p.tier === 1 && p.diff <= 14) {
-            statusIndicator = `<span class="text-[10px] text-red-500 dark:text-red-400 animate-pulse font-black ml-2 shrink-0">!</span>`;
+            statusIndicator = `<span class="text-[10px] text-orange-500 dark:text-orange-400 font-black ml-2 shrink-0" title="Deadline Approaching">!</span>`;
         }
 
         const btn = document.createElement("button");
@@ -259,7 +273,21 @@ function renderStrategyRoom() {
         if (!Array.isArray(d.clients)) d.clients = [];
   
         const titleView = document.getElementById("dossierFirmTitleView"); 
-        if(titleView) titleView.innerText = currentDossierFirm;
+        if(titleView) {
+            const sb = document.getElementById("dossierSidebar");
+            const isHidden = sb && sb.classList.contains("!hidden");
+            const iconName = isHidden ? "panel-left" : "panel-left-close";
+            
+            // Fix: Removed 'w-full' and 'truncate' to let text wrap naturally
+            titleView.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <button onclick="window.toggleDossierSidebarDesktop()" class="hidden md:flex text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition shrink-0" title="Toggle Sidebar">
+                        <i data-lucide="${iconName}" class="w-8 h-8 md:w-9 md:h-9"></i>
+                    </button>
+                    <span class="whitespace-normal break-words">${currentDossierFirm}</span>
+                </div>
+            `;
+        }
         
         let subtitle = [];
         if(d.firmType) subtitle.push(d.firmType);

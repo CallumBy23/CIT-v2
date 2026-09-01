@@ -77,7 +77,6 @@ window.renderAlphabetBar = function(source) {
 window.saveConcept = function() {
     const title = document.getElementById("conceptTitle").value.trim();
     
-    // Safely extract HTML regardless of Quill variable name
     let htmlBody = "";
     const editorEl = document.querySelector('#conceptBodyQuill .ql-editor');
     if (editorEl) {
@@ -86,7 +85,6 @@ window.saveConcept = function() {
         htmlBody = quillEditor.root.innerHTML;
     }
     
-    // Strip tags to truly verify it's not empty
     const cleanText = htmlBody.replace(/<[^>]*>?/gm, '').trim();
     
     if (!title || !cleanText) {
@@ -135,8 +133,6 @@ window.renderConcepts = function() {
     
     try {
         container.innerHTML = "";
-        
-        // BUG FIX: Removed the "window." prefix so it maps directly to your configuration array
         currentVisibleConceptIndices = [];
 
         // --- 1. BUILD MASTERY DASHBOARD WIDGET (RIGHT SIDEBAR) ---
@@ -145,7 +141,7 @@ window.renderConcepts = function() {
             const catStats = {};
             
             (db.concepts || []).forEach(c => {
-                if (c && c.category && c.category !== "Interview Vault" && c.category !== "All") {
+                if (c && c.category && c.category !== "All") {
                     if (!catStats[c.category]) catStats[c.category] = { total: 0, mastered: 0 };
                     catStats[c.category].total++;
                     if (c.srs && (c.srs.mastered || c.srs.interval >= 21)) {
@@ -191,7 +187,7 @@ window.renderConcepts = function() {
 
         const searchBox = document.getElementById("searchConcepts");
         const term = searchBox ? String(searchBox.value || "").toLowerCase() : "";
-        let filtered = (db.concepts || []).filter(c => c && c.category !== "Interview Vault");
+        let filtered = (db.concepts || []);
 
         if (typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All") {
             filtered = filtered.filter(c => c.category === currentConceptCategory);
@@ -231,7 +227,6 @@ window.renderConcepts = function() {
         }
 
         indexedConcepts.forEach(({concept, originalIndex}) => {
-            // BUG FIX: Removed the "window." prefix
             currentVisibleConceptIndices.push(originalIndex);
             
             const isCollapsed = concept.isCollapsed !== false;
@@ -385,7 +380,6 @@ window.massDeleteConcepts = function() {
     if(!window.selectedConcepts || window.selectedConcepts.size === 0) return;
     if(confirm(`Delete ${window.selectedConcepts.size} selected concept(s)?`)) {
         
-        // Immediate UI lockout to prevent race condition reloads
         const statusText = document.getElementById('statusText');
         const statusDot = document.getElementById('statusDot');
         if (statusText) statusText.innerText = "Syncing Deletion...";
@@ -411,7 +405,6 @@ window.deleteConcept = function(index) {
     index = parseInt(index, 10);
     if(!confirm(`Delete concept: "${db.concepts[index].title}"?`)) return;
     
-    // Immediate UI lockout to prevent race condition reloads
     const statusText = document.getElementById('statusText');
     const statusDot = document.getElementById('statusDot');
     if (statusText) statusText.innerText = "Syncing Deletion...";
@@ -453,9 +446,7 @@ window.openUniversalFlashcardDashboard = function() {
     let allCards = [];
 
     (db.concepts || []).forEach((c, index) => {
-        if (c.category !== "Interview Vault") {
-            allCards.push({ item: c, originalIndex: index, sourceType: 'concepts' });
-        }
+        allCards.push({ item: c, originalIndex: index, sourceType: 'concepts' });
     });
 
     (db.dictionary || []).forEach((d, index) => {
@@ -585,7 +576,6 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
         allCards = dataSource
             .map((item, index) => ({ item, originalIndex: index }))
             .filter(obj => {
-                let isNotVault = obj.item.category !== "Interview Vault";
                 let itemCat = obj.item.category || "General";
                 let matchesTab = (activeCat === "All" || activeCat === "All Terms" || itemCat === activeCat);
                 
@@ -596,7 +586,7 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
                     else matchesAlpha = specificAlpha.has(titleToCheck.charAt(0).toUpperCase());
                 }
 
-                return isNotVault && matchesTab && matchesAlpha; 
+                return matchesTab && matchesAlpha; 
             });
     }
 

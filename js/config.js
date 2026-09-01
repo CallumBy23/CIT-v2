@@ -1,6 +1,6 @@
 // CONFIGURATION & STATE
 // ==========================================
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzUvWIgxxQWbFqnCgFrN0_3wxTN-bwkJxL7pppXBU0hfJmnaGm3X5UNliZ5Gs170Fon/exec"; 
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzhB6-0rFl1pWF7w6eUXFTWMxyFKjkjaEqc07YFYy9EG4bFokxwyPB_vpXrsmXHB5FM/exec"; 
 const GEMINI_API_KEY = "AQ.Ab8RN6IZ4fFDezQbK2Hm_Zfc_6-LnDqw-9cjS_vAai9hlUDLhg"; 
 
 window.currentConceptCategory = "All";

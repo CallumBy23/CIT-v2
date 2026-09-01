@@ -38,26 +38,58 @@ window.renderDashboard = function() {
     const dayMs = 24 * 60 * 60 * 1000;
 
     // Core Counts
-    const conceptCount = (db.concepts || []).filter(c => c.category !== "Interview Vault").length;
+    const conceptCount = (db.concepts || []).length;
     const firmCount = (db.targetFirms || []).length;
     
-    // Calculate Imminent Deadlines (Live Alerts)
+    // Calculate Imminent Deadlines (Timezone-Proof)
     let alertsCount = 0;
     for (const [firm, data] of Object.entries(db.dossiers || {})) {
         if (data.applied) continue;
         (data.schemes || []).forEach(s => {
             if (s.closeDate && !s.applied) {
-                const closeDate = new Date(s.closeDate).getTime();
-                const isRollingOpen = (s.rolling === "Rolling" && s.openDate && new Date(s.openDate).getTime() <= today.getTime() && closeDate >= today.getTime());
-                if (isRollingOpen || (closeDate >= today.getTime() && closeDate <= twoWeeksTime)) {
+                // Split YYYY-MM-DD to prevent UTC timezone drift
+                let closeDateMs;
+                if (s.closeDate.includes('-')) {
+                    const cParts = s.closeDate.split('-');
+                    closeDateMs = new Date(parseInt(cParts[0], 10), parseInt(cParts[1], 10) - 1, parseInt(cParts[2], 10)).getTime();
+                } else {
+                    closeDateMs = new Date(s.closeDate).getTime();
+                }
+
+                let isRollingOpen = false;
+                if (s.rolling === "Rolling" && s.openDate) {
+                    let openDateMs;
+                    if (s.openDate.includes('-')) {
+                        const oParts = s.openDate.split('-');
+                        openDateMs = new Date(parseInt(oParts[0], 10), parseInt(oParts[1], 10) - 1, parseInt(oParts[2], 10)).getTime();
+                    } else {
+                        openDateMs = new Date(s.openDate).getTime();
+                    }
+                    if (openDateMs <= today.getTime() && closeDateMs >= today.getTime()) {
+                        isRollingOpen = true;
+                    }
+                }
+
+                if (isRollingOpen || (closeDateMs >= today.getTime() && closeDateMs <= twoWeeksTime)) {
                     alertsCount++;
                 }
             }
         });
     }
 
+    // Update Global Notification Bell Icon in Header
+    const topBellBadge = document.querySelector('button[title="View Briefing"] span');
+    if (topBellBadge) {
+        if (alertsCount > 0) {
+            topBellBadge.className = "absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-[#0f172a] animate-pulse shadow-sm";
+            topBellBadge.classList.remove('hidden');
+        } else {
+            topBellBadge.classList.add('hidden');
+        }
+    }
+
     // Calculate SRS Reviews Due
-    const conceptsDue = (db.concepts || []).filter(c => c.srs && c.srs.nextReview <= nowMs && c.category !== "Interview Vault").length;
+    const conceptsDue = (db.concepts || []).filter(c => c.srs && c.srs.nextReview <= nowMs).length;
     const dictDue = (db.dictionary || []).filter(d => d.srs && d.srs.nextReview <= nowMs).length;
     const totalReviewsDue = conceptsDue + dictDue;
 
@@ -65,10 +97,8 @@ window.renderDashboard = function() {
     let totalSrsItems = 0;
     let masteredSrsItems = 0;
     (db.concepts || []).forEach(c => {
-        if(c.category !== "Interview Vault") {
-            totalSrsItems++;
-            if(c.srs && (c.srs.mastered || c.srs.interval >= 21)) masteredSrsItems++;
-        }
+        totalSrsItems++;
+        if(c.srs && (c.srs.mastered || c.srs.interval >= 21)) masteredSrsItems++;
     });
     const masteryPct = totalSrsItems === 0 ? 0 : Math.round((masteredSrsItems / totalSrsItems) * 100);
 
@@ -83,7 +113,6 @@ window.renderDashboard = function() {
 
     // Get Recent Intel Activity
     let recentIntel = [...(db.factors || [])]
-        .filter(f => f.workspace !== "Interview Vault")
         .reverse()
         .slice(0, 6);
 
@@ -156,7 +185,7 @@ window.renderDashboard = function() {
             return `${x.toFixed(1)},${y.toFixed(1)}`;
         }).join(' ');
 
-        // Isolated hover group using group/point to prevent global hover bar bug
+        // Isolated hover group using group/point without vertical tracking lines
         const hoverOverlays = dataPoints.map((pt) => {
             return `
                 <div class="flex-1 h-full group/point relative">
@@ -234,153 +263,149 @@ window.renderDashboard = function() {
             </div>
         </div>
 
-        <!-- ROW 2: MARKET INDICATORS & MASTERY -->
-        <div class="col-span-1 lg:col-span-2 xl:col-span-3 flex flex-col gap-6">
-            
-            <!-- Indicators Grid -->
-            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5 text-indigo-500"></i> Market Data</h2>
-                        <p class="text-xs text-slate-500 mt-1">Click any card to expand high-resolution historical chart.</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button onclick="window.openMacroImportModal()" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-600 transition items-center gap-1.5 hidden sm:flex bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-sm border border-slate-200 dark:border-slate-700 shadow-sm"><i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i> CSV</button>
-                        <select onchange="window.updateMacroPeriod(this.value)" class="text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-sm px-2 py-1.5 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm uppercase tracking-widest">
-                            <option value="7" ${window.currentMacroPeriod === '7' ? 'selected' : ''}>1W</option>
-                            <option value="30" ${window.currentMacroPeriod === '30' ? 'selected' : ''}>1M</option>
-                            <option value="90" ${window.currentMacroPeriod === '90' ? 'selected' : ''}>3M</option>
-                            <option value="180" ${window.currentMacroPeriod === '180' ? 'selected' : ''}>6M</option>
-                            <option value="365" ${window.currentMacroPeriod === '365' ? 'selected' : ''}>1Y</option>
-                            <option value="1095" ${window.currentMacroPeriod === '1095' ? 'selected' : ''}>3Y</option>
-                            <option value="1825" ${window.currentMacroPeriod === '1825' ? 'selected' : ''}>5Y</option>
-                            <option value="all" ${window.currentMacroPeriod === 'all' ? 'selected' : ''}>MAX</option>
-                        </select>
-                        <button onclick="window.openMacroManualEditModal()" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-sm hover:bg-indigo-100 transition border border-indigo-200 dark:border-indigo-800 hidden md:block">Update Data</button>
-                    </div>
+        <!-- ROW 2: MARKET DATA & CONCEPT MASTERY -->
+        <div class="col-span-1 lg:col-span-2 xl:col-span-3 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm h-full flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5 text-indigo-500"></i> Market Data</h2>
+                    <p class="text-xs text-slate-500 mt-1">Click any card to expand high-resolution historical chart.</p>
                 </div>
-                
-                <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    ${metrics.map(m => `
-                        <div onclick="window.openExpandedGraph('${m.key}', '${m.label}', '${m.sub}', '${m.val}', '${m.color}', '${m.spark}')" class="border border-slate-100 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 flex flex-col shadow-inner cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600 transition group">
-                            <div class="flex justify-between items-start mb-1">
-                                <div>
-                                    <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">${m.label}</h4>
-                                    <span class="text-[9px] font-medium text-slate-500">${m.sub}</span>
-                                </div>
-                                <span class="text-sm font-black ${m.color}">${m.val}</span>
-                            </div>
-                            ${renderSparkline(m.key, m.spark)}
-                        </div>
-                    `).join('')}
+                <div class="flex items-center gap-2">
+                    <button onclick="window.openMacroImportModal()" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-600 transition items-center gap-1.5 hidden sm:flex bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-sm border border-slate-200 dark:border-slate-700 shadow-sm"><i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i> CSV</button>
+                    <select onchange="window.updateMacroPeriod(this.value)" class="text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-sm px-2 py-1.5 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm uppercase tracking-widest">
+                        <option value="7" ${window.currentMacroPeriod === '7' ? 'selected' : ''}>1W</option>
+                        <option value="30" ${window.currentMacroPeriod === '30' ? 'selected' : ''}>1M</option>
+                        <option value="90" ${window.currentMacroPeriod === '90' ? 'selected' : ''}>3M</option>
+                        <option value="180" ${window.currentMacroPeriod === '180' ? 'selected' : ''}>6M</option>
+                        <option value="365" ${window.currentMacroPeriod === '365' ? 'selected' : ''}>1Y</option>
+                        <option value="1095" ${window.currentMacroPeriod === '1095' ? 'selected' : ''}>3Y</option>
+                        <option value="1825" ${window.currentMacroPeriod === '1825' ? 'selected' : ''}>5Y</option>
+                        <option value="all" ${window.currentMacroPeriod === 'all' ? 'selected' : ''}>MAX</option>
+                    </select>
+                    <button onclick="window.openMacroManualEditModal()" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-sm hover:bg-indigo-100 transition border border-indigo-200 dark:border-indigo-800 hidden md:block">Update Data</button>
                 </div>
             </div>
+            
+            <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 flex-1">
+                ${metrics.map(m => `
+                    <div onclick="window.openExpandedGraph('${m.key}', '${m.label}', '${m.sub}', '${m.val}', '${m.color}', '${m.spark}')" class="border border-slate-100 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 flex flex-col shadow-inner cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600 transition group">
+                        <div class="flex justify-between items-start mb-1">
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">${m.label}</h4>
+                                <span class="text-[9px] font-medium text-slate-500">${m.sub}</span>
+                            </div>
+                            <span class="text-sm font-black ${m.color}">${m.val}</span>
+                        </div>
+                        ${renderSparkline(m.key, m.spark)}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
 
-            <!-- Recent Activity -->
-            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm flex-1">
-                <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
-                    <h2 class="text-sm font-bold text-slate-900 dark:text-white">Recent Commercial Activity</h2>
-                    <button onclick="window.switchState('INTELLIGENCE')" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-600 transition">View All &rarr;</button>
+        <div class="col-span-1 h-full bg-gradient-to-br from-slate-900 to-slate-800 dark:from-[#0b1120] dark:to-[#0f172a] rounded-lg p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 pointer-events-none"></div>
+            <h2 class="text-sm font-bold text-white relative z-10 shrink-0 flex items-center gap-2"><i data-lucide="target" class="w-4 h-4 text-emerald-400"></i> Concept Mastery</h2>
+            
+            <div class="flex-1 flex flex-col justify-center relative z-10 py-2">
+                <div class="flex-1 flex justify-center items-center mb-8 min-h-[120px]">
+                    <div class="relative w-full max-w-[160px] xl:max-w-[200px] aspect-square flex items-center justify-center transition-all duration-300">
+                        <svg class="w-full h-full transform -rotate-90 drop-shadow-md" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="rgba(255,255,255,0.05)" stroke-width="8"></circle>
+                            <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="#10b981" stroke-width="8" 
+                                    stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" 
+                                    stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]"></circle>
+                        </svg>
+                        <div class="absolute flex flex-col items-center mt-1">
+                            <span class="text-3xl xl:text-4xl font-black text-white leading-none tracking-tighter">${masteryPct}%</span>
+                            <span class="text-[9px] uppercase tracking-widest text-slate-400 font-bold mt-1.5">Mastered</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="space-y-4">
-                    ${recentIntel.length > 0 ? recentIntel.map(f => {
-                        const origIdx = db.factors.indexOf(f);
-                        return `
-                        <div class="flex items-start gap-3 group cursor-pointer" onclick="window.routeToIntelFactor(${origIdx})">
-                            <div class="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:scale-110 transition"><i data-lucide="zap" class="w-4 h-4"></i></div>
-                            <div class="flex-1 min-w-0 border-b border-slate-50 dark:border-slate-800/50 pb-3 group-hover:border-indigo-200 transition">
-                                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">${f.title || "Untitled Insight"}</h4>
-                                ${f.summary ? `<p class="text-[12px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">${f.summary}</p>` : ''}
-                                <div class="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-50 dark:border-slate-800/50">
-                                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">${f.pestle || 'General'}</span>
-                                    <span class="text-[9px] text-slate-400">&bull;</span>
-                                    <span class="text-[9px] font-medium text-slate-400 truncate">${f.workspace}</span>
-                                </div>
+                <div class="space-y-3 px-2 mb-6 shrink-0 w-full max-w-[240px] mx-auto">
+                    <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2.5">
+                        <span class="text-slate-300 flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span> Mastered</span>
+                        <span class="text-white font-bold text-sm">${masteredSrsItems}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2.5">
+                        <span class="text-slate-300 flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Learning</span>
+                        <span class="text-white font-bold text-sm">${totalSrsItems - masteredSrsItems}</span>
+                    </div>
+                </div>
+            </div>
+            <button onclick="window.openFlashcardDashboard('concepts')" class="w-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold py-2.5 rounded-sm transition backdrop-blur-sm relative z-10 shrink-0 mt-auto">Review Concepts</button>
+        </div>
+
+        <!-- ROW 3: RECENT ACTIVITY & DICT MASTERY + QUICK ACTIONS -->
+        <div class="col-span-1 lg:col-span-2 xl:col-span-3 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm h-full flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 shrink-0">
+                <h2 class="text-sm font-bold text-slate-900 dark:text-white">Recent Commercial Activity</h2>
+                <button onclick="window.switchState('INTELLIGENCE')" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-600 transition">View All &rarr;</button>
+            </div>
+            <div class="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                ${recentIntel.length > 0 ? recentIntel.map(f => {
+                    const origIdx = db.factors.indexOf(f);
+                    return `
+                    <div class="flex items-start gap-3 group cursor-pointer" onclick="window.routeToIntelFactor(${origIdx})">
+                        <div class="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 group-hover:scale-110 transition"><i data-lucide="zap" class="w-4 h-4"></i></div>
+                        <div class="flex-1 min-w-0 border-b border-slate-50 dark:border-slate-800/50 pb-3 group-hover:border-indigo-200 transition">
+                            <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">${f.title || "Untitled Insight"}</h4>
+                            ${f.summary ? `<p class="text-[12px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">${f.summary}</p>` : ''}
+                            <div class="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-50 dark:border-slate-800/50">
+                                <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">${f.pestle || 'General'}</span>
+                                <span class="text-[9px] text-slate-400">&bull;</span>
+                                <span class="text-[9px] font-medium text-slate-400 truncate">${f.workspace}</span>
                             </div>
                         </div>
-                        `;
-                    }).join('') : `<p class="text-xs text-slate-500 italic">No recent intel logged.</p>`}
-                </div>
+                    </div>
+                    `;
+                }).join('') : `<p class="text-xs text-slate-500 italic">No recent intel logged.</p>`}
             </div>
         </div>
 
         <div class="col-span-1 flex flex-col gap-6 h-full">
-            <div class="flex-1 bg-gradient-to-br from-slate-900 to-slate-800 dark:from-[#0b1120] dark:to-[#0f172a] rounded-lg p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col">
-                <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 pointer-events-none"></div>
-                <h2 class="text-sm font-bold text-white relative z-10 shrink-0 flex items-center gap-2"><i data-lucide="target" class="w-4 h-4 text-emerald-400"></i> Concept Mastery</h2>
-                
-                <div class="flex-1 flex flex-col justify-center relative z-10">
-                    <div class="flex justify-center items-center mb-6">
-                        <div class="relative w-28 h-28 flex items-center justify-center">
-                            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                                <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="rgba(255,255,255,0.1)" stroke-width="8"></circle>
-                                <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="#10b981" stroke-width="8" 
-                                        stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" 
-                                        stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]"></circle>
-                            </svg>
-                            <div class="absolute flex flex-col items-center mt-1">
-                                <span class="text-2xl font-black text-white leading-none">${masteryPct}%</span>
-                                <span class="text-[8px] uppercase tracking-widest text-slate-400 font-bold mt-1">Mastered</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="space-y-2 px-2 mb-6">
-                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
-                            <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span> Mastered</span>
-                            <span class="text-white font-bold">${masteredSrsItems}</span>
-                        </div>
-                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
-                            <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Learning</span>
-                            <span class="text-white font-bold">${totalSrsItems - masteredSrsItems}</span>
-                        </div>
-                    </div>
-                </div>
-                <button onclick="window.openFlashcardDashboard('concepts')" class="w-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold py-2.5 rounded-sm transition backdrop-blur-sm relative z-10 shrink-0 mt-auto">Review Concepts</button>
-            </div>
-
-            <div class="flex-1 bg-gradient-to-br from-slate-900 to-slate-800 dark:from-[#0b1120] dark:to-[#0f172a] rounded-lg p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col">
+            <div class="shrink-0 bg-gradient-to-br from-slate-900 to-slate-800 dark:from-[#0b1120] dark:to-[#0f172a] rounded-lg p-6 shadow-lg border border-slate-700 relative overflow-hidden flex flex-col">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 pointer-events-none"></div>
                 <h2 class="text-sm font-bold text-white relative z-10 shrink-0 flex items-center gap-2"><i data-lucide="book-open-check" class="w-4 h-4 text-cyan-400"></i> Dictionary Mastery</h2>
                 
-                <div class="flex-1 flex flex-col justify-center relative z-10">
-                    <div class="flex justify-center items-center mb-6">
-                        <div class="relative w-28 h-28 flex items-center justify-center">
-                            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                                <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="rgba(255,255,255,0.1)" stroke-width="8"></circle>
+                <div class="flex-1 flex flex-col justify-center relative z-10 py-2">
+                    <div class="flex-1 flex justify-center items-center mb-8 min-h-[120px]">
+                        <div class="relative w-full max-w-[160px] xl:max-w-[200px] aspect-square flex items-center justify-center transition-all duration-300">
+                            <svg class="w-full h-full transform -rotate-90 drop-shadow-md" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="rgba(255,255,255,0.05)" stroke-width="8"></circle>
                                 <circle cx="50" cy="50" r="${radius}" fill="transparent" stroke="#06b6d4" stroke-width="8" 
                                         stroke-dasharray="${circumference}" stroke-dashoffset="${dictStrokeDashoffset}" 
                                         stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]"></circle>
                             </svg>
                             <div class="absolute flex flex-col items-center mt-1">
-                                <span class="text-2xl font-black text-white leading-none">${dictMasteryPct}%</span>
-                                <span class="text-[8px] uppercase tracking-widest text-slate-400 font-bold mt-1">Mastered</span>
+                                <span class="text-3xl xl:text-4xl font-black text-white leading-none tracking-tighter">${dictMasteryPct}%</span>
+                                <span class="text-[9px] uppercase tracking-widest text-slate-400 font-bold mt-1.5">Mastered</span>
                             </div>
                         </div>
                     </div>
-                    <div class="space-y-2 px-2 mb-6">
-                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
-                            <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]"></span> Mastered</span>
-                            <span class="text-white font-bold">${dictMasteredSrsItems}</span>
+                    <div class="space-y-3 px-2 mb-6 shrink-0 w-full max-w-[240px] mx-auto">
+                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2.5">
+                            <span class="text-slate-300 flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-cyan-500 shadow-[0_0_5px_rgba(6,182,212,0.8)]"></span> Mastered</span>
+                            <span class="text-white font-bold text-sm">${dictMasteredSrsItems}</span>
                         </div>
-                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2">
-                            <span class="text-slate-300 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Learning</span>
-                            <span class="text-white font-bold">${dictTotalSrsItems - dictMasteredSrsItems}</span>
+                        <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-2.5">
+                            <span class="text-slate-300 flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> Learning</span>
+                            <span class="text-white font-bold text-sm">${dictTotalSrsItems - dictMasteredSrsItems}</span>
                         </div>
                     </div>
                 </div>
                 <button onclick="window.openFlashcardDashboard('dictionary')" class="w-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold py-2.5 rounded-sm transition backdrop-blur-sm relative z-10 shrink-0 mt-auto">Review Glossary</button>
             </div>
 
-            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm flex flex-col shrink-0">
-                <h2 class="text-sm font-bold text-slate-900 dark:text-white mb-4">Quick Actions</h2>
-                <div class="flex flex-col gap-3">
-                    <button onclick="window.openQuickAdd()" class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-md text-sm transition shadow-sm hover:-translate-y-0.5">
+            <div class="flex-1 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-lg p-6 shadow-sm flex flex-col min-h-[250px]">
+                <h2 class="text-sm font-bold text-slate-900 dark:text-white mb-4 shrink-0">Quick Actions</h2>
+                <div class="flex flex-col gap-3 flex-1">
+                    <button onclick="window.openQuickAdd()" class="flex-1 w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-md text-sm transition shadow-sm hover:-translate-y-0.5 min-h-[44px]">
                         <i data-lucide="plus" class="w-4 h-4 shrink-0"></i> <span class="text-center font-bold">Add Universal Record</span>
                     </button>
-                    <button onclick="window.switchState('DOSSIERS'); setTimeout(window.addDossierFirm, 100);" class="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold py-2.5 px-4 rounded-md text-sm transition shadow-sm">
+                    <button onclick="window.switchState('DOSSIERS'); setTimeout(window.addDossierFirm, 100);" class="flex-1 w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold py-3 px-4 rounded-md text-sm transition shadow-sm min-h-[44px]">
                         <i data-lucide="building-2" class="w-4 h-4 text-slate-400 shrink-0"></i> <span class="text-center">Track New Firm</span>
                     </button>
-                    <button onclick="window.openManualBriefing()" class="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold py-2.5 px-4 rounded-md text-sm transition shadow-sm">
+                    <button onclick="window.openManualBriefing()" class="flex-1 w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold py-3 px-4 rounded-md text-sm transition shadow-sm min-h-[44px]">
                         <i data-lucide="clipboard-list" class="w-4 h-4 text-slate-400 shrink-0"></i> <span class="text-center">Generate Briefing</span>
                     </button>
                 </div>
@@ -471,7 +496,7 @@ window.openExpandedGraph = function(metricKey, label, sub, val, colorClass, spar
         yLabelsHtml += `<div class="absolute w-12 text-right pr-2 text-[10px] font-mono font-medium text-slate-400" style="top: ${(yPosition/height)*100}%; transform: translateY(-50%); left: 0;">${valAtGridline.toFixed(2)}</div>`;
     }
 
-    // Isolated hover group using group/modalpoint to prevent global hover bar bug
+    // Isolated hover group using group/modalpoint without vertical tracking lines
     const hoverOverlays = dataPoints.map((pt) => {
         return `
             <div class="flex-1 h-full group/modalpoint relative">

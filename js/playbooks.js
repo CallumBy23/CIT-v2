@@ -172,7 +172,8 @@ window.renderPlaybookGraph = function(playbookName) {
     const options = {
         layout: { hierarchical: false }, 
         physics: { enabled: false }, 
-        interaction: { hover: true, navigationButtons: true, keyboard: false, dragNodes: true },
+        // DISABLED DEFAULT NAVIGATION BUTTONS TO FIX UI OVERLAP
+        interaction: { hover: true, navigationButtons: false, keyboard: false, dragNodes: true },
         manipulation: {
             enabled: true,
             initiallyActive: true,
@@ -371,6 +372,17 @@ window.saveNodeData = function() {
     closePlaybookDrawer();
     
     if(typeof showToast === 'function') showToast("Node properties saved.", "success");
+};
+
+// Custom Programmatic Zoom Controls
+window.zoomPlaybook = function(direction) {
+    if (!playbookNetwork) return;
+    const currentScale = playbookNetwork.getScale();
+    const newScale = direction === 'in' ? currentScale * 1.3 : currentScale / 1.3;
+    playbookNetwork.moveTo({
+        scale: newScale,
+        animation: { duration: 300, easingFunction: "easeInOutQuad" }
+    });
 };
 
 window.resetPlaybookView = function() {

@@ -25,7 +25,8 @@ function switchState(newState) {
           'DICTIONARY': document.getElementById('btnSideDictionary'),
           'PLAYBOOKS': document.getElementById('btnSidePlaybooks'),
           'GRAPH': document.getElementById('btnSideGraph'),
-          'SETTINGS': document.getElementById('btnSideSettings')
+          'SETTINGS': document.getElementById('btnSideSettings'),
+          'VAULT': document.getElementById('btnSideVault')
       };
 
       const mobBtns = {
@@ -46,7 +47,8 @@ function switchState(newState) {
           'DICTIONARY': document.getElementById("appDictionary"),
           'PLAYBOOKS': document.getElementById("appPlaybooks"),
           'GRAPH': document.getElementById("appGraph"),
-          'SETTINGS': document.getElementById("appSettings")
+          'SETTINGS': document.getElementById("appSettings"),
+          'VAULT': document.getElementById("appVault")
       };
       
       const mainTabsWrapper = document.getElementById("mainTabsWrapper");
@@ -87,7 +89,7 @@ function switchState(newState) {
       if (apps[newState]) {
           apps[newState].classList.remove("hidden");
           apps[newState].style.opacity = '1';
-          if (newState === "DASHBOARD" || newState === "SETTINGS") {
+          if (newState === "DASHBOARD" || newState === "SETTINGS" || newState === "VAULT") {
               apps[newState].style.display = 'block';
               apps[newState].classList.add("block");
           } else {
@@ -106,7 +108,7 @@ function switchState(newState) {
           if (typeof renderDashboard === 'function') renderDashboard();
       }
       else if (newState === "INTELLIGENCE") {
-          currentWorkspace = "All"; // <--- ADD THIS
+          currentWorkspace = "All"; 
           if (mainTabsWrapper) {
               mainTabsWrapper.style.display = "block";
               mainTabsWrapper.classList.remove("hidden");
@@ -146,6 +148,14 @@ function switchState(newState) {
       }
       else if (newState === "GRAPH") {
           if(typeof renderNexusGraph === 'function') setTimeout(renderNexusGraph, 50);
+      }
+      else if (newState === "VAULT") {
+          if (mainTabsWrapper) {
+              mainTabsWrapper.style.display = "block";
+              mainTabsWrapper.classList.remove("hidden");
+          }
+          renderTabs();
+          if (typeof window.renderVault === 'function') window.renderVault();
       }
       
   } catch (err) {
@@ -292,7 +302,7 @@ function renderTabs() {
       if (ws === currentWorkspace && !["General Market", "Interview Vault"].includes(ws)) {
         btn.innerHTML = `<div class="flex items-center gap-2"><span>${ws}</span><span onclick="manageWorkspace('${ws.replace(/'/g, "\\'")}', event, 'intel')" class="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-sm print:hidden transition">⚙️</span></div>`;
       } else { 
-        btn.innerHTML = `<span>${ws === "Interview Vault" ? '⭐ ' + ws : ws}</span>`; 
+        btn.innerHTML = `<span>${ws}</span>`; 
       }
 
       btn.className = ws === currentWorkspace ? activeClass : inactiveClass;
@@ -356,7 +366,7 @@ function renderTabs() {
       if (cat === currentConceptCategory && cat !== "Interview Vault") {
         btn.innerHTML = `<div class="flex items-center gap-2"><span>${cat}</span><span onclick="manageWorkspace('${cat.replace(/'/g, "\\'")}', event, 'concept')" class="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-sm print:hidden transition">⚙️</span></div>`;
       } else { 
-        btn.innerHTML = `<span>${cat === "Interview Vault" ? '⭐ ' + cat : cat}</span>`; 
+        btn.innerHTML = `<span>${cat}</span>`; 
       }
 
       btn.className = cat === currentConceptCategory ? activeClass : inactiveClass;
@@ -451,6 +461,20 @@ function renderTabs() {
       } 
     };
     container.appendChild(newCatBtn);
+    
+  } else if (appState === "VAULT") {
+      // Generate Global Tabs for the Vault
+      (window.vaultTabs || []).forEach(tab => {
+          const btn = document.createElement("button");
+          btn.innerHTML = `<span>${tab}</span>`;
+          btn.className = tab === window.activeVaultTab ? activeClass : inactiveClass;
+          btn.onclick = () => {
+              window.activeVaultTab = tab;
+              renderTabs();
+              if (typeof window.renderVault === 'function') window.renderVault();
+          };
+          container.appendChild(btn);
+      });
   }
 }
 
