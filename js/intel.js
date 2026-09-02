@@ -5,11 +5,34 @@ window.toggleIntelCard = function(index, event) {
   if (event && (event.target.closest('button') || event.target.closest('a') || event.target.closest('input') || event.target.closest('.ql-editor'))) {
     return;
   }
-  if (db.factors && db.factors[index]) {
-      db.factors[index].isCollapsed = !db.factors[index].isCollapsed;
-      if (typeof saveDatabase === 'function') saveDatabase();
-      renderFeed();
+  
+  if (!db.factors || !db.factors[index]) return;
+  
+  const factor = db.factors[index];
+  factor.isCollapsed = !factor.isCollapsed;
+  
+  // Targeted DOM update without re-rendering the feed
+  const card = document.getElementById(`factor-card-${index}`);
+  if (card) {
+    const body = card.querySelector('.nexus-body');
+    const icon = card.querySelector('.nexus-icon i');
+    
+    if (body) {
+      if (factor.isCollapsed) {
+        body.classList.add('hidden');
+      } else {
+        body.classList.remove('hidden');
+      }
+    }
+    
+    if (icon) {
+      icon.setAttribute('data-lucide', factor.isCollapsed ? 'chevron-down' : 'chevron-up');
+      if (window.lucide) window.lucide.createIcons();
+    }
   }
+
+  // Save to local cache only (prevents unnecessary cloud POST requests on every click)
+  if (typeof saveToLocalCache === 'function') saveToLocalCache();
 };
 
 function renderPestleFilters() {
@@ -174,24 +197,28 @@ document.getElementById("logLinkedFirm").value = "";
 }
 
 function openEditModal(index) {
-const f = db.factors[index];
-document.getElementById("editIndex").value = index;
-document.getElementById("editTitle").value = f.title;
+  const f = db.factors[index];
+  document.getElementById("editIndex").value = index;
+  document.getElementById("editTitle").value = f.title;
 
-const wsSelect = document.getElementById("editWorkspaceSelect");
-wsSelect.innerHTML = db.workspaces.map(w => `<option value="${w}">${w}</option>`).join('');
-wsSelect.value = f.workspace;
+  const wsSelect = document.getElementById("editWorkspaceSelect");
+  wsSelect.innerHTML = db.workspaces.map(w => `<option value="${w}">${w}</option>`).join('');
+  wsSelect.value = f.workspace;
 
-document.getElementById("editLinkedConcept").value = f.linkedConcept || "";
-document.getElementById("editLinkedFirm").value = f.linkedFirm || "";
-document.getElementById("editPestle").value = f.pestle;
-document.getElementById("editMetric").value = f.metric || "";
-if (document.getElementById("editSummary")) document.getElementById("editSummary").value = f.summary || "";
+  document.getElementById("editLinkedConcept").value = f.linkedConcept || "";
+  document.getElementById("editLinkedFirm").value = f.linkedFirm || "";
+  document.getElementById("editPestle").value = f.pestle;
+  document.getElementById("editMetric").value = f.metric || "";
+  if (document.getElementById("editSummary")) document.getElementById("editSummary").value = f.summary || "";
 
-intelEditDescQuill.root.innerHTML = f.description || "";
-intelEditImplQuill.root.innerHTML = f.implications || "";
+  // Lazy-load Intel Edit Quills
+  window.intelEditDescQuill = window.getOrInitQuill('#editDescriptionQuill', { modules: { toolbar: '#toolbar-intel-edit-desc' } });
+  window.intelEditImplQuill = window.getOrInitQuill('#editImplicationsQuill', { modules: { toolbar: '#toolbar-intel-edit-impl' } });
 
-document.getElementById("editModalContainer").classList.remove('hidden');
+  if (window.intelEditDescQuill) window.intelEditDescQuill.root.innerHTML = f.description || "";
+  if (window.intelEditImplQuill) window.intelEditImplQuill.root.innerHTML = f.implications || "";
+
+  document.getElementById("editModalContainer").classList.remove('hidden');
 }
 
 function saveEdit(isSilent = false) {

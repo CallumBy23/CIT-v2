@@ -1,3 +1,33 @@
+// MAIN ENTRY & GLOBAL UI HELPERS
+// ==========================================
+
+// --- CENTRALIZED QUILL LAZY-LOADER ---
+window.getOrInitQuill = function(selector, options = {}) {
+    const el = document.querySelector(selector);
+    if (!el) return null;
+    
+    // Return existing cached instance to prevent duplicate toolbars or memory leaks
+    if (el.__quillInstance) return el.__quillInstance;
+
+    const defaultOptions = {
+        theme: 'snow',
+        ...options
+    };
+
+    const instance = new Quill(el, defaultOptions);
+    
+    if (instance && instance.root) {
+        instance.root.setAttribute('spellcheck', 'true');
+        instance.root.setAttribute('lang', 'en-GB');
+        if (typeof scheduleAutoSave === 'function') {
+            instance.on('text-change', scheduleAutoSave);
+        }
+    }
+
+    el.__quillInstance = instance;
+    return instance;
+};
+
 window.toggleDarkMode = function() {
     const htmlEl = document.documentElement;
     if (htmlEl.classList.contains('dark')) {
@@ -12,6 +42,26 @@ window.toggleDarkMode = function() {
 window.toggleAppSidebar = function(id) {
     const el = document.getElementById(id);
     if (!el) return;
+
+    // Lazy-load sidebars on first reveal
+    if (id === 'intelLogSidebar' && !window.intelLogQuill) {
+        window.intelLogQuill = window.getOrInitQuill('#logContextQuill', { 
+            modules: { toolbar: '#toolbar-intel-log' }, 
+            placeholder: 'Commercial Context & Facts...' 
+        });
+        if (window.intelLogQuill) {
+            window.intelLogQuill.on('text-change', () => {
+                runAutoTagger(window.intelLogQuill.getText());
+            });
+        }
+    }
+    
+    if (id === 'conceptLogSidebar' && !window.quillEditor) {
+        window.quillEditor = window.getOrInitQuill('#conceptBodyQuill', { 
+            modules: { toolbar: '#quillToolbar' } 
+        });
+    }
+
     if (window.innerWidth >= 768) {
         el.classList.toggle('md:hidden'); 
         el.classList.toggle('md:flex');
@@ -189,37 +239,6 @@ window.onload = async () => {
     }
   
     try {
-        const initQuill = (selector, options) => {
-            const el = document.querySelector(selector);
-            return el ? new Quill(el, options) : null;
-        };
-  
-        // Explicitly bind to window to prevent Strict-Mode crashes
-        window.quillEditor = initQuill('#conceptBodyQuill', { modules: { toolbar: '#quillToolbar' }, theme: 'snow' });
-        window.editQuillEditor = initQuill('#editConceptBodyQuill', { modules: { toolbar: '#editConceptToolbar' }, theme: 'snow' });
-        window.cultureQuill = initQuill('#dossierCultureQuill', { modules: { toolbar: '#toolbar-culture' }, theme: 'snow' });
-        window.personalWhyQuill = initQuill('#dossierPersonalWhyQuill', { modules: { toolbar: '#toolbar-personal-why' }, theme: 'snow' });
-        window.compModalQuill = initQuill('#compModalQuill', { modules: { toolbar: '#toolbar-comp-modal' }, theme: 'snow' });
-        window.practiceQuill = initQuill('#practiceModalQuill', { modules: { toolbar: '#toolbar-practice-modal' }, theme: 'snow' });
-        window.clientsQuill = initQuill('#clientsModalQuill', { modules: { toolbar: '#toolbar-clients-modal' }, theme: 'snow' });
-        window.intelLogQuill = initQuill('#logContextQuill', { modules: { toolbar: '#toolbar-intel-log' }, theme: 'snow', placeholder: 'Commercial Context & Facts...' });
-        window.intelEditDescQuill = initQuill('#editDescriptionQuill', { modules: { toolbar: '#toolbar-intel-edit-desc' }, theme: 'snow' });
-        window.intelEditImplQuill = initQuill('#editImplicationsQuill', { modules: { toolbar: '#toolbar-intel-edit-impl' }, theme: 'snow' });
-  
-        [window.quillEditor, window.editQuillEditor, window.cultureQuill, window.personalWhyQuill, window.compModalQuill, window.practiceQuill, window.clientsQuill, window.intelLogQuill, window.intelEditDescQuill, window.intelEditImplQuill].forEach(q => {
-          if (q) {
-              q.root.setAttribute('spellcheck', 'true');
-              q.root.setAttribute('lang', 'en-GB');
-              if (typeof scheduleAutoSave === 'function') q.on('text-change', scheduleAutoSave);
-          }
-        });
-  
-        if (window.intelLogQuill) {
-            window.intelLogQuill.on('text-change', () => {
-                runAutoTagger(window.intelLogQuill.getText());
-            });
-        }
-  
         if (typeof initCanvasEvents === 'function') initCanvasEvents();
         if (typeof initOmnibarListener === 'function') initOmnibarListener();
         if (typeof initAutoSaveListeners === 'function') initAutoSaveListeners();

@@ -602,6 +602,13 @@ function toggleDossierMode(mode) {
         document.getElementById("dossierCloseDate").value = s.closeDate || "";
         document.getElementById("dossierRolling").value = s.rolling || "Non-Rolling";
         
+        // Lazy-load Dossier Profile Editors
+        window.cultureQuill = window.getOrInitQuill('#dossierCultureQuill', { modules: { toolbar: '#toolbar-culture' } });
+        window.personalWhyQuill = window.getOrInitQuill('#dossierPersonalWhyQuill', { modules: { toolbar: '#toolbar-personal-why' } });
+
+        if (window.cultureQuill) window.cultureQuill.root.innerHTML = d.culture || "";
+        if (window.personalWhyQuill) window.personalWhyQuill.root.innerHTML = d.personalWhy || "";
+
         document.getElementById("dossierViewMode").classList.replace("block", "hidden");
         document.getElementById("dossierEditMode").classList.replace("hidden", "block");
     } else {
@@ -609,6 +616,72 @@ function toggleDossierMode(mode) {
         document.getElementById("dossierViewMode").classList.replace("hidden", "block");
     }
 }
+
+// --- COMPETENCIES CRUD ---
+window.openCompetencyModal = function(idx = -1) {
+    document.getElementById('compModalContainer').classList.remove('hidden');
+    document.getElementById('compModalContainer').classList.add('flex');
+    const d = db.dossiers[currentDossierFirm];
+    
+    // Lazy-load Competency Modal Editor
+    window.compModalQuill = window.getOrInitQuill('#compModalQuill', { modules: { toolbar: '#toolbar-comp-modal' } });
+
+    if (idx >= 0 && d.competencies[idx]) {
+        document.getElementById('compModalTitle').innerText = "Edit Competency";
+        document.getElementById('compEditIndex').value = idx;
+        document.getElementById('compHeadingInput').value = d.competencies[idx].heading;
+        if(window.compModalQuill) window.compModalQuill.root.innerHTML = d.competencies[idx].body;
+    } else {
+        document.getElementById('compModalTitle').innerText = "Add Core Competency";
+        document.getElementById('compEditIndex').value = "";
+        document.getElementById('compHeadingInput').value = "";
+        if(window.compModalQuill) window.compModalQuill.root.innerHTML = "";
+    }
+};
+
+// --- PRACTICE AREA CRUD ---
+window.openPracticeModal = function(idx = -1) {
+    document.getElementById('practiceModalContainer').classList.remove('hidden');
+    document.getElementById('practiceModalContainer').classList.add('flex');
+    const d = db.dossiers[currentDossierFirm];
+
+    // Lazy-load Practice Area Editor
+    window.practiceQuill = window.getOrInitQuill('#practiceModalQuill', { modules: { toolbar: '#toolbar-practice-modal' } });
+
+    if (idx >= 0 && d.practice[idx]) {
+        document.getElementById('practiceModalTitle').innerText = "Edit Practice Area";
+        document.getElementById('practiceEditIndex').value = idx;
+        document.getElementById('practiceHeadingInput').value = d.practice[idx].heading;
+        if(window.practiceQuill) window.practiceQuill.root.innerHTML = d.practice[idx].body;
+    } else {
+        document.getElementById('practiceModalTitle').innerText = "Add Practice Area";
+        document.getElementById('practiceEditIndex').value = "";
+        document.getElementById('practiceHeadingInput').value = "";
+        if(window.practiceQuill) window.practiceQuill.root.innerHTML = "";
+    }
+};
+
+// --- KEY CLIENTS CRUD ---
+window.openClientsModal = function(idx = -1) {
+    document.getElementById('clientsModalContainer').classList.remove('hidden');
+    document.getElementById('clientsModalContainer').classList.add('flex');
+    const d = db.dossiers[currentDossierFirm];
+
+    // Lazy-load Clients/Deals Editor
+    window.clientsQuill = window.getOrInitQuill('#clientsModalQuill', { modules: { toolbar: '#toolbar-clients-modal' } });
+
+    if (idx >= 0 && d.clients[idx]) {
+        document.getElementById('clientsModalTitle').innerText = "Edit Client / Deal";
+        document.getElementById('clientsEditIndex').value = idx;
+        document.getElementById('clientsHeadingInput').value = d.clients[idx].heading;
+        if(window.clientsQuill) window.clientsQuill.root.innerHTML = d.clients[idx].body;
+    } else {
+        document.getElementById('clientsModalTitle').innerText = "Add Client / Deal";
+        document.getElementById('clientsEditIndex').value = "";
+        document.getElementById('clientsHeadingInput').value = "";
+        if(window.clientsQuill) window.clientsQuill.root.innerHTML = "";
+    }
+};
 
 function saveDossierData() {
     if(!currentDossierFirm) return;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'legal-nexus-cache-v3'; // Bumped to v3 to force cache flush
+const CACHE_NAME = 'legal-nexus-cache-v5'; 
 const urlsToCache = [
   './',
   './index.html',
@@ -18,9 +18,11 @@ const urlsToCache = [
   './js/dossiers.js',
   './js/ai-engine.js',
   './js/graph.js',
-  './js/playbooks.js', // Added missing file
-  './js/dashboard.js', // Added missing file
-  './js/main.js'       // Added missing file
+  './js/playbooks.js', 
+  './js/dashboard.js', 
+  './js/main.js',
+  './js/flashcards.js',
+  './js/templates.js'
 ];
 
 self.addEventListener('install', event => {

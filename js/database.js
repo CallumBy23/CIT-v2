@@ -1,34 +1,164 @@
-// DATABASE FETCHING & SAVING & BRIEFINGS
+// DATABASE FETCHING, SAVING & SYNC CONFLICT PROTECTOR
 // ==========================================
 
 // --- MACRO DATA COMPRESSION FIREWALL ---
 function compressMacroData(historyArray) {
     if (!historyArray || !Array.isArray(historyArray)) return [];
     
-    // 1. Calculate 5-Year Cutoff
     const fiveYearsAgo = new Date();
     fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
     const cutoffTime = fiveYearsAgo.getTime();
 
-    // 2. Filter out old data
     const recentData = historyArray.filter(p => p && p.d >= cutoffTime);
 
-    // 3. Group by Year-Month to find the first entry of each month
     const monthlyMap = new Map();
     recentData.forEach(p => {
         const d = new Date(p.d);
         const monthKey = `${d.getFullYear()}-${d.getMonth()}`; 
-        
-        // If month not logged yet, OR this data point is earlier in the month, overwrite it
         if (!monthlyMap.has(monthKey) || p.d < monthlyMap.get(monthKey).d) {
             monthlyMap.set(monthKey, p);
         }
     });
 
-    // 4. Return sorted chronologically
     return Array.from(monthlyMap.values()).sort((a, b) => a.d - b.d);
 }
 
+// --- SMART NON-DESTRUCTIVE DATABASE MERGE ---
+function smartMergeDatabases(local, remote) {
+    const merged = { ...local };
+
+    // 1. Workspaces & Categories (Unions)
+    merged.workspaces = Array.from(new Set([...(local.workspaces || []), ...(remote.workspaces || [])]));
+    merged.conceptCategories = Array.from(new Set([...(local.conceptCategories || []), ...(remote.conceptCategories || [])]));
+    merged.dictCategories = Array.from(new Set([...(local.dictCategories || []), ...(remote.dictCategories || [])]));
+    merged.targetFirms = Array.from(new Set([...(local.targetFirms || []), ...(remote.targetFirms || [])]));
+
+    // 2. Factors / Intel (Deduplicate by Title + Date)
+    const factorKeys = new Set((local.factors || []).map(f => `${f.title}_${f.date}`));
+    (remote.factors || []).forEach(rf => {
+        if (!factorKeys.has(`${rf.title}_${rf.date}`)) {
+            merged.factors.push(rf);
+        }
+    });
+
+    // 3. Concepts (Deduplicate by Title)
+    const conceptTitles = new Set((local.concepts || []).map(c => c.title.toLowerCase().trim()));
+    (remote.concepts || []).forEach(rc => {
+        if (!conceptTitles.has(rc.title.toLowerCase().trim())) {
+            merged.concepts.push(rc);
+        }
+    });
+
+    // 4. Dictionary (Deduplicate by Term)
+    const dictTerms = new Set((local.dictionary || []).map(d => d.term.toLowerCase().trim()));
+    (remote.dictionary || []).forEach(rd => {
+        if (!dictTerms.has(rd.term.toLowerCase().trim())) {
+            merged.dictionary.push(rd);
+        }
+    });
+
+    // 5. Vault (Deduplicate by Timestamp or Title)
+    const vaultKeys = new Set((local.vault || []).map(v => `${v.title}_${v.timestamp}`));
+    (remote.vault || []).forEach(rv => {
+        if (!vaultKeys.has(`${rv.title}_${rv.timestamp}`)) {
+            merged.vault.push(rv);
+        }
+    });
+
+    // 6. Dossiers (Deep merge per firm)
+    merged.dossiers = { ...(local.dossiers || {}) };
+    for (const firm in remote.dossiers || {}) {
+        if (!merged.dossiers[firm]) {
+            merged.dossiers[firm] = remote.dossiers[firm];
+        } else {
+            const lDoss = merged.dossiers[firm];
+            const rDoss = remote.dossiers[firm];
+            lDoss.practice = Array.isArray(lDoss.practice) ? lDoss.practice : [];
+            lDoss.clients = Array.isArray(lDoss.clients) ? lDoss.clients : [];
+            lDoss.competencies = Array.isArray(lDoss.competencies) ? lDoss.competencies : [];
+            
+            const pHeadings = new Set(lDoss.practice.map(p => p.heading));
+            (rDoss.practice || []).forEach(rp => { if (!pHeadings.has(rp.heading)) lDoss.practice.push(rp); });
+
+            const cHeadings = new Set(lDoss.clients.map(c => c.heading));
+            (rDoss.clients || []).forEach(rc => { if (!cHeadings.has(rc.heading)) lDoss.clients.push(rc); });
+
+            const compHeadings = new Set(lDoss.competencies.map(comp => comp.heading));
+            (rDoss.competencies || []).forEach(rcomp => { if (!compHeadings.has(rcomp.heading)) lDoss.competencies.push(rcomp); });
+        }
+    }
+
+    // 7. Playbooks (Merge keys)
+    merged.playbooks = { ...(remote.playbooks || {}), ...(local.playbooks || {}) };
+
+    merged.lastUpdated = Math.max(local.lastUpdated || 0, remote.lastUpdated || 0, Date.now());
+    return merged;
+}
+
+// --- CONFLICT RESOLUTION MODAL ---
+function showConflictResolutionModal(remoteDb) {
+    const existing = document.getElementById("syncConflictModal");
+    if (existing) existing.remove();
+
+    const localDate = new Date(db.lastUpdated || 0).toLocaleTimeString('en-GB');
+    const remoteDate = new Date(remoteDb.lastUpdated || 0).toLocaleTimeString('en-GB');
+
+    const modalHtml = `
+      <div id="syncConflictModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 border border-amber-500/50 rounded-xl max-w-lg w-full p-6 shadow-2xl animate-fade-in-up">
+            <div class="flex items-center gap-3 text-amber-600 dark:text-amber-400 mb-3">
+                <i data-lucide="shield-alert" class="w-6 h-6"></i>
+                <h3 class="text-lg font-serif font-black text-slate-900 dark:text-white">Cloud Sync Conflict Detected</h3>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+                A newer database version was saved from another device at <strong>${remoteDate}</strong>. Your current device last synced at <strong>${localDate}</strong>.
+            </p>
+            <div class="flex flex-col gap-2.5">
+                <button onclick="resolveConflict('merge')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-md text-xs transition shadow-sm flex items-center justify-center gap-2">
+                    <i data-lucide="git-merge" class="w-4 h-4"></i> Smart Merge (Keep Both Devices' Changes)
+                </button>
+                <button onclick="resolveConflict('pull')" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 font-bold py-2 px-4 rounded-md text-xs transition border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i> Pull Cloud Version (Discard Local Edits)
+                </button>
+                <button onclick="resolveConflict('force')" class="w-full bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-red-600 dark:text-red-400 font-bold py-2 px-4 rounded-md text-xs transition border border-red-200 dark:border-red-900/50 flex items-center justify-center gap-2">
+                    <i data-lucide="upload" class="w-4 h-4"></i> Force Overwrite (Replace Cloud With Local)
+                </button>
+            </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    if (window.lucide) window.lucide.createIcons();
+
+    window._pendingRemoteDb = remoteDb;
+}
+
+window.resolveConflict = async function(strategy) {
+    const remoteDb = window._pendingRemoteDb;
+    const modal = document.getElementById("syncConflictModal");
+    if (modal) modal.remove();
+
+    if (strategy === 'merge') {
+        db = smartMergeDatabases(db, remoteDb);
+        saveToLocalCache();
+        await executeDirectSave();
+        if (typeof showToast === 'function') showToast("Databases successfully merged!", "success");
+    } else if (strategy === 'pull') {
+        db = remoteDb;
+        saveToLocalCache();
+        if (typeof showToast === 'function') showToast("Cloud version loaded.", "info");
+    } else if (strategy === 'force') {
+        db.lastUpdated = Date.now();
+        await executeDirectSave();
+        if (typeof showToast === 'function') showToast("Cloud overwritten with local state.", "warning");
+    }
+
+    if (typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
+    if (typeof switchState === 'function') switchState(appState);
+};
+
+// --- CORE FETCH & SYNC ---
 async function loadDatabase() {
     const localCached = localStorage.getItem("LEGAL_NEXUS_DB");
     let localLastUpdated = 0;
@@ -73,41 +203,18 @@ async function loadDatabase() {
     db.playbooks = db.playbooks || {}; 
     db.vault = db.vault || []; 
 
-    if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
+    if (typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
     
-    if(appState === "DASHBOARD" && typeof renderDashboard === 'function') { renderDashboard(); }
-    else if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { 
-        const sortEl = document.getElementById("sortFeed");
-        if (sortEl) sortEl.value = uiPrefs.intelSort || "newest"; 
-        renderTabs(); 
-        renderFeed(); 
-    }
-    else if (appState === "CONCEPTS" && typeof renderConcepts === 'function') { 
-        const sortEl = document.getElementById("sortConcepts");
-        if (sortEl) sortEl.value = uiPrefs.conceptSort || "newest"; 
-        renderTabs(); 
-        renderConcepts(); 
-    }
-    else if (appState === "DOSSIERS" && typeof renderDossierList === 'function') { 
-        const sortEl = document.getElementById("sortDossiers");
-        if (sortEl) sortEl.value = uiPrefs.dossierSort || "deadline"; 
-        renderDossierList(); 
-    }
-    else if (appState === "PLAYBOOKS" && typeof renderPlaybookList === 'function') { 
-        renderPlaybookList(); 
-    }
-    else if (appState === "DICTIONARY" && typeof renderDictionary === 'function') { 
-        const sortEl = document.getElementById("sortDictionary");
-        if (sortEl) sortEl.value = uiPrefs.dictSort || "az"; 
-        renderDictionary(); 
-    }
-    else if (appState === "VAULT" && typeof window.renderVault === 'function') {
-        window.renderVault();
-    }
+    if (appState === "DASHBOARD" && typeof renderDashboard === 'function') renderDashboard();
+    else if (appState === "INTELLIGENCE" && typeof renderFeed === 'function') renderFeed();
+    else if (appState === "CONCEPTS" && typeof renderConcepts === 'function') renderConcepts();
+    else if (appState === "DOSSIERS" && typeof renderDossierList === 'function') renderDossierList();
+    else if (appState === "PLAYBOOKS" && typeof renderPlaybookList === 'function') renderPlaybookList();
+    else if (appState === "DICTIONARY" && typeof renderDictionary === 'function') renderDictionary();
+    else if (appState === "VAULT" && typeof window.renderVault === 'function') window.renderVault();
     
     try {
         const response = await fetch(SCRIPT_URL);
-        
         if (response.ok) {
           const loadedDb = await response.json();
           const serverLastUpdated = loadedDb.lastUpdated || 0;
@@ -132,39 +239,53 @@ async function loadDatabase() {
                       macroMetrics: (loadedDb.macroMetrics && Object.keys(loadedDb.macroMetrics).length > 0) ? loadedDb.macroMetrics : (db.macroMetrics || {}), 
                       playbooks: (loadedDb.playbooks && Object.keys(loadedDb.playbooks).length > 0) ? loadedDb.playbooks : (db.playbooks || {}),
                       vault: (loadedDb.vault && loadedDb.vault.length > 0) ? loadedDb.vault : (db.vault || []), 
-                      lastUpdated: serverLastUpdated > 0 ? serverLastUpdated : new Date().getTime()
+                      lastUpdated: serverLastUpdated > 0 ? serverLastUpdated : Date.now()
                   };
         
                   saveToLocalCache();
                   setOnlineStatus(true);
                   
-                  if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
-                
-                  if(appState === "DASHBOARD" && typeof renderDashboard === 'function') { renderDashboard(); }
-                  else if(appState === "INTELLIGENCE" && typeof renderFeed === 'function') { renderTabs(); renderFeed(); }
-                  else if (appState === "DOSSIERS" && typeof renderDossierList === 'function') { renderDossierList(); }
-                  else if (appState === "PLAYBOOKS" && typeof renderPlaybookList === 'function') { renderPlaybookList(); }
-                  else if (appState === "DICTIONARY" && typeof renderDictionary === 'function') { renderDictionary(); }
-                  else if (appState === "VAULT" && typeof window.renderVault === 'function') { window.renderVault(); }
+                  if (typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
+                  if (typeof switchState === 'function') switchState(appState);
               } else if (serverLastUpdated < localLastUpdated) {
-                  setOnlineStatus(true, "Local data is newer. Syncing up to cloud on next save.");
+                  setOnlineStatus(true, "Local data is newer. Syncing up on next save.");
               }
-          } else {
-              setOnlineStatus(false, loadedDb.error || "Received malformed data or an internal Apps Script error.");
           }
-      } else {
-          setOnlineStatus(false, `HTTP Error: ${response.status} - ${response.statusText}`);
-      }
+        }
     } catch (error) { 
         setOnlineStatus(false, `Network Error: ${error.message}`);
     }
     
-    if(typeof window.renderMacroWidget === 'function') window.renderMacroWidget();
-    if(typeof checkDailyBriefing === 'function') checkDailyBriefing();
+    if (typeof window.renderMacroWidget === 'function') window.renderMacroWidget();
+    if (typeof checkDailyBriefing === 'function') checkDailyBriefing();
 }
-  
+
+// --- CONFLICT-PROTECTED SAVE ---
 async function saveDatabase() {
-    // FIREWALL: Aggressively compress metrics arrays right before pushing to Google Sheets
+    setOnlineStatus(false, "Checking Cloud Sync...");
+
+    try {
+        const checkRes = await fetch(SCRIPT_URL);
+        if (checkRes.ok) {
+            const remote = await checkRes.json();
+            const remoteLastUpdated = remote.lastUpdated || 0;
+            const localLastUpdated = db.lastUpdated || 0;
+
+            // Conflict condition: Cloud has edits made AFTER this device's last state
+            if (remoteLastUpdated > localLastUpdated) {
+                setOnlineStatus(false, "Sync Conflict Halted");
+                showConflictResolutionModal(remote);
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn("Pre-flight check failed, attempting direct save.", e);
+    }
+
+    await executeDirectSave();
+}
+
+async function executeDirectSave() {
     if (db.macroMetrics) {
         for (const key in db.macroMetrics) {
             if (db.macroMetrics[key] && Array.isArray(db.macroMetrics[key].history)) {
@@ -173,7 +294,7 @@ async function saveDatabase() {
         }
     }
 
-    db.lastUpdated = new Date().getTime(); 
+    db.lastUpdated = Date.now(); 
     saveToLocalCache();
   
     try { 
@@ -182,15 +303,15 @@ async function saveDatabase() {
           body: JSON.stringify(db) 
       }); 
       
-      if(response.ok) {
+      if (response.ok) {
           const result = await response.json();
           if (result.status === "success") {
               setOnlineStatus(true);
           } else {
-              setOnlineStatus(false, result.message || "Google Apps Script returned an error upon saving.");
+              setOnlineStatus(false, result.message || "Google Apps Script error.");
           }
       } else {
-          setOnlineStatus(false, `HTTP Save Error: ${response.status} - ${response.statusText}`);
+          setOnlineStatus(false, `HTTP Save Error: ${response.status}`);
       }
     } catch (error) { 
         setOnlineStatus(false, `Network Save Error: ${error.message}`); 
@@ -202,7 +323,6 @@ function saveToLocalCache() {
         localStorage.setItem("LEGAL_NEXUS_DB", JSON.stringify(db));
     } catch (e) {
         if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-            console.warn("LocalStorage quota exceeded! Your diagrams/rich text are too large for offline cache. Continuing to sync to cloud...");
             const statusText = document.getElementById('statusText');
             if (statusText) statusText.innerText = "Syncing (Cache Full)";
         }
@@ -219,14 +339,14 @@ function setOnlineStatus(isOnline, errorMsg = "") {
         text.innerText = "Synced";
         text.title = "";
     } else {
-        dot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]";
-        text.innerText = "Offline (Hover for Error)";
+        dot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse";
+        text.innerText = errorMsg || "Syncing...";
         text.title = errorMsg;
     }
 }
   
 function openManualBriefing() {
-    if(typeof checkDailyBriefing === 'function') checkDailyBriefing(true);
+    if (typeof checkDailyBriefing === 'function') checkDailyBriefing(true);
 }
   
 function checkDailyBriefing(isManual = false) {
@@ -243,15 +363,15 @@ function checkDailyBriefing(isManual = false) {
 
         if (data.schemes && data.schemes.length > 0) {
             data.schemes.forEach(s => {
-                if(s && s.closeDate && !s.applied) {
+                if (s && s.closeDate && !s.applied) {
                     const close = new Date(s.closeDate);
                     close.setHours(0,0,0,0);
                     const open = s.openDate ? new Date(s.openDate) : null;
-                    if(open) open.setHours(0,0,0,0);
+                    if (open) open.setHours(0,0,0,0);
                     
                     const isRollingOpen = (s.rolling === "Rolling" && open && now >= open && now <= close);
                     
-                    if(isRollingOpen || (close >= now && close <= twoWeeks)) {
+                    if (isRollingOpen || (close >= now && close <= twoWeeks)) {
                         const diff = Math.ceil((close - now) / (1000 * 60 * 60 * 24));
                         urgentFirms.push({ firm, diff, scheme: s.schemeType, isRollingOpen });
                     }
@@ -274,14 +394,13 @@ function checkDailyBriefing(isManual = false) {
         briefingHTML += `</ul>`;
     }
   
-    const dueConcepts = (db.concepts || []).filter(c => c && c.srs && c.srs.nextReview <= new Date().getTime());
-    const dueDictTerms = (db.dictionary || []).filter(d => d && d.srs && d.srs.nextReview <= new Date().getTime());
+    const dueConcepts = (db.concepts || []).filter(c => c && c.srs && c.srs.nextReview <= Date.now());
+    const dueDictTerms = (db.dictionary || []).filter(d => d && d.srs && d.srs.nextReview <= Date.now());
     const totalDue = dueConcepts.length + dueDictTerms.length;
 
     if (totalDue > 0) {
         hasAlerts = true;
-        briefingHTML += `<h4 class="font-bold text-gray-900 dark:text-white mb-3 border-b border-gray-200 dark:border-slate-700 pb-1 flex items-center gap-2"><span>🧠</span> Spaced Repetition Due</h4>`;
-        briefingHTML += `<div class="flex flex-col gap-3">`;
+        briefingHTML += `<h4 class="font-bold text-gray-900 dark:text-white mb-3 border-b border-gray-200 dark:border-slate-700 pb-1 flex items-center gap-2"><span>🧠</span> Spaced Repetition Due</h4><div class="flex flex-col gap-3">`;
 
         if (dueConcepts.length > 0) {
             briefingHTML += `<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 rounded-lg shadow-sm">
@@ -310,7 +429,7 @@ function checkDailyBriefing(isManual = false) {
         `;
     }
   
-    if(hasAlerts || isManual) {
+    if (hasAlerts || isManual) {
         document.getElementById('briefingContent').innerHTML = briefingHTML;
         document.getElementById('dailyBriefingModal').classList.remove('hidden');
     }

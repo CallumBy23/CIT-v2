@@ -164,13 +164,27 @@ function switchState(newState) {
 }
 
 function toggleGlobalCollapse(type, forceOpen) {
-  if (type === 'intel') {
-      db.factors.forEach(f => { if(f) f.isCollapsed = !forceOpen; });
-      saveDatabase(); renderFeed();
-  } else {
-      db.concepts.forEach(c => { if(c) c.isCollapsed = !forceOpen; });
-      saveDatabase(); renderConcepts();
+  const containerId = type === 'intel' ? '#cardsContainer' : '#conceptsContainer';
+  const dataList = type === 'intel' ? db.factors : db.concepts;
+  
+  if (!dataList) return;
+  
+  // 1. Update In-Memory State
+  dataList.forEach(item => { if (item) item.isCollapsed = !forceOpen; });
+
+  // 2. Direct DOM mutation without full re-render
+  const container = document.querySelector(containerId);
+  if (container) {
+    const bodies = container.querySelectorAll('.nexus-body');
+    const icons = container.querySelectorAll('.nexus-icon i');
+    
+    bodies.forEach(b => forceOpen ? b.classList.remove('hidden') : b.classList.add('hidden'));
+    icons.forEach(i => i.setAttribute('data-lucide', forceOpen ? 'chevron-up' : 'chevron-down'));
+    
+    if (window.lucide) window.lucide.createIcons();
   }
+
+  if (typeof saveToLocalCache === 'function') saveToLocalCache();
 }
 
 function routeToFirm(firmName) {
@@ -554,21 +568,44 @@ function manageWorkspace(oldName, event, type) {
 }
 
 function toggleSelectAll(mode) {
+  let containerId, indexList, selectedSet;
+
   if (mode === 'intel') {
-      const allSelected = currentVisibleFactorIndices.every(i => selectedFactors && selectedFactors.has(i));
-      currentVisibleFactorIndices.forEach(i => allSelected ? selectedFactors.delete(i) : selectedFactors.add(i));
-      if (typeof updateMassDeleteIntelBtn === 'function') updateMassDeleteIntelBtn();
-      renderFeed();
+    containerId = '#cardsContainer';
+    indexList = currentVisibleFactorIndices;
+    selectedSet = selectedFactors;
   } else if (mode === 'dictionary') {
-      const allSelected = currentVisibleDictIndices.every(i => window.selectedDictionary && window.selectedDictionary.has(i));
-      currentVisibleDictIndices.forEach(i => allSelected ? window.selectedDictionary.delete(i) : window.selectedDictionary.add(i));
-      renderDictionary();
+    containerId = '#dictionaryContainer';
+    indexList = currentVisibleDictIndices;
+    selectedSet = window.selectedDictionary;
   } else {
-      const allSelected = currentVisibleConceptIndices.every(i => window.selectedConcepts && window.selectedConcepts.has(i));
-      currentVisibleConceptIndices.forEach(i => allSelected ? window.selectedConcepts.delete(i) : window.selectedConcepts.add(i));
-      if (typeof updateMassDeleteConceptBtn === 'function') updateMassDeleteConceptBtn();
-      renderConcepts();
+    containerId = '#conceptsContainer';
+    indexList = currentVisibleConceptIndices;
+    selectedSet = window.selectedConcepts;
   }
+
+  if (!indexList || !selectedSet) return;
+
+  const allSelected = indexList.every(i => selectedSet.has(i));
+  const newCheckedState = !allSelected;
+
+  // 1. Update State Set
+  indexList.forEach(i => {
+    if (newCheckedState) selectedSet.add(i);
+    else selectedSet.delete(i);
+  });
+
+  // 2. Mutate on-screen checkboxes directly (No page reload)
+  const container = document.querySelector(containerId);
+  if (container) {
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => { cb.checked = newCheckedState; });
+  }
+
+  // 3. Update counter buttons
+  if (mode === 'intel' && typeof updateMassDeleteIntelBtn === 'function') updateMassDeleteIntelBtn();
+  if (mode === 'concepts' && typeof updateMassDeleteConceptBtn === 'function') updateMassDeleteConceptBtn();
+  if (mode === 'dictionary' && typeof updateMassDeleteDictBtn === 'function') updateMassDeleteDictBtn();
 }
 
 function formatDateString(timestamp) {
