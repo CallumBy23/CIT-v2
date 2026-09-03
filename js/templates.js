@@ -387,7 +387,7 @@ const systemTemplates = `
       <div class="flex items-center my-6"><hr class="flex-grow border-slate-200 dark:border-slate-800"><span class="px-3 text-slate-400 text-[10px] font-bold uppercase tracking-widest">OR PASTE RAW JSON</span><hr class="flex-grow border-slate-200 dark:border-slate-800"></div>
       <textarea id="backupTextarea" class="w-full h-32 md:h-40 border border-slate-300 dark:border-slate-700 rounded-sm p-3 text-xs font-mono text-slate-700 dark:text-slate-300 dark:bg-slate-900 focus:ring-1 focus:ring-indigo-500 outline-none mb-4 shadow-inner"></textarea>
       <div class="flex justify-end gap-3 mt-2 border-t border-slate-200 dark:border-slate-800 pt-4">
-        <button onclick="document.getElementById('backupModalContainer').classList.add('hidden')" class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 font-bold py-2 px-4 rounded-sm transition text-sm">Close</button>
+        <button onclick="document.getElementById('backupModalContainer').classList.add('hidden')" class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 font-bold py-2 px-4 rounded-sm transition text-sm">Cancel</button>
         <button onclick="processImport()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-sm transition shadow-sm hidden text-sm items-center gap-1.5" id="importConfirmBtn"><i data-lucide="upload" class="w-4 h-4"></i> Process Import</button>
       </div>
     </div>
@@ -419,23 +419,63 @@ const systemTemplates = `
         <button onclick="closeFlashcards()" class="text-slate-400 hover:text-white transition"><i data-lucide="x" class="w-7 h-7"></i></button>
       </div>
       <div class="w-full flex-1 bg-white dark:bg-slate-900 rounded-md shadow-2xl overflow-hidden flex flex-col relative border border-slate-300 dark:border-slate-700" id="flashcardContainer">
-        <!-- FRONT OF CARD -->
-        <div id="flashcardFront" class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-[#0b1120] transition" onclick="flipFlashcard()">
-            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 px-3 py-1 rounded-sm shadow-sm" id="fcCategory">Category</span>
-            <h2 class="text-3xl md:text-5xl font-serif font-black text-slate-900 dark:text-white leading-tight" id="fcTitle">Concept Title</h2>
-            <div id="fcFrontBody" class="hidden text-base md:text-xl font-medium text-slate-700 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed overflow-y-auto max-h-[50vh] text-left p-6 border border-slate-200 dark:border-slate-700 rounded-sm bg-white dark:bg-slate-800 shadow-inner"></div>
-            <p class="text-slate-400 mt-10 text-xs uppercase tracking-widest animate-pulse font-bold" id="fcInstruction">(Tap or click to reveal answer)</p>
-            <div class="mt-8 w-full max-w-lg z-10 cursor-default" onclick="event.stopPropagation()">
-                <button onclick="toggleFeynmanDrawer(this)" id="btnShowFeynman" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center gap-1.5 mx-auto border border-slate-200 dark:border-slate-700 hover:border-slate-400 rounded-sm px-4 py-1.5 bg-white dark:bg-slate-900 shadow-sm"><i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> Optional: Try Feynman Technique</button>
-                <div id="feynmanDrawer" class="hidden flex-col gap-3 mt-4 animate-fade-in-up bg-slate-50 dark:bg-[#0b1120] border border-slate-200 dark:border-slate-800 p-4 rounded-sm">
-                    <textarea id="feynmanInput" placeholder="Explain this simply in your own words. No jargon..." spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-3 text-sm h-28 outline-none focus:ring-1 focus:ring-indigo-500 resize-none shadow-inner bg-white dark:bg-slate-900 dark:text-white"></textarea>
-                    <div class="flex gap-2">
-                        <button onclick="evaluateFeynman()" id="btnFeynmanSubmit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-sm text-xs flex-1 transition shadow-sm flex items-center justify-center gap-1.5"><i data-lucide="bot" class="w-4 h-4"></i> Grade Simplicity & Flip</button>
-                        <button onclick="flipFlashcard()" class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 font-bold py-2 px-4 rounded-sm text-xs transition shadow-sm">Skip</button>
+        
+        <!-- FRONT OF CARD (ACTIVE RECALL DRILL & CLASSIC REVEAL) -->
+        <div id="flashcardFront" class="absolute inset-0 flex flex-col items-center justify-between p-6 md:p-8 text-center cursor-default bg-white dark:bg-slate-900 overflow-y-auto">
+            <!-- Top Mode Bar & Category -->
+            <div class="w-full flex justify-between items-center shrink-0">
+                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 px-3 py-1 rounded-sm shadow-sm" id="fcCategory">Category</span>
+                <button type="button" onclick="window.toggleRecallDrillMode()" id="btnToggleRecallMode" class="text-xs font-bold px-3 py-1 rounded-full border transition flex items-center gap-1.5 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-blue-500"></i> <span id="recallModeLabel">Recall Drill: OFF</span>
+                </button>
+            </div>
+
+            <!-- Card Recall Display -->
+            <div class="my-auto w-full max-w-xl flex flex-col items-center justify-center py-4">
+                <div id="recallCardBadge" class="hidden mb-4 px-3 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                    Active Recall Drill
+                </div>
+                
+                <h2 class="text-3xl md:text-5xl font-serif font-black text-slate-900 dark:text-white leading-tight" id="fcTitle">Concept Title</h2>
+                <div id="fcFrontBody" class="hidden text-base md:text-lg font-medium text-slate-700 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed overflow-y-auto max-h-[35vh] text-left p-5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50 mt-4 shadow-inner"></div>
+                
+                <!-- Classic Mode Instruction -->
+                <p class="text-slate-400 mt-6 text-xs uppercase tracking-widest animate-pulse font-bold cursor-pointer" id="fcInstruction" onclick="flipFlashcard()">(Tap or click to reveal answer)</p>
+
+                <!-- Active Recall Input Dock -->
+                <div id="recallInputDock" class="hidden w-full mt-6 flex flex-col gap-3 text-left">
+                    <div class="relative w-full">
+                        <textarea id="recallAnswerInput" rows="3" placeholder="Type or speak the definition..." class="w-full border-2 border-slate-300 dark:border-slate-700 rounded-xl p-3.5 pr-12 text-sm focus:border-blue-500 outline-none dark:bg-slate-800 dark:text-white shadow-inner resize-none transition-colors"></textarea>
+                        
+                        <!-- Native Speech-to-Text Button -->
+                        <button type="button" id="btnRecallMic" onclick="window.toggleSpeechRecognition()" class="absolute right-3 top-3 p-2 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Speak Answer">
+                            <i data-lucide="mic" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Evaluation Banner -->
+                    <div id="recallResultBanner" class="hidden rounded-xl p-4 border transition-all text-xs flex flex-col gap-1.5">
+                        <div class="flex items-center justify-between font-bold" id="recallResultStatus"></div>
+                        <div class="text-slate-600 dark:text-slate-300 leading-relaxed" id="recallModelAnswer"></div>
+                    </div>
+
+                    <div class="flex gap-2.5">
+                        <button type="button" id="btnRecallCheck" onclick="window.checkRecallAnswer()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 text-sm">
+                            <i data-lucide="check-circle-2" class="w-4 h-4"></i> Check Answer
+                        </button>
+                        <button type="button" onclick="window.flipFlashcard()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold px-4 py-3 rounded-xl transition text-xs border border-slate-300 dark:border-slate-700">
+                            Give Up
+                        </button>
                     </div>
                 </div>
             </div>
+
+            <!-- Bottom Feynman Placeholder -->
+            <div class="w-full flex justify-center mt-2 shrink-0">
+                <button onclick="toggleFeynmanDrawer(this)" id="btnShowFeynman" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 hover:border-slate-400 rounded-sm px-4 py-1.5 bg-white dark:bg-slate-900 shadow-sm"><i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> Optional: Feynman Technique</button>
+            </div>
         </div>
+
         <!-- BACK OF CARD -->
         <div id="flashcardBack" class="absolute inset-0 flex-col hidden overflow-hidden bg-white dark:bg-slate-900">
             <div class="p-6 md:p-8 bg-slate-50 dark:bg-[#0b1120] border-b border-slate-200 dark:border-slate-800 shrink-0">

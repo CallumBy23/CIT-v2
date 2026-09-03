@@ -1,11 +1,26 @@
-// ==========================================
-// DEAL ANATOMY & PLAYBOOKS (Snap-to-Grid Engine)
-// ==========================================
+// =========================================================================
+// DEAL ANATOMY & PLAYBOOKS (Dynamic Bounding, Collapsing Lanes & Flow Roles)
+// =========================================================================
 
 let currentPlaybook = null;
 let playbookNetwork = null;
 let pbNodes = new vis.DataSet();
 let pbEdges = new vis.DataSet();
+
+const DEFAULT_STAGES = [
+    { id: "s1", name: "Phase 1: Deal Initiation & Preliminary DD", minLevel: 1, maxLevel: 3, accent: "#6366f1" },
+    { id: "s2", name: "Phase 2: Definitive Drafting & Negotiations", minLevel: 4, maxLevel: 7, accent: "#0284c7" },
+    { id: "s3", name: "Phase 3: Interim Period & CP Checklist", minLevel: 8, maxLevel: 10, accent: "#d97706" },
+    { id: "s4", name: "Phase 4: Completion & Funds Flow", minLevel: 11, maxLevel: 13, accent: "#059669" },
+    { id: "s5", name: "Phase 5: Post-Closing Filings & Integration", minLevel: 14, maxLevel: 25, accent: "#9333ea" }
+];
+
+window.getPlaybookStages = function() {
+    if (currentPlaybook && db.playbooks[currentPlaybook] && Array.isArray(db.playbooks[currentPlaybook].stages)) {
+        return db.playbooks[currentPlaybook].stages;
+    }
+    return DEFAULT_STAGES;
+};
 
 window.renderPlaybookList = function() {
     const container = document.getElementById("playbookList");
@@ -47,7 +62,7 @@ window.renderPlaybookList = function() {
 window.addPlaybook = function() {
     const name = prompt("Enter Playbook Name (e.g., Private M&A):");
     if (name && !db.playbooks[name]) {
-        db.playbooks[name] = { nodes: [], edges: [] };
+        db.playbooks[name] = { nodes: [], edges: [], stages: JSON.parse(JSON.stringify(DEFAULT_STAGES)) };
         currentPlaybook = name;
         saveDatabase();
         renderPlaybookList();
@@ -83,7 +98,6 @@ window.refreshPlaybookLayout = function() {
     pbNodes.forEach(n => nodesMap.set(n.id, { ...n }));
     let edgesList = pbEdges.get();
 
-    // 1. CALCULATE TOP-DOWN ROW LEVELS (BFS fallback for unassigned nodes)
     let adj = new Map();
     let inDegree = new Map();
     nodesMap.forEach((_, id) => { adj.set(id, []); inDegree.set(id, 0); });
@@ -121,37 +135,129 @@ window.refreshPlaybookLayout = function() {
         });
     }
 
-    // 2. APPLY GRID COORDINATES
     let updates = [];
     let levelXCounters = {};
 
     nodesMap.forEach((node) => {
-        // Obey user overrides, otherwise use BFS auto-level
         let newLevel = (node.manualLevel !== undefined && node.manualLevel !== null) 
                         ? parseInt(node.manualLevel, 10) 
                         : (node._autoLevel !== undefined ? node._autoLevel : 1);
         
-        let newY = newLevel * 150;
+        let newY = newLevel * 160;
         let newX = node.x;
 
-        // If it's a legacy node without an X coordinate, space them out safely
         if (newX === undefined || newX === null) {
             if (levelXCounters[newLevel] === undefined) {
                 levelXCounters[newLevel] = 0;
             } else {
-                levelXCounters[newLevel] += 260; 
+                levelXCounters[newLevel] += 280; 
             }
             newX = levelXCounters[newLevel];
         }
         
-        // Rigid 260px column grid snap
-        newX = Math.round(newX / 260) * 260; 
+        newX = Math.round(newX / 280) * 280; 
 
-        updates.push({ id: node.id, level: newLevel, manualLevel: newLevel, x: newX, y: newY });
+        // Role-based Node Styling (Start, Complete, Milestone, or KMS link)
+        let nodeColor = { background: '#2563eb', border: '#1d4ed8', highlight: { background: '#3b82f6', border: '#1e40af' } };
+        let shape = "box";
+
+        if (node.nodeRole === "start") {
+            nodeColor = { background: '#059669', border: '#047857', highlight: { background: '#10b981', border: '#065f46' } };
+        } else if (node.nodeRole === "complete") {
+            nodeColor = { background: '#4338ca', border: '#3730a3', highlight: { background: '#6366f1', border: '#312e81' } };
+        } else if (node.nodeRole === "milestone") {
+            nodeColor = { background: '#d97706', border: '#b45309', highlight: { background: '#f59e0b', border: '#92400e' } };
+        } else if (node.linkedConcept) {
+            nodeColor = { background: '#0891b2', border: '#0e7490', highlight: { background: '#06b6d4', border: '#155e75' } };
+        }
+
+        updates.push({ 
+            id: node.id, 
+            level: newLevel, 
+            manualLevel: newLevel, 
+            x: newX, 
+            y: newY,
+            color: nodeColor,
+            shape: shape
+        });
     });
 
     pbNodes.update(updates);
 };
+
+// --- DYNAMIC BOUNDING & COLLAPSING SWIMLANE BOARD ---
+function drawPlaybookStageLanes(ctx) {
+    const allNodes = pbNodes.get();
+    if (allNodes.length === 0) return;
+
+    const isDark = document.documentElement.classList.contains('dark');
+    const stages = window.getPlaybookStages();
+
+    // 1. Calculate the exact lateral boundaries of existing nodes
+    let minX = Infinity;
+    let maxX = -Infinity;
+    allNodes.forEach(n => {
+        if (n.x < minX) minX = n.x;
+        if (n.x > maxX) maxX = n.x;
+    });
+
+    // Provide comfortable lateral padding around the board
+    const boardPadding = 180;
+    const boardLeft = (minX === Infinity ? -400 : minX) - boardPadding;
+    const boardRight = (maxX === -Infinity ? 400 : maxX) + boardPadding;
+    const boardWidth = boardRight - boardLeft;
+
+    stages.forEach(stage => {
+        // 2. Auto-Collapse: Detect if any node exists inside this stage's level range
+        const nodesInStage = allNodes.filter(n => {
+            const lvl = n.level || n.manualLevel || 1;
+            return lvl >= stage.minLevel && lvl <= stage.maxLevel;
+        });
+
+        // COLLAPSE ON ITSELF: If zero nodes exist in this stage, draw nothing!
+        if (nodesInStage.length === 0) return;
+
+        // Measure true vertical height of this stage from the nodes present
+        const minLvlInStage = Math.min(...nodesInStage.map(n => n.level || n.manualLevel || stage.minLevel));
+        const maxLvlInStage = Math.max(...nodesInStage.map(n => n.level || n.manualLevel || stage.maxLevel));
+
+        const topY = (minLvlInStage * 160) - 75;
+        const bottomY = (maxLvlInStage * 160) + 75;
+        const height = bottomY - topY;
+
+        // Draw bounded container box for this phase
+        ctx.fillStyle = isDark ? "rgba(15, 23, 42, 0.45)" : "rgba(248, 250, 252, 0.75)";
+        ctx.strokeStyle = isDark ? "rgba(51, 65, 85, 0.6)" : "rgba(203, 213, 225, 0.8)";
+        ctx.lineWidth = 1.5;
+
+        // Rounded swimlane card container
+        const r = 12;
+        ctx.beginPath();
+        ctx.moveTo(boardLeft + r, topY);
+        ctx.lineTo(boardLeft + boardWidth - r, topY);
+        ctx.quadraticCurveTo(boardLeft + boardWidth, topY, boardLeft + boardWidth, topY + r);
+        ctx.lineTo(boardLeft + boardWidth, topY + height - r);
+        ctx.quadraticCurveTo(boardLeft + boardWidth, topY + height, boardLeft + boardWidth - r, topY + height);
+        ctx.lineTo(boardLeft + r, topY + height);
+        ctx.quadraticCurveTo(boardLeft, topY + height, boardLeft, topY + height - r);
+        ctx.lineTo(boardLeft, topY + r);
+        ctx.quadraticCurveTo(boardLeft, topY, boardLeft + r, topY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Stage Title Pill Header
+        ctx.fillStyle = stage.accent || "#6366f1";
+        ctx.beginPath();
+        ctx.arc(boardLeft + 22, topY + 22, 5, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.font = "bold 12px Inter, sans-serif";
+        ctx.fillStyle = isDark ? "#cbd5e1" : "#334155";
+        ctx.textAlign = "left";
+        ctx.fillText(stage.name.toUpperCase(), boardLeft + 35, topY + 26);
+    });
+}
 
 window.renderPlaybookGraph = function(playbookName) {
     document.getElementById('activePlaybookLabel').innerText = playbookName;
@@ -163,7 +269,6 @@ window.renderPlaybookGraph = function(playbookName) {
     if (dataObj.nodes) pbNodes.add(dataObj.nodes);
     if (dataObj.edges) pbEdges.add(dataObj.edges);
 
-    // Initial silent layout alignment
     window.refreshPlaybookLayout();
 
     const container = document.getElementById('playbookCanvas');
@@ -172,33 +277,31 @@ window.renderPlaybookGraph = function(playbookName) {
     const options = {
         layout: { hierarchical: false }, 
         physics: { enabled: false }, 
-        // DISABLED DEFAULT NAVIGATION BUTTONS TO FIX UI OVERLAP
         interaction: { hover: true, navigationButtons: false, keyboard: false, dragNodes: true },
         manipulation: {
             enabled: true,
             initiallyActive: true,
             addNode: function(nodeData, callback) {
-                nodeData.label = "New Concept";
+                nodeData.label = "New Transaction Step";
                 nodeData.shape = "box";
-                nodeData.color = { background: '#4f46e5', border: '#3730a3', highlight: { background: '#6366f1', border: '#4338ca' } };
                 nodeData.font = { color: 'white', size: 14, face: 'Inter, sans-serif' };
                 nodeData.timing = "";
                 nodeData.advantages = "";
                 nodeData.disadvantages = "";
+                nodeData.linkedConcept = "";
+                nodeData.nodeRole = "standard";
+
+                let clickedRow = Math.max(1, Math.round((nodeData.y || 160) / 160));
+                let targetY = clickedRow * 160;
+                let targetX = Math.round((nodeData.x || 0) / 280) * 280;
                 
-                // INFER ROW & COLUMN FROM MOUSE DROP COORDINATES
-                let clickedRow = Math.max(1, Math.round((nodeData.y || 150) / 150));
-                let targetY = clickedRow * 150;
-                let targetX = Math.round((nodeData.x || 0) / 260) * 260;
-                
-                // OVERLAP PREVENTION: Bump to the right if a node is already in this cell
                 let occupied = true;
                 while (occupied) {
                     occupied = false;
                     pbNodes.forEach(n => {
                         if (n.y === targetY && n.x === targetX && n.id !== nodeData.id) occupied = true;
                     });
-                    if (occupied) targetX += 260;
+                    if (occupied) targetX += 280;
                 }
 
                 nodeData.manualLevel = clickedRow;
@@ -216,13 +319,19 @@ window.renderPlaybookGraph = function(playbookName) {
             },
             addEdge: function(edgeData, callback) {
                 if (edgeData.from !== edgeData.to) {
+                    const branchLabel = prompt("Branch Condition / Reason (Optional):", "");
+                    
                     edgeData.arrows = 'to';
-                    edgeData.color = { color: '#94a3b8' };
+                    edgeData.color = { color: '#94a3b8', highlight: '#2563eb' };
+                    if (branchLabel && branchLabel.trim() !== '') {
+                        edgeData.label = branchLabel.trim();
+                        edgeData.font = { size: 11, color: '#475569', strokeWidth: 2, strokeColor: '#ffffff', align: 'horizontal' };
+                    }
+                    
                     callback(edgeData); 
                     syncPlaybookToDb();
-                    window.refreshPlaybookLayout(); // Fast background refresh (No recentering)
+                    window.refreshPlaybookLayout();
                     
-                    // Continuous Edge Drawing Mode
                     setTimeout(() => {
                         if (playbookNetwork) playbookNetwork.addEdgeMode();
                     }, 50);
@@ -243,14 +352,17 @@ window.renderPlaybookGraph = function(playbookName) {
         nodes: {
             shape: 'box',
             margin: { top: 12, bottom: 12, left: 16, right: 16 },
-            color: { background: '#4f46e5', border: '#3730a3', highlight: { background: '#6366f1', border: '#4338ca' } },
             font: { color: 'white', size: 14, face: 'Inter, sans-serif' },
-            shadow: true,
+            shadow: { enabled: true, color: 'rgba(0,0,0,0.08)', size: 6, x: 0, y: 3 },
             borderWidth: 2
         },
+        // Orthogonal bus-style curves prevent criss-cross diagonals
         edges: {
             width: 2,
-            smooth: { type: 'cubicBezier', forceDirection: 'vertical', roundness: 0.5 }
+            smooth: {
+                type: 'discrete',
+                roundness: 0.15
+            }
         }
     };
 
@@ -260,8 +372,12 @@ window.renderPlaybookGraph = function(playbookName) {
     }
     
     playbookNetwork = new vis.Network(container, data, options);
+
+    // Dynamic bounded lane rendering
+    playbookNetwork.on("beforeDrawing", function (ctx) {
+        drawPlaybookStageLanes(ctx);
+    });
     
-    // DRAG-AND-DROP ROW SNAPPING
     playbookNetwork.on("dragEnd", function (params) {
         if (params.nodes.length > 0) {
             const positions = playbookNetwork.getPositions(params.nodes);
@@ -270,14 +386,12 @@ window.renderPlaybookGraph = function(playbookName) {
             params.nodes.forEach(nodeId => {
                 const node = pbNodes.get(nodeId);
                 if (node && positions[nodeId]) {
-                    // Read physical drop coordinates
                     const rawX = positions[nodeId].x;
                     const rawY = positions[nodeId].y;
 
-                    // Calculate nearest Row & Column
-                    const newRow = Math.max(1, Math.round(rawY / 150));
-                    const targetY = newRow * 150;
-                    const targetX = Math.round(rawX / 260) * 260;
+                    const newRow = Math.max(1, Math.round(rawY / 160));
+                    const targetY = newRow * 160;
+                    const targetX = Math.round(rawX / 280) * 280;
 
                     updates.push({ 
                         id: nodeId, 
@@ -312,10 +426,99 @@ function syncPlaybookToDb() {
     
     db.playbooks[currentPlaybook] = {
         nodes: cleanNodes,
-        edges: pbEdges.get()
+        edges: pbEdges.get(),
+        stages: window.getPlaybookStages()
     };
     saveDatabase();
 }
+
+// --- DIRECT NODE-TO-KMS LINKING SYSTEM ---
+window.populateKmsDropdown = function(selectedConceptTitle) {
+    const select = document.getElementById('pbNodeConceptLink');
+    if (!select) return;
+
+    let optionsHtml = `<option value="">-- No Linked KMS Record --</option>`;
+
+    if (Array.isArray(db.concepts) && db.concepts.length > 0) {
+        optionsHtml += `<optgroup label="Core Concepts">`;
+        db.concepts.forEach(c => {
+            const title = String(c.title || "Untitled");
+            const isSel = selectedConceptTitle && title.toLowerCase() === selectedConceptTitle.toLowerCase() ? "selected" : "";
+            optionsHtml += `<option value="concept:${title}" ${isSel}>${title}</option>`;
+        });
+        optionsHtml += `</optgroup>`;
+    }
+
+    if (Array.isArray(db.dictionary) && db.dictionary.length > 0) {
+        optionsHtml += `<optgroup label="Dictionary Terms">`;
+        db.dictionary.forEach(d => {
+            const term = String(d.term || "Untitled");
+            const isSel = selectedConceptTitle && term.toLowerCase() === selectedConceptTitle.toLowerCase() ? "selected" : "";
+            optionsHtml += `<option value="dict:${term}" ${isSel}>${term}</option>`;
+        });
+        optionsHtml += `</optgroup>`;
+    }
+
+    select.innerHTML = optionsHtml;
+};
+
+window.renderKmsPreviewSnippet = function(encodedValue) {
+    const previewBox = document.getElementById('pbNodeKmsPreview');
+    if (!previewBox) return;
+
+    if (!encodedValue) {
+        previewBox.classList.add('hidden');
+        return;
+    }
+
+    const [type, ...titleParts] = encodedValue.split(':');
+    const title = titleParts.join(':');
+
+    let bodyText = "";
+    if (type === 'concept') {
+        const item = (db.concepts || []).find(c => String(c.title).toLowerCase() === title.toLowerCase());
+        bodyText = item ? (item.body || item.content || "") : "";
+    } else {
+        const item = (db.dictionary || []).find(d => String(d.term).toLowerCase() === title.toLowerCase());
+        bodyText = item ? (item.definition || "") : "";
+    }
+
+    const cleanText = bodyText.replace(/<[^>]*>?/gm, '').trim();
+
+    document.getElementById('pbKmsPreviewType').innerText = type === 'concept' ? 'Knowledge Concept' : 'Glossary Definition';
+    document.getElementById('pbKmsPreviewTitle').innerText = title;
+    document.getElementById('pbKmsPreviewSnippet').innerText = cleanText || "No additional text found in library.";
+    
+    previewBox.classList.remove('hidden');
+};
+
+window.onPlaybookKmsLinkChange = function() {
+    const val = document.getElementById('pbNodeConceptLink').value;
+    window.renderKmsPreviewSnippet(val);
+};
+
+window.jumpToLinkedKms = function() {
+    const val = document.getElementById('pbNodeConceptLink').value;
+    if (!val) return;
+
+    const [type, ...titleParts] = val.split(':');
+    const title = titleParts.join(':');
+
+    window.closePlaybookDrawer();
+
+    if (type === 'concept') {
+        if (typeof window.routeToConcept === 'function') {
+            window.routeToConcept(title);
+        }
+    } else {
+        window.switchState('DICTIONARY');
+        const searchInput = document.getElementById('searchDictionary');
+        if (searchInput) {
+            searchInput.value = title;
+            if (typeof window.renderDictionary === 'function') window.renderDictionary();
+        }
+    }
+};
 
 window.openPlaybookDrawer = function(nodeId) {
     const node = pbNodes.get(nodeId);
@@ -328,6 +531,15 @@ window.openPlaybookDrawer = function(nodeId) {
     document.getElementById('pbNodeTiming').value = node.timing || "";
     document.getElementById('pbNodeAdv').value = node.advantages || "";
     document.getElementById('pbNodeDisadv').value = node.disadvantages || "";
+
+    const roleSelect = document.getElementById('pbNodeRole');
+    if (roleSelect) roleSelect.value = node.nodeRole || "standard";
+
+    window.populateKmsDropdown(node.linkedConcept || "");
+    const select = document.getElementById('pbNodeConceptLink');
+    if (select) {
+        window.renderKmsPreviewSnippet(select.value);
+    }
 
     document.getElementById('playbookDrawer').classList.remove('translate-x-full');
 };
@@ -353,9 +565,11 @@ window.saveNodeData = function() {
 
     const label = document.getElementById('pbNodeLabelInput').value;
     const levelStr = document.getElementById('pbNodeLevel').value;
-    
-    // Fall back to null if the user clears the box (so BFS can take over)
     const newManualLevel = levelStr !== "" ? parseInt(levelStr, 10) : null;
+
+    const rawKmsVal = document.getElementById('pbNodeConceptLink').value;
+    const linkedConcept = rawKmsVal ? rawKmsVal.split(':').slice(1).join(':') : "";
+    const nodeRole = document.getElementById('pbNodeRole').value || "standard";
 
     pbNodes.update({
         id: nodeId,
@@ -363,18 +577,97 @@ window.saveNodeData = function() {
         timing: document.getElementById('pbNodeTiming').value,
         advantages: document.getElementById('pbNodeAdv').value,
         disadvantages: document.getElementById('pbNodeDisadv').value,
+        linkedConcept: linkedConcept,
+        nodeRole: nodeRole,
         manualLevel: newManualLevel,
         level: newManualLevel
     });
 
     syncPlaybookToDb();
-    window.refreshPlaybookLayout(); // Silent coordinate update
+    window.refreshPlaybookLayout();
     closePlaybookDrawer();
     
-    if(typeof showToast === 'function') showToast("Node properties saved.", "success");
+    if (typeof showToast === 'function') showToast("Step properties saved.", "success");
 };
 
-// Custom Programmatic Zoom Controls
+// --- STAGE CONFIGURATION MODAL (CUSTOMISE BOUNDARIES) ---
+window.openStageConfigModal = function() {
+    let modal = document.getElementById('stageConfigModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'stageConfigModal';
+        modal.className = "fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 transition-all opacity-0 pointer-events-none";
+        document.body.appendChild(modal);
+    }
+
+    const stages = window.getPlaybookStages();
+    modal.innerHTML = `
+        <div class="bg-white dark:bg-slate-900 rounded-xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="layers" class="w-4 h-4 text-indigo-500"></i> Configure Stage Boundaries
+                </h3>
+                <button onclick="window.closeStageConfigModal()" class="text-slate-400 hover:text-slate-800 dark:hover:text-white">&times;</button>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">Set which row range defines each phase. Phases with no nodes will automatically collapse.</p>
+            
+            <div class="space-y-3 max-h-[50vh] overflow-y-auto pr-1" id="stageConfigRows">
+                ${stages.map((s, idx) => `
+                    <div class="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                        <input type="text" value="${s.name}" class="stage-name-input flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-white">
+                        <div class="flex items-center gap-1 shrink-0 text-xs font-mono text-slate-500">
+                            <span>Rows</span>
+                            <input type="number" min="1" value="${s.minLevel}" class="stage-min-input w-12 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded py-1 font-bold">
+                            <span>-</span>
+                            <input type="number" min="1" value="${s.maxLevel}" class="stage-max-input w-12 text-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded py-1 font-bold">
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <div class="flex justify-end gap-2.5 mt-5 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <button onclick="window.closeStageConfigModal()" class="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 rounded">Cancel</button>
+                <button onclick="window.saveStageConfig()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 text-xs rounded transition shadow">Save Boundaries</button>
+            </div>
+        </div>
+    `;
+
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    if (window.lucide) window.lucide.createIcons();
+};
+
+window.closeStageConfigModal = function() {
+    const modal = document.getElementById('stageConfigModal');
+    if (modal) modal.classList.add('opacity-0', 'pointer-events-none');
+};
+
+window.saveStageConfig = function() {
+    if (!currentPlaybook || !db.playbooks[currentPlaybook]) return;
+    
+    const names = document.querySelectorAll('.stage-name-input');
+    const mins = document.querySelectorAll('.stage-min-input');
+    const maxs = document.querySelectorAll('.stage-max-input');
+    const currentStages = window.getPlaybookStages();
+
+    const updated = [];
+    names.forEach((nameEl, i) => {
+        updated.push({
+            id: currentStages[i] ? currentStages[i].id : `s_${i}`,
+            name: nameEl.value.trim() || `Phase ${i+1}`,
+            minLevel: parseInt(mins[i].value, 10) || 1,
+            maxLevel: parseInt(maxs[i].value, 10) || (parseInt(mins[i].value, 10) + 2),
+            accent: currentStages[i] ? currentStages[i].accent : "#6366f1"
+        });
+    });
+
+    db.playbooks[currentPlaybook].stages = updated;
+    saveDatabase();
+    window.closeStageConfigModal();
+    if (playbookNetwork) playbookNetwork.redraw();
+    if (typeof showToast === 'function') showToast("Stage boundaries updated.", "success");
+};
+
+// Zoom & Center controls
 window.zoomPlaybook = function(direction) {
     if (!playbookNetwork) return;
     const currentScale = playbookNetwork.getScale();
@@ -400,7 +693,6 @@ window.exportPlaybookToConcept = function() {
         if (!canvas) return alert("Canvas not found.");
         
         const imgData = canvas.toDataURL("image/png");
-        
         const action = prompt("Export Flowchart to KMS:\n\nType 'NEW' to create a new concept record.\n\nOR type the EXACT title of an existing concept to attach this diagram to it:");
             
         if (!action) return;
@@ -418,7 +710,7 @@ window.exportPlaybookToConcept = function() {
             document.getElementById('conceptTitle').value = `${currentPlaybook} Flowchart`;
             document.getElementById('conceptSubTag').value = "Deal Anatomy";
             
-            if(typeof diagramTempBase64 !== 'undefined') diagramTempBase64 = imgData;
+            if (typeof diagramTempBase64 !== 'undefined') diagramTempBase64 = imgData;
             else window.diagramTempBase64 = imgData;
             
             const preview = document.getElementById("newConceptDiagramPreview");
@@ -426,10 +718,10 @@ window.exportPlaybookToConcept = function() {
                 preview.src = imgData;
                 preview.classList.remove("hidden");
                 const label = document.getElementById("newConceptDiagramLabel");
-                if(label) label.innerText = "Replace Diagram";
+                if (label) label.innerText = "Replace Diagram";
             }
             
-            if(typeof showToast === 'function') showToast("Playbook captured! You can now log it.", "success");
+            if (typeof showToast === 'function') showToast("Playbook captured! You can now log it.", "success");
         } else {
             const targetTitle = action.trim().toLowerCase();
             const targetIndex = db.concepts.findIndex(c => (c.title || "").toLowerCase() === targetTitle);
@@ -437,8 +729,8 @@ window.exportPlaybookToConcept = function() {
             if (targetIndex > -1) {
                 db.concepts[targetIndex].diagram = imgData;
                 saveDatabase();
-                if(typeof showToast === 'function') showToast(`Successfully attached to "${db.concepts[targetIndex].title}"`, "success");
-                if(appState === 'CONCEPTS' && typeof renderConcepts === 'function') renderConcepts();
+                if (typeof showToast === 'function') showToast(`Successfully attached to "${db.concepts[targetIndex].title}"`, "success");
+                if (appState === 'CONCEPTS' && typeof renderConcepts === 'function') renderConcepts();
             } else {
                 alert(`Could not find a concept named "${action.trim()}". Please check your spelling.`);
             }

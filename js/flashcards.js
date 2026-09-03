@@ -300,6 +300,21 @@ function renderCurrentFlashcard() {
     document.getElementById("flashcardBack").classList.add("hidden");
     document.getElementById("flashcardBack").classList.remove("flex");
     document.getElementById("flashcardControls").classList.add("hidden");
+
+    // Reset Recall Form State
+    const input = document.getElementById('recallAnswerInput');
+    const banner = document.getElementById('recallResultBanner');
+    const checkBtn = document.getElementById('btnRecallCheck');
+
+    if (input) input.value = "";
+    if (banner) banner.classList.add('hidden');
+    if (checkBtn) {
+        checkBtn.innerText = "Check Answer";
+        checkBtn.className = "flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 text-sm";
+        checkBtn.onclick = window.checkRecallAnswer;
+    }
+
+    window.applyRecallUIState();
 }
 
 function flipFlashcard() {
@@ -367,6 +382,16 @@ function flipFlashcard() {
         document.getElementById("fcBody").innerHTML = bodyHtml + contextHtml;
     }
 
+    // Attach click listener on back card to unflip when clicked (outside buttons/links)
+    const backCard = document.getElementById("flashcardBack");
+    if (backCard && !backCard.dataset.flipListener) {
+        backCard.dataset.flipListener = "true";
+        backCard.addEventListener('click', (e) => {
+            if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input') || e.target.closest('textarea')) return;
+            unflipFlashcard();
+        });
+    }
+
     document.getElementById("flashcardFront").classList.add("hidden");
     document.getElementById("flashcardFront").classList.remove("flex");
     document.getElementById("flashcardBack").classList.remove("hidden");
@@ -374,6 +399,27 @@ function flipFlashcard() {
     document.getElementById("flashcardControls").classList.remove("hidden");
     document.getElementById("flashcardControls").classList.add("grid");
 }
+
+function unflipFlashcard() {
+    const front = document.getElementById("flashcardFront");
+    const back = document.getElementById("flashcardBack");
+    const controls = document.getElementById("flashcardControls");
+
+    if (!front || !back) return;
+
+    back.classList.add("hidden");
+    back.classList.remove("flex");
+    front.classList.remove("hidden");
+    front.classList.add("flex");
+    
+    if (controls) {
+        controls.classList.add("hidden");
+        controls.classList.remove("grid");
+    }
+}
+
+window.flipFlashcard = flipFlashcard;
+window.unflipFlashcard = unflipFlashcard;
 
 function processFlashcardResult(rating) {
     const qItem = flashcardQueue[currentFlashcardIndex];
@@ -466,18 +512,33 @@ document.addEventListener('keydown', function(e) {
     const front = document.getElementById("flashcardFront");
     const back = document.getElementById("flashcardBack");
     
-    if (document.activeElement.id === 'feynmanInput') return;
+    if (document.activeElement && (document.activeElement.id === 'feynmanInput' || document.activeElement.id === 'recallAnswerInput')) return;
     
-    if (!front.classList.contains("hidden") && (e.code === 'Space' || e.code === 'Enter')) {
+    // Space toggles between Front and Back of the current card
+    if (e.code === 'Space') {
+        e.preventDefault();
+        if (!front.classList.contains("hidden")) {
+            flipFlashcard();
+        } else if (!back.classList.contains("hidden")) {
+            unflipFlashcard();
+        }
+        return;
+    }
+
+    // Front: Enter also flips to the back
+    if (!front.classList.contains("hidden") && e.code === 'Enter') {
         e.preventDefault();
         flipFlashcard();
+        return;
     } 
-    else if (!back.classList.contains("hidden")) {
+    
+    // Back: Grading controls (1-5 or Enter for 'good')
+    if (!back.classList.contains("hidden")) {
         if (e.code === 'Digit1') { e.preventDefault(); processFlashcardResult('forgot'); }
         if (e.code === 'Digit2') { e.preventDefault(); processFlashcardResult('hard'); }
-        if (e.code === 'Digit3') { e.preventDefault(); processFlashcardResult('good'); }
+        if (e.code === 'Digit3' || e.code === 'Enter') { e.preventDefault(); processFlashcardResult('good'); }
         if (e.code === 'Digit4') { e.preventDefault(); processFlashcardResult('easy'); }
-        if (e.code === 'Space') { e.preventDefault(); processFlashcardResult('good'); }
+        if (e.code === 'Digit5') { e.preventDefault(); processFlashcardResult('mastered'); }
     }
 });
 
@@ -529,3 +590,185 @@ async function evaluateFeynman() {
         btn.disabled = false;
     }
 }
+
+// ====================================================
+// ACTIVE RECALL DRILL & SPEECH-TO-TEXT ENGINE
+// ====================================================
+
+window.isRecallDrillMode = localStorage.getItem('LEGAL_NEXUS_RECALL_MODE') === 'true';
+let recognitionInstance = null;
+let isRecordingVoice = false;
+
+window.toggleRecallDrillMode = function() {
+    window.isRecallDrillMode = !window.isRecallDrillMode;
+    localStorage.setItem('LEGAL_NEXUS_RECALL_MODE', window.isRecallDrillMode);
+    window.applyRecallUIState();
+};
+
+window.applyRecallUIState = function() {
+    const dock = document.getElementById('recallInputDock');
+    const badge = document.getElementById('recallCardBadge');
+    const instruction = document.getElementById('fcInstruction');
+    const btnLabel = document.getElementById('recallModeLabel');
+    const toggleBtn = document.getElementById('btnToggleRecallMode');
+
+    if (!dock || !btnLabel) return;
+
+    if (window.isRecallDrillMode) {
+        dock.classList.remove('hidden');
+        if (badge) badge.classList.remove('hidden');
+        if (instruction) instruction.classList.add('hidden');
+        btnLabel.innerText = "Recall Drill: ON";
+        toggleBtn.classList.add('bg-blue-50', 'text-blue-700', 'border-blue-300', 'dark:bg-blue-950/50', 'dark:text-blue-300', 'dark:border-blue-700');
+        
+        const input = document.getElementById('recallAnswerInput');
+        if (input) setTimeout(() => input.focus(), 50);
+    } else {
+        dock.classList.add('hidden');
+        if (badge) badge.classList.add('hidden');
+        if (instruction) instruction.classList.remove('hidden');
+        btnLabel.innerText = "Recall Drill: OFF";
+        toggleBtn.classList.remove('bg-blue-50', 'text-blue-700', 'border-blue-300', 'dark:bg-blue-950/50', 'dark:text-blue-300', 'dark:border-blue-700');
+    }
+};
+
+// --- NATIVE SPEECH-TO-TEXT (MICROPHONE RECOGNITION) ---
+window.toggleSpeechRecognition = function() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("Speech recognition is not supported on this browser. Please use Chrome, Edge, or Safari.");
+        return;
+    }
+
+    const micBtn = document.getElementById('btnRecallMic');
+    const input = document.getElementById('recallAnswerInput');
+
+    if (isRecordingVoice && recognitionInstance) {
+        recognitionInstance.stop();
+        return;
+    }
+
+    try {
+        recognitionInstance = new SpeechRecognition();
+        recognitionInstance.lang = 'en-GB';
+        recognitionInstance.continuous = false;
+        recognitionInstance.interimResults = false;
+
+        recognitionInstance.onstart = function() {
+            isRecordingVoice = true;
+            if (micBtn) {
+                micBtn.classList.add('text-rose-500', 'animate-pulse', 'bg-rose-50', 'dark:bg-rose-950/50');
+            }
+        };
+
+        recognitionInstance.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            if (input) {
+                input.value = input.value ? `${input.value} ${transcript}` : transcript;
+            }
+        };
+
+        recognitionInstance.onerror = function(event) {
+            console.warn("Speech error:", event.error);
+            isRecordingVoice = false;
+            if (micBtn) {
+                micBtn.classList.remove('text-rose-500', 'animate-pulse', 'bg-rose-50', 'dark:bg-rose-950/50');
+            }
+        };
+
+        recognitionInstance.onend = function() {
+            isRecordingVoice = false;
+            if (micBtn) {
+                micBtn.classList.remove('text-rose-500', 'animate-pulse', 'bg-rose-50', 'dark:bg-rose-950/50');
+            }
+        };
+
+        recognitionInstance.start();
+    } catch (e) {
+        console.error("Speech Init Error:", e);
+    }
+};
+
+// --- LOCAL DETERMINISTIC KEYWORD MATCHER ---
+function cleanWords(text) {
+    const stopWords = new Set(["the", "a", "an", "is", "are", "of", "and", "or", "in", "to", "for", "with", "that", "this", "by", "from", "as", "at", "be", "which", "on", "it"]);
+    return text.toLowerCase()
+        .replace(/<[^>]*>?/gm, ' ')
+        .replace(/[^\w\s]/gi, '')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !stopWords.has(w));
+}
+
+function evaluateAnswerLocally(userText, modelText) {
+    const userWords = new Set(cleanWords(userText));
+    const modelWords = cleanWords(modelText);
+    
+    if (modelWords.length === 0) return { passed: true, score: 100 };
+    
+    let matchedCount = 0;
+    modelWords.forEach(w => {
+        if (userWords.has(w)) matchedCount++;
+    });
+
+    const matchRatio = matchedCount / modelWords.length;
+    return {
+        passed: matchRatio >= 0.45 || (userText.length > 20 && matchRatio >= 0.35),
+        score: Math.round(matchRatio * 100)
+    };
+}
+
+// --- CHECK ANSWER & RECALL QUEUE CYCLING ---
+window.checkRecallAnswer = async function() {
+    const input = document.getElementById('recallAnswerInput');
+    const banner = document.getElementById('recallResultBanner');
+    const statusEl = document.getElementById('recallResultStatus');
+    const modelEl = document.getElementById('recallModelAnswer');
+    const checkBtn = document.getElementById('btnRecallCheck');
+
+    if (!input || !input.value.trim()) {
+        alert("Please type or speak your answer first.");
+        return;
+    }
+
+    const qItem = flashcardQueue[currentFlashcardIndex];
+    const isReverse = qItem.isReverse;
+    const modelText = isReverse 
+        ? String(qItem.item.title || qItem.item.term || "") 
+        : String(qItem.item.body || qItem.item.definition || "");
+    
+    const cleanModel = modelText.replace(/<[^>]*>?/gm, '').trim();
+
+    const evaluation = evaluateAnswerLocally(input.value, cleanModel);
+
+    banner.classList.remove('hidden');
+
+    if (evaluation.passed) {
+        // Correct recall: allow graduation to SRS rating
+        banner.className = "rounded-xl p-4 border transition-all text-xs flex flex-col gap-1.5 bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800";
+        statusEl.innerHTML = `<span class="flex items-center gap-1.5"><i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Correct! (${evaluation.score}% Keyword Match)</span>`;
+        modelEl.innerHTML = `<strong>Definition:</strong> ${cleanModel}`;
+
+        checkBtn.innerText = "Continue to SRS Rating";
+        checkBtn.className = "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 text-sm";
+        checkBtn.onclick = function() {
+            flipFlashcard();
+        };
+    } else {
+        // Incorrect recall: cycle to the back of the queue
+        banner.className = "rounded-xl p-4 border transition-all text-xs flex flex-col gap-1.5 bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-800";
+        statusEl.innerHTML = `<span class="flex items-center gap-1.5"><i data-lucide="x-circle" class="w-4 h-4 text-rose-600"></i> Incorrect — Recycling Card to End</span>`;
+        modelEl.innerHTML = `<strong>Expected:</strong> ${cleanModel}`;
+
+        flashcardQueue.push(qItem);
+        document.getElementById("flashcardCounter").innerText = `Card ${currentFlashcardIndex + 1} of ${flashcardQueue.length}`;
+
+        checkBtn.innerText = "Understood (Moved to End)";
+        checkBtn.className = "flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 text-sm";
+        checkBtn.onclick = function() {
+            currentFlashcardIndex++;
+            renderCurrentFlashcard();
+        };
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+};

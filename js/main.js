@@ -267,3 +267,113 @@ window.onload = async () => {
     switchState("DASHBOARD");
     if (typeof loadDatabase === 'function') await loadDatabase();
 };
+
+// --- DYNAMIC THEMING & ACCENT ENGINE WITH WARM PAPER LOCK ---
+window.setBaseTheme = function(themeName) {
+    const root = document.documentElement;
+    const darkToggleBtn = document.querySelector('button[onclick*="toggleDarkMode"]');
+    
+    if (themeName === 'warm') {
+        // Enforce Light Mode strictly for Warm Paper
+        root.classList.remove('dark');
+        root.setAttribute('data-theme', 'warm');
+        localStorage.setItem('theme', 'light');
+        localStorage.setItem('nexus_sub_theme', 'warm');
+
+        // Disable and dim the header dark mode button
+        if (darkToggleBtn) {
+            darkToggleBtn.disabled = true;
+            darkToggleBtn.classList.add('opacity-30', 'cursor-not-allowed');
+            darkToggleBtn.setAttribute('title', 'Dark mode disabled in Warm Paper mode');
+        }
+    } else if (themeName === 'dark-balanced') {
+        root.classList.add('dark');
+        root.setAttribute('data-theme', 'dark-balanced');
+        localStorage.setItem('theme', 'dark');
+        localStorage.setItem('nexus_sub_theme', 'dark-balanced');
+
+        // Re-enable header button
+        if (darkToggleBtn) {
+            darkToggleBtn.disabled = false;
+            darkToggleBtn.classList.remove('opacity-30', 'cursor-not-allowed');
+            darkToggleBtn.setAttribute('title', 'Toggle Theme');
+        }
+    } else {
+        // Default Cool Slate (Standard Light Mode)
+        root.classList.remove('dark');
+        root.setAttribute('data-theme', 'slate');
+        localStorage.setItem('theme', 'light');
+        localStorage.setItem('nexus_sub_theme', 'slate');
+
+        // Re-enable header button
+        if (darkToggleBtn) {
+            darkToggleBtn.disabled = false;
+            darkToggleBtn.classList.remove('opacity-30', 'cursor-not-allowed');
+            darkToggleBtn.setAttribute('title', 'Toggle Theme');
+        }
+    }
+    
+    if (typeof showToast === 'function') {
+        showToast(`Switched to ${themeName.replace('-', ' ')} mode.`, "info");
+    }
+};
+
+// Wrap or update the global toggleDarkMode function
+const originalToggleDarkMode = window.toggleDarkMode;
+window.toggleDarkMode = function() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    
+    // Guard: Prevent dark mode activation if currently in warm paper
+    if (currentTheme === 'warm') {
+        if (typeof showToast === 'function') {
+            showToast("Switch to Cool Slate or Midnight Slate to use Dark Mode.", "warning");
+        }
+        return;
+    }
+    
+    if (typeof originalToggleDarkMode === 'function') {
+        originalToggleDarkMode();
+    } else {
+        document.documentElement.classList.toggle('dark');
+        const isDark = document.documentElement.classList.contains('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark-balanced' : 'slate');
+    }
+};
+
+window.setAccentColor = function(primaryHex, hoverHex) {
+    if (!hoverHex) hoverHex = primaryHex;
+    
+    // Set root CSS custom properties only - do NOT inject inline styles into buttons
+    document.documentElement.style.setProperty('--theme-primary', primaryHex);
+    document.documentElement.style.setProperty('--theme-primary-hover', hoverHex);
+
+    localStorage.setItem('nexus_accent_primary', primaryHex);
+    localStorage.setItem('nexus_accent_hover', hoverHex);
+
+    // Sync the custom color input without mutating preset dots
+    const customPicker = document.getElementById('customColorPicker');
+    if (customPicker) customPicker.value = primaryHex;
+
+    if (typeof showToast === 'function') showToast("Accent color updated.", "success");
+};
+
+window.initThemeSystem = function() {
+    const savedSubTheme = localStorage.getItem('nexus_sub_theme') || 'slate';
+    window.setBaseTheme(savedSubTheme);
+
+    const savedPrimary = localStorage.getItem('nexus_accent_primary') || '#2563eb';
+    const savedHover = localStorage.getItem('nexus_accent_hover') || '#1d4ed8';
+    
+    document.documentElement.style.setProperty('--theme-primary', savedPrimary);
+    document.documentElement.style.setProperty('--theme-primary-hover', savedHover);
+
+    const customPicker = document.getElementById('customColorPicker');
+    if (customPicker) customPicker.value = savedPrimary;
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof window.initThemeSystem === 'function') {
+        window.initThemeSystem();
+    }
+});

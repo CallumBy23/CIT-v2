@@ -590,20 +590,97 @@ function renderStrategyRoom() {
     }
 }
 
+// --- DYNAMIC MULTI-SCHEME EDIT ENGINE ---
+window.renderDossierEditSchemes = function() {
+    const container = document.getElementById("dossierEditSchemesContainer");
+    if (!container || !currentDossierFirm) return;
+    
+    const d = db.dossiers[currentDossierFirm] || {};
+    if (!Array.isArray(d.schemes)) d.schemes = [];
+
+    if (d.schemes.length === 0) {
+        d.schemes.push({
+            schemeType: "",
+            openDate: "",
+            closeDate: "",
+            rolling: "Non-Rolling",
+            applied: false
+        });
+    }
+
+    container.innerHTML = d.schemes.map((s, idx) => `
+        <div class="scheme-edit-row border border-slate-200 dark:border-slate-700/70 rounded-md p-4 bg-slate-50/50 dark:bg-slate-800/40 relative group" data-scheme-idx="${idx}">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Scheme Name</label>
+                    <input type="text" class="scheme-input-type w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner" placeholder="e.g. Winter 2026" value="${(s.schemeType || '').replace(/"/g, '&quot;')}">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Open Date</label>
+                    <input type="date" class="scheme-input-open w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner" value="${s.openDate || ''}">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Close Date</label>
+                    <input type="date" class="scheme-input-close w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner" value="${s.closeDate || ''}">
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex-1">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Status</label>
+                        <select class="scheme-input-rolling w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner cursor-pointer">
+                            <option value="Non-Rolling" ${s.rolling !== 'Rolling' ? 'selected' : ''}>Non-Rolling</option>
+                            <option value="Rolling" ${s.rolling === 'Rolling' ? 'selected' : ''}>Rolling Basis</option>
+                        </select>
+                    </div>
+                    <button type="button" onclick="window.removeDossierEditSchemeRow(${idx})" class="h-9 px-2.5 mt-5 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-sm border border-red-200 dark:border-red-800 transition flex items-center justify-center shrink-0" title="Delete Scheme">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    if (window.lucide) window.lucide.createIcons();
+};
+
+window.addDossierEditSchemeRow = function() {
+    if (!currentDossierFirm) return;
+    const d = db.dossiers[currentDossierFirm];
+    if (!Array.isArray(d.schemes)) d.schemes = [];
+    
+    d.schemes.push({
+        schemeType: "",
+        openDate: "",
+        closeDate: "",
+        rolling: "Non-Rolling",
+        applied: false
+    });
+
+    window.renderDossierEditSchemes();
+};
+
+window.removeDossierEditSchemeRow = function(idx) {
+    if (!currentDossierFirm) return;
+    const d = db.dossiers[currentDossierFirm];
+    if (!Array.isArray(d.schemes)) return;
+
+    d.schemes.splice(idx, 1);
+    window.renderDossierEditSchemes();
+};
+
 function toggleDossierMode(mode) {
     if(mode === "edit") {
-        const d = db.dossiers[currentDossierFirm];
-        const s = (d.schemes && d.schemes.length > 0) ? d.schemes[0] : {};
-        document.getElementById("dossierSchemeType").value = s.schemeType || "";
-        document.getElementById("dossierOpenDate").value = s.openDate || "";
-        document.getElementById("dossierCloseDate").value = s.closeDate || "";
-        document.getElementById("dossierRolling").value = s.rolling || "Non-Rolling";
+        const d = db.dossiers[currentDossierFirm] || {};
         
+        document.getElementById("dossierFirmType").value = d.firmType || "";
+        document.getElementById("dossierLocations").value = d.locations || "";
+        
+        window.renderDossierEditSchemes();
+
         window.cultureQuill = window.getOrInitQuill('#dossierCultureQuill', { modules: { toolbar: '#toolbar-culture' } });
         window.personalWhyQuill = window.getOrInitQuill('#dossierPersonalWhyQuill', { modules: { toolbar: '#toolbar-personal-why' } });
 
-        if (window.cultureQuill) window.cultureQuill.root.innerHTML = d.culture || "";
-        if (window.personalWhyQuill) window.personalWhyQuill.root.innerHTML = d.personalWhy || "";
+        if (window.cultureQuill && window.cultureQuill.root) window.cultureQuill.root.innerHTML = d.culture || "";
+        if (window.personalWhyQuill && window.personalWhyQuill.root) window.personalWhyQuill.root.innerHTML = d.personalWhy || "";
 
         document.getElementById("dossierViewMode").classList.replace("block", "hidden");
         document.getElementById("dossierEditMode").classList.replace("hidden", "block");
@@ -616,43 +693,44 @@ function toggleDossierMode(mode) {
 function saveDossierData() {
     if(!currentDossierFirm) return;
     if (!db.dossiers[currentDossierFirm]) db.dossiers[currentDossierFirm] = {};
+    const d = db.dossiers[currentDossierFirm];
     
-    db.dossiers[currentDossierFirm].firmType = document.getElementById("dossierFirmType").value;
-    db.dossiers[currentDossierFirm].locations = document.getElementById("dossierLocations").value;
+    d.firmType = document.getElementById("dossierFirmType").value;
+    d.locations = document.getElementById("dossierLocations").value;
     
-    if (typeof cultureQuill !== 'undefined' && cultureQuill.root) {
-        db.dossiers[currentDossierFirm].culture = cultureQuill.root.innerHTML;
+    if (typeof cultureQuill !== 'undefined' && cultureQuill && cultureQuill.root) {
+        d.culture = cultureQuill.root.innerHTML;
     }
-    if (typeof personalWhyQuill !== 'undefined' && personalWhyQuill.root) {
-        db.dossiers[currentDossierFirm].personalWhy = personalWhyQuill.root.innerHTML;
+    if (typeof personalWhyQuill !== 'undefined' && personalWhyQuill && personalWhyQuill.root) {
+        d.personalWhy = personalWhyQuill.root.innerHTML;
     }
     
-    const sType = document.getElementById("dossierSchemeType").value;
-    const oDate = document.getElementById("dossierOpenDate").value;
-    const cDate = document.getElementById("dossierCloseDate").value;
-    const roll = document.getElementById("dossierRolling").value;
+    const rows = document.querySelectorAll("#dossierEditSchemesContainer .scheme-edit-row");
+    const updatedSchemes = [];
     
-    if (!db.dossiers[currentDossierFirm].schemes) db.dossiers[currentDossierFirm].schemes = [];
-    
-    if (sType || cDate) {
-        if (db.dossiers[currentDossierFirm].schemes.length > 0) {
-            db.dossiers[currentDossierFirm].schemes[0].schemeType = sType;
-            db.dossiers[currentDossierFirm].schemes[0].openDate = oDate;
-            db.dossiers[currentDossierFirm].schemes[0].closeDate = cDate;
-            db.dossiers[currentDossierFirm].schemes[0].rolling = roll;
-        } else {
-            db.dossiers[currentDossierFirm].schemes.push({
-                category: db.dossiers[currentDossierFirm].firmType,
+    rows.forEach((row, i) => {
+        const sType = row.querySelector(".scheme-input-type")?.value.trim() || "";
+        const oDate = row.querySelector(".scheme-input-open")?.value || "";
+        const cDate = row.querySelector(".scheme-input-close")?.value || "";
+        const roll = row.querySelector(".scheme-input-rolling")?.value || "Non-Rolling";
+        
+        const prevApplied = (d.schemes && d.schemes[i]) ? !!d.schemes[i].applied : false;
+
+        if (sType || cDate || oDate) {
+            updatedSchemes.push({
+                category: d.firmType || "",
                 schemeType: sType,
                 openDate: oDate,
                 closeDate: cDate,
                 rolling: roll,
-                applied: false
+                applied: prevApplied
             });
         }
-    }
+    });
+
+    d.schemes = updatedSchemes;
     
-    saveDatabase(); 
+    if (typeof saveDatabase === 'function') saveDatabase(); 
     toggleDossierMode('view');
     renderDossierList();
 }

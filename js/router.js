@@ -213,64 +213,96 @@ function routeToConcept(conceptName) {
   if (typeof renderConcepts === 'function') renderConcepts();
 }
 
+// --- HIGH-PERFORMANCE 60FPS TAB DRAG & DROP ENGINE ---
+let currentDragHoverBtn = null;
+
 function handleTabDragStart(e, name) {
   draggedTabName = name;
-  e.dataTransfer.effectAllowed = "move";
-  e.target.style.opacity = "0.5";
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", name);
+  }
+  // Use requestAnimationFrame so opacity doesn't stutter the initial grab
+  requestAnimationFrame(() => {
+    if (e.target) e.target.style.opacity = "0.35";
+  });
 }
 
 function handleTabDragEnd(e) {
-  e.target.style.opacity = "1";
-  document.querySelectorAll('#mainTabs button').forEach(el => el.classList.remove('tab-drag-over'));
+  if (e.target) e.target.style.opacity = "1";
+  if (currentDragHoverBtn) {
+    currentDragHoverBtn.classList.remove('tab-drag-over');
+    currentDragHoverBtn = null;
+  }
+  document.querySelectorAll('#mainTabs button.tab-drag-over').forEach(el => el.classList.remove('tab-drag-over'));
+  draggedTabName = "";
 }
 
 function handleTabDragOver(e) {
   e.preventDefault();
-  e.dataTransfer.dropEffect = "move";
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = "move";
+  }
+  
   const btn = e.target.closest('button');
-  if (btn) btn.classList.add('tab-drag-over');
+  if (btn && btn !== currentDragHoverBtn) {
+    if (currentDragHoverBtn) currentDragHoverBtn.classList.remove('tab-drag-over');
+    currentDragHoverBtn = btn;
+    btn.classList.add('tab-drag-over');
+  }
 }
 
 function handleTabDragLeave(e) {
   const btn = e.target.closest('button');
-  if (btn) btn.classList.remove('tab-drag-over');
+  // Only remove class if leaving the actual button container, not a child span
+  if (btn && e.relatedTarget && !btn.contains(e.relatedTarget)) {
+    btn.classList.remove('tab-drag-over');
+    if (currentDragHoverBtn === btn) currentDragHoverBtn = null;
+  }
 }
 
 function handleTabDrop(e, targetName) {
   e.preventDefault();
-  document.querySelectorAll('#mainTabs button').forEach(el => el.classList.remove('tab-drag-over'));
+  e.stopPropagation();
   
-  if (!draggedTabName || draggedTabName === targetName) return;
-
-  if (appState === "INTELLIGENCE") {
-      const fromIdx = db.workspaces.indexOf(draggedTabName);
-      const toIdx = db.workspaces.indexOf(targetName);
-      if (fromIdx > -1 && toIdx > -1) {
-          const item = db.workspaces.splice(fromIdx, 1)[0];
-          db.workspaces.splice(toIdx, 0, item);
-          saveDatabase();
-          renderTabs();
-      }
-  } else if (appState === "CONCEPTS") {
-      const fromIdx = db.conceptCategories.indexOf(draggedTabName);
-      const toIdx = db.conceptCategories.indexOf(targetName);
-      if (fromIdx > -1 && toIdx > -1) {
-          const item = db.conceptCategories.splice(fromIdx, 1)[0];
-          db.conceptCategories.splice(toIdx, 0, item);
-          saveDatabase();
-          renderTabs();
-      }
-  } else if (appState === "DICTIONARY") {
-      if (!db.dictCategories) db.dictCategories = ["General"];
-      const fromIdx = db.dictCategories.indexOf(draggedTabName);
-      const toIdx = db.dictCategories.indexOf(targetName);
-      if (fromIdx > -1 && toIdx > -1) {
-          const item = db.dictCategories.splice(fromIdx, 1)[0];
-          db.dictCategories.splice(toIdx, 0, item);
-          saveDatabase();
-          renderTabs();
-      }
+  if (currentDragHoverBtn) {
+    currentDragHoverBtn.classList.remove('tab-drag-over');
+    currentDragHoverBtn = null;
   }
+  document.querySelectorAll('#mainTabs button.tab-drag-over').forEach(el => el.classList.remove('tab-drag-over'));
+  
+  const fromName = draggedTabName || (e.dataTransfer && e.dataTransfer.getData("text/plain"));
+  if (!fromName || fromName === targetName) {
+    draggedTabName = "";
+    return;
+  }
+
+  let targetList = null;
+  if (appState === "INTELLIGENCE") targetList = db.workspaces;
+  else if (appState === "CONCEPTS") targetList = db.conceptCategories;
+  else if (appState === "DICTIONARY") {
+      if (!db.dictCategories) db.dictCategories = ["General"];
+      targetList = db.dictCategories;
+  }
+
+  if (!targetList) return;
+
+  const fromIdx = targetList.indexOf(fromName);
+  let toIdx = targetName === "__FIRST__" ? 0 : targetList.indexOf(targetName);
+
+  if (fromIdx > -1 && toIdx > -1 && fromIdx !== toIdx) {
+      const item = targetList.splice(fromIdx, 1)[0];
+      targetList.splice(toIdx, 0, item);
+      
+      // 1. Instant UI update first (0ms latency)
+      renderTabs();
+
+      // 2. Offload heavier storage sync so it doesn't block the drop animation
+      setTimeout(() => {
+        if (typeof saveDatabase === 'function') saveDatabase();
+      }, 50);
+  }
+  
   draggedTabName = "";
 }
 
@@ -280,14 +312,21 @@ function renderTabs() {
   if (!container) return;
   container.innerHTML = "";
 
-  const activeClass = "px-4 py-3 text-xs md:text-sm font-bold whitespace-nowrap border-b-[3px] border-indigo-600 text-indigo-600 dark:text-indigo-400 transition-all uppercase tracking-wider";
-  const inactiveClass = "px-4 py-3 text-xs md:text-sm font-semibold whitespace-nowrap border-b-[3px] border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-all uppercase tracking-wider";
+  const activeClass = "px-4 py-3 text-xs md:text-sm font-bold whitespace-nowrap border-b-[3px] border-indigo-600 text-indigo-600 dark:text-indigo-400 transition-all uppercase tracking-wider tab-draggable cursor-pointer";
+  const inactiveClass = "px-4 py-3 text-xs md:text-sm font-semibold whitespace-nowrap border-b-[3px] border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-all uppercase tracking-wider tab-draggable cursor-pointer";
 
   if (appState === "INTELLIGENCE") {
     
     const allIntelBtn = document.createElement("button");
     allIntelBtn.innerHTML = `<span>All Intelligence</span>`;
     allIntelBtn.className = currentWorkspace === "All" ? activeClass : inactiveClass;
+    
+    // Dropping on "All" places the tab at the very beginning
+    allIntelBtn.ondragover = (e) => handleTabDragOver(e);
+    allIntelBtn.ondragenter = (e) => e.preventDefault();
+    allIntelBtn.ondragleave = (e) => handleTabDragLeave(e);
+    allIntelBtn.ondrop = (e) => handleTabDrop(e, "__FIRST__");
+    
     allIntelBtn.onclick = () => { 
         currentWorkspace = "All"; 
         const wsLabel = document.getElementById("formWsLabel"); if(wsLabel) wsLabel.innerText = "General Market"; 
@@ -309,6 +348,7 @@ function renderTabs() {
       btn.draggable = true;
       btn.ondragstart = (e) => handleTabDragStart(e, ws);
       btn.ondragend = (e) => handleTabDragEnd(e);
+      btn.ondragenter = (e) => e.preventDefault();
       btn.ondragover = (e) => handleTabDragOver(e);
       btn.ondragleave = (e) => handleTabDragLeave(e);
       btn.ondrop = (e) => handleTabDrop(e, ws);
@@ -351,6 +391,12 @@ function renderTabs() {
     const allConceptBtn = document.createElement("button");
     allConceptBtn.innerHTML = `<span>All Concepts</span>`;
     allConceptBtn.className = currentConceptCategory === "All" ? activeClass : inactiveClass;
+    
+    allConceptBtn.ondragover = (e) => handleTabDragOver(e);
+    allConceptBtn.ondragenter = (e) => e.preventDefault();
+    allConceptBtn.ondragleave = (e) => handleTabDragLeave(e);
+    allConceptBtn.ondrop = (e) => handleTabDrop(e, "__FIRST__");
+
     allConceptBtn.onclick = () => { 
         currentConceptCategory = "All"; 
         const conceptLabel = document.getElementById("formConceptLabel"); if(conceptLabel) conceptLabel.innerText = db.conceptCategories[0] || "General"; 
@@ -373,6 +419,7 @@ function renderTabs() {
       btn.draggable = true;
       btn.ondragstart = (e) => handleTabDragStart(e, cat);
       btn.ondragend = (e) => handleTabDragEnd(e);
+      btn.ondragenter = (e) => e.preventDefault();
       btn.ondragover = (e) => handleTabDragOver(e);
       btn.ondragleave = (e) => handleTabDragLeave(e);
       btn.ondrop = (e) => handleTabDrop(e, cat);
@@ -429,6 +476,12 @@ function renderTabs() {
     const allBtn = document.createElement("button");
     allBtn.innerHTML = `<span>All Terms</span>`;
     allBtn.className = window.currentDictCategory === "All" ? activeClass : inactiveClass;
+    
+    allBtn.ondragover = (e) => handleTabDragOver(e);
+    allBtn.ondragenter = (e) => e.preventDefault();
+    allBtn.ondragleave = (e) => handleTabDragLeave(e);
+    allBtn.ondrop = (e) => handleTabDrop(e, "__FIRST__");
+
     allBtn.onclick = () => { 
         window.currentDictCategory = "All"; 
         if (typeof selectedDictionary !== 'undefined') selectedDictionary.clear();
@@ -442,6 +495,7 @@ function renderTabs() {
       btn.draggable = true;
       btn.ondragstart = (e) => handleTabDragStart(e, cat);
       btn.ondragend = (e) => handleTabDragEnd(e);
+      btn.ondragenter = (e) => e.preventDefault();
       btn.ondragover = (e) => handleTabDragOver(e);
       btn.ondragleave = (e) => handleTabDragLeave(e);
       btn.ondrop = (e) => handleTabDrop(e, cat);
@@ -477,7 +531,6 @@ function renderTabs() {
     container.appendChild(newCatBtn);
     
   } else if (appState === "VAULT") {
-      // Generate Global Tabs for the Vault
       (window.vaultTabs || []).forEach(tab => {
           const btn = document.createElement("button");
           btn.innerHTML = `<span>${tab}</span>`;
@@ -547,7 +600,7 @@ function manageWorkspace(oldName, event, type) {
       if (confirm(`Delete the "${oldName}" category? (Terms remain in database, moving to General).`)) {
         db.dictCategories = db.dictCategories.filter(c => c !== oldName); 
         window.currentDictCategory = db.dictCategories[0] || "General"; 
-        if (typeof selectedDictionary !== 'undefined') selectedDictionary.clear();
+        if (typeof selectedDictionary !== 'undefined') selectedDictionary.clear(); 
         
         db.dictionary.forEach(d => { if (d && d.category === oldName) d.category = "General"; });
         
@@ -589,20 +642,17 @@ function toggleSelectAll(mode) {
   const allSelected = indexList.every(i => selectedSet.has(i));
   const newCheckedState = !allSelected;
 
-  // 1. Update State Set
   indexList.forEach(i => {
     if (newCheckedState) selectedSet.add(i);
     else selectedSet.delete(i);
   });
 
-  // 2. Mutate on-screen checkboxes directly (No page reload)
   const container = document.querySelector(containerId);
   if (container) {
     const checkboxes = container.querySelectorAll('input[type="checkbox"]');
     checkboxes.forEach(cb => { cb.checked = newCheckedState; });
   }
 
-  // 3. Update counter buttons
   if (mode === 'intel' && typeof updateMassDeleteIntelBtn === 'function') updateMassDeleteIntelBtn();
   if (mode === 'concepts' && typeof updateMassDeleteConceptBtn === 'function') updateMassDeleteConceptBtn();
   if (mode === 'dictionary' && typeof updateMassDeleteDictBtn === 'function') updateMassDeleteDictBtn();

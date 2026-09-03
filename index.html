@@ -45,6 +45,52 @@
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/overrides.css">
   <style>
+    /* SHARP VECTOR & SUBPIXEL RENDERING */
+    svg polyline, svg path, svg line, svg circle {
+      shape-rendering: geometricPrecision !important;
+      stroke-rendering: geometricPrecision !important;
+    }
+
+    /* PREVENT TEXT CRUNCHING ON LOW FONT SIZES */
+    body {
+      text-rendering: geometricPrecision !important;
+      -webkit-font-smoothing: antialiased !important;
+      -moz-osx-font-smoothing: grayscale !important;
+    }
+
+    /* BUMP CRISPNESS ON SMALL CAP LABELS */
+    .tracking-widest {
+      letter-spacing: 0.08em !important;
+    }
+
+    /* THEME ROOT TOKENS */
+    :root {
+      --theme-primary: #2563eb;
+      --theme-primary-hover: #1d4ed8;
+    }
+
+    /* GLASS ELEVATIONS & SOFT CARD STYLING */
+    .glass-card {
+      background: #ffffff;
+      border: 1px solid rgba(226, 232, 240, 0.85);
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glass-card:hover {
+      border-color: rgba(203, 213, 225, 0.95);
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.04), 0 8px 10px -6px rgba(15, 23, 42, 0.02);
+      transform: translateY(-1px);
+    }
+    .dark .glass-card {
+      background: #141b2d;
+      border: 1px solid rgba(51, 65, 85, 0.55);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25);
+    }
+    .dark .glass-card:hover {
+      border-color: rgba(99, 102, 241, 0.45);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45);
+    }
+
     /* DYNAMIC ISLAND & SAFE AREA COMPATIBILITY UTILITIES (BULLETPROOF) */
     .h-dvh { height: 100vh; height: 100dvh; }
     
@@ -91,7 +137,7 @@
     .dark #dictionaryContainer > div, 
     .dark #dossierNexusFeed > div,
     .dark #vaultContainer > div {
-        background-color: #0f172a !important; 
+        background-color: #141b2d !important; 
         border-color: #1e293b !important;
     }
     .dark #cardsContainer > div:hover, 
@@ -159,7 +205,7 @@
     };
   </script>
 </head>
-<body class="text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-[#0b1120] font-sans overflow-hidden transition-colors duration-300">
+<body class="text-slate-800 dark:text-slate-100 bg-[#f8f9fb] dark:bg-[#0c101a] font-sans overflow-hidden transition-colors duration-200">
 
   <!-- THE ENTERPRISE SHELL -->
   <div class="flex h-dvh w-full overflow-hidden">
@@ -179,17 +225,17 @@
             <button id="btnSideDashboard" onclick="switchState('DASHBOARD'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold bg-indigo-600 text-white shadow-sm transition">
                 <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
             </button>
-            <button id="btnSideConcepts" onclick="switchState('CONCEPTS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
-                <i data-lucide="book-open" class="w-4 h-4"></i> Concepts
-            </button>
             <button id="btnSideIntel" onclick="switchState('INTELLIGENCE'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="globe" class="w-4 h-4"></i> Intel
             </button>
-            <button id="btnSideDossiers" onclick="switchState('DOSSIERS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
-                <i data-lucide="building-2" class="w-4 h-4"></i> Dossiers
+            <button id="btnSideConcepts" onclick="switchState('CONCEPTS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
+                <i data-lucide="book-open" class="w-4 h-4"></i> Concepts
             </button>
             <button id="btnSideDictionary" onclick="switchState('DICTIONARY'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="library" class="w-4 h-4"></i> Dictionary
+            </button>
+            <button id="btnSideDossiers" onclick="switchState('DOSSIERS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
+                <i data-lucide="building-2" class="w-4 h-4"></i> Dossiers
             </button>
             <button id="btnSidePlaybooks" onclick="switchState('PLAYBOOKS'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition">
                 <i data-lucide="git-merge" class="w-4 h-4"></i> Deals
@@ -232,10 +278,10 @@
     </aside>
 
     <!-- RIGHT MAIN WRAPPER -->
-    <div class="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-[#0b1120] relative overflow-hidden h-full">
+    <div class="flex-1 flex flex-col min-w-0 bg-[#f8f9fb] dark:bg-[#0c101a] relative overflow-hidden h-full">
         
         <!-- TOP HEADER (Dynamic Island / Notch Proof) -->
-        <header id="mainTopHeader" class="pt-safe header-safe flex items-end pb-3 px-4 md:px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shrink-0 z-20 transition-colors duration-300">
+        <header id="mainTopHeader" class="pt-safe header-safe flex items-end pb-3 px-4 md:px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shrink-0 z-20 transition-colors duration-200">
             <div class="flex items-center justify-between w-full h-10">
                 <div class="flex items-center gap-4 flex-1">
                     <!-- Sidebar Toggle (Mobile & Desktop) -->
@@ -257,7 +303,7 @@
                         <i data-lucide="bell" class="w-5 h-5"></i>
                         <span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-indigo-500 rounded-full border-2 border-white dark:border-[#0f172a]"></span>
                     </button>
-                    <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
+                    <div class="h-6 w-px bg-slate-200 dark:border-slate-800 mx-2"></div>
                     <button onclick="downloadLocalBackup()" class="hidden lg:flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition px-2"><i data-lucide="download" class="w-4 h-4"></i> Backup</button>
                     <button onclick="window.print()" class="hidden lg:flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition px-2"><i data-lucide="printer" class="w-4 h-4"></i> Print</button>
                     <button onclick="openImportModal()" class="hidden xl:flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition px-2"><i data-lucide="upload" class="w-4 h-4"></i> Import</button>
@@ -271,10 +317,10 @@
         </div>
 
         <!-- APP VIEWS CONTAINER -->
-        <main id="mainAppWrapper" class="flex-1 flex flex-col relative w-full min-h-0 bg-slate-50 dark:bg-[#0b1120] overflow-hidden">
+        <main id="mainAppWrapper" class="flex-1 flex flex-col relative w-full min-h-0 bg-[#f8f9fb] dark:bg-[#0c101a] overflow-hidden">
             
             <!-- 1. DASHBOARD MODULE -->
-            <div id="appDashboard" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-300">
+            <div id="appDashboard" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-200">
                 <div class="max-w-[1600px] mx-auto w-full">
                     <div class="flex justify-between items-center mb-8">
                         <div>
@@ -294,11 +340,58 @@
             </div>
 
             <!-- 2. SETTINGS MODULE -->
-            <div id="appSettings" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-300">
+            <div id="appSettings" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-200">
                 <div class="max-w-4xl mx-auto w-full">
                     <h1 class="text-3xl font-serif font-black text-slate-900 dark:text-white mb-8 border-b border-slate-200 dark:border-slate-800 pb-4">System Settings</h1>
                     <div class="space-y-6">
-                        <div class="bg-white dark:bg-[#0f172a] rounded-md p-6 shadow-sm border border-slate-200 dark:border-slate-800">
+                        <!-- Theme & Color Settings -->
+                        <div class="glass-card rounded-xl p-6">
+                            <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                                <i data-lucide="palette" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i> Theme & Colour Palette
+                            </h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-5">
+                                Adjust contrast levels and accent highlights to reduce eye strain during extended prep sessions.
+                            </p>
+
+                            <!-- Background Contrast -->
+                            <div class="mb-6">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Background Contrast</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl">
+                                    <button onclick="setBaseTheme('slate')" class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-left hover:border-indigo-400 transition bg-[#f8f9fb] text-slate-800">
+                                        <div class="font-bold text-xs">Cool Slate (Default)</div>
+                                        <div class="text-[10px] text-slate-500">Subtle grey contrast</div>
+                                    </button>
+                                    <button onclick="setBaseTheme('warm')" class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-left hover:border-indigo-400 transition bg-[#f6f5f0] text-stone-900">
+                                        <div class="font-bold text-xs">Warm Paper</div>
+                                        <div class="text-[10px] text-stone-500">Low-glare reading tone</div>
+                                    </button>
+                                    <button onclick="setBaseTheme('dark-balanced')" class="p-3 rounded-lg border border-slate-700 text-left hover:border-indigo-400 transition bg-[#131722] text-slate-200">
+                                        <div class="font-bold text-xs text-slate-100">Midnight Slate</div>
+                                        <div class="text-[10px] text-slate-400">Balanced dark (no glare)</div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Primary Accent Color Picker -->
+                            <div>
+                                <div class="flex items-center gap-3 flex-wrap" id="accentSwatchContainer">
+                                    <button type="button" onclick="setAccentColor('#2563eb', '#1d4ed8')" class="w-8 h-8 rounded-full ring-2 ring-offset-2 ring-transparent focus:ring-blue-500 transition shadow-sm" style="background-color: #2563eb;"></button>
+                                    <button type="button" onclick="setAccentColor('#4f46e5', '#4338ca')" class="w-8 h-8 rounded-full ring-2 ring-offset-2 ring-transparent focus:ring-indigo-500 transition shadow-sm" style="background-color: #4f46e5;"></button>
+                                    <button type="button" onclick="setAccentColor('#0d9488', '#0f766e')" class="w-8 h-8 rounded-full ring-2 ring-offset-2 ring-transparent focus:ring-teal-500 transition shadow-sm" style="background-color: #0d9488;"></button>
+                                    <button type="button" onclick="setAccentColor('#059669', '#047857')" class="w-8 h-8 rounded-full ring-2 ring-offset-2 ring-transparent focus:ring-emerald-500 transition shadow-sm" style="background-color: #059669;"></button>
+                                    <button type="button" onclick="setAccentColor('#e11d48', '#be123c')" class="w-8 h-8 rounded-full ring-2 ring-offset-2 ring-transparent focus:ring-rose-500 transition shadow-sm" style="background-color: #e11d48;"></button>
+                                    <button type="button" onclick="setAccentColor('#475569', '#334155')" class="w-8 h-8 rounded-full ring-2 ring-offset-2 ring-transparent focus:ring-slate-500 transition shadow-sm" style="background-color: #475569;"></button>
+                                
+                                    <div class="flex items-center gap-2 ml-2 pl-3 border-l border-slate-200 dark:border-slate-700">
+                                        <input type="color" id="customColorPicker" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent p-0" onchange="setAccentColor(this.value)">
+                                        <span class="text-xs font-bold text-slate-500">Custom</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Database Operations -->
+                        <div class="glass-card rounded-xl p-6">
                              <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-4">Database Operations</h3>
                              <div class="flex flex-wrap gap-4">
                                  <button onclick="downloadLocalBackup()" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded transition shadow-sm flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Export JSON</button>
@@ -310,14 +403,14 @@
             </div>
 
             <!-- 3. INTERVIEW VAULT MODULE -->
-            <div id="appVault" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120] text-slate-800 dark:text-slate-200">
+            <div id="appVault" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-200 bg-[#f8f9fb] dark:bg-[#0c101a] text-slate-800 dark:text-slate-200">
                 <div class="max-w-[1600px] mx-auto w-full">
                     <div id="vaultContainer" class="space-y-4 pb-10 w-full"></div>
                 </div>
             </div>
 
             <!-- 4. MARKET INTELLIGENCE -->
-            <div id="appIntelligence" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-slate-50 dark:bg-[#0b1120]">
+            <div id="appIntelligence" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-[#f8f9fb] dark:bg-[#0c101a]">
               <button onclick="toggleAppSidebar('intelLogSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Insight">
                 <i data-lucide="plus" class="w-5 h-5"></i> <span>Log Insight</span>
               </button>
@@ -357,7 +450,7 @@
                 </div>
               </div>
 
-              <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full transition-colors duration-300">
+              <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full transition-colors duration-200">
                 <div class="max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 items-start">
                     
                     <div class="flex-1 min-w-0 space-y-6 order-2 lg:order-1 w-full">
@@ -429,7 +522,7 @@
         </div>
 
             <!-- 5. CORE CONCEPTS -->
-            <div id="appConcepts" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-slate-50 dark:bg-[#0b1120]">
+            <div id="appConcepts" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-[#f8f9fb] dark:bg-[#0c101a]">
                 <button onclick="toggleAppSidebar('conceptLogSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Concept">
                     <i data-lucide="plus" class="w-5 h-5"></i> <span>Log Concept</span>
                 </button>
@@ -459,7 +552,7 @@
                     </div>
                 </div>
 
-                <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full transition-colors duration-300">
+                <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full transition-colors duration-200">
                     <div class="max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 items-start">
                         <div class="flex-1 min-w-0 w-full space-y-6 order-2 lg:order-1">
                             <div class="print:hidden border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
@@ -484,7 +577,9 @@
                                     </select>
                                     <div class="flex w-full sm:w-auto rounded-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm h-9 box-border overflow-hidden shrink-0">
                                         <button onclick="toggleSelectAll('concepts')" class="w-1/3 sm:w-auto flex-1 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition border-r border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 h-full whitespace-nowrap"><i data-lucide="check-square" class="w-3.5 h-3.5"></i> Select</button>
-                                        <button onclick="openFlashcardDashboard('concepts')" class="w-1/3 sm:w-auto flex-1 text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 bg-slate-50 dark:bg-slate-800/50 font-bold px-3 text-xs transition border-r border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 h-full whitespace-nowrap"><i data-lucide="layers" class="w-3.5 h-3.5"></i> Review</button>
+                                        <button onclick="openFlashcardDashboard('concepts')" class="w-1/3 sm:w-auto flex-1 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition border-r border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 h-full whitespace-nowrap">
+                                            <i data-lucide="layers" class="w-3.5 h-3.5"></i> Review
+                                        </button>
                                         <button onclick="reviewSelectedCards('concepts')" class="w-1/3 sm:w-auto flex-1 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 font-bold px-3 text-xs transition flex items-center justify-center gap-1.5 h-full whitespace-nowrap"><i data-lucide="target" class="w-3.5 h-3.5"></i> Selected</button>
                                     </div>
                                     <button onclick="window.toggleReverseMode()" id="fcToggleBtnConcepts" class="flex items-center justify-center gap-1.5 cursor-pointer bg-white dark:bg-slate-900 px-3 h-9 box-border rounded-sm border border-slate-300 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0 w-full sm:w-auto whitespace-nowrap">
@@ -533,7 +628,7 @@
             </div>
 
             <!-- 6. FIRM DOSSIERS -->
-            <div id="appDossiers" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120]">
+            <div id="appDossiers" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-200 bg-[#f8f9fb] dark:bg-[#0c101a]">
                 <button onclick="document.getElementById('dossierSidebar').classList.toggle('-translate-x-full')" class="md:hidden fixed bottom-20 right-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2">
                     <i data-lucide="menu" class="w-5 h-5"></i> <span>Firms</span>
                 </button>
@@ -585,18 +680,18 @@
                                 <div id="dossierDeadlineBanner" class="mb-5"></div>
                                 <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5 print:hidden" id="dossierMetricsView"></div>
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
-                                    <div class="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col max-h-[450px]">
+                                    <div class="glass-card rounded-xl p-5 flex flex-col max-h-[450px]">
                                         <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 shrink-0">
                                             <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><i data-lucide="scale" class="w-4 h-4 text-slate-500"></i> Practice Areas</h3>
                                             <button onclick="window.openPracticeModal()" class="text-[10px] uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 font-bold px-2 py-1 rounded-sm transition border border-slate-200 dark:border-slate-700">Add Record</button>
                                         </div>
                                         <div id="dossierPracticeList" class="flex flex-col gap-4 divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto pr-2 scrollbar-hide"></div>
                                     </div>
-                                    <div class="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col max-h-[450px]">
+                                    <div class="glass-card rounded-xl p-5 flex flex-col max-h-[450px]">
                                         <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0"><i data-lucide="compass" class="w-4 h-4 text-slate-500"></i> Culture & Structure</h3>
                                         <div id="dossierCultureView" class="text-sm text-slate-700 dark:text-slate-300 overflow-y-auto flex-1 ql-editor p-0"></div>
                                     </div>
-                                    <div class="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col max-h-[450px]">
+                                    <div class="glass-card rounded-xl p-5 flex flex-col max-h-[450px]">
                                         <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 shrink-0">
                                             <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><i data-lucide="handshake" class="w-4 h-4 text-slate-500"></i> Clients & Deals</h3>
                                             <button onclick="window.openClientsModal()" class="text-[10px] uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 font-bold px-2 py-1 rounded-sm transition border border-slate-200 dark:border-slate-700">Add Record</button>
@@ -604,7 +699,7 @@
                                         <div id="dossierClientsList" class="flex flex-col gap-4 divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto pr-2 scrollbar-hide"></div>
                                     </div>
                                 </div>
-                                <div class="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-[#0f172a] dark:to-[#1e293b] rounded-md shadow-sm border border-slate-700 p-5 md:p-6 print:hidden mb-8 transition-colors duration-300 relative overflow-hidden">
+                                <div class="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-[#0f172a] dark:to-[#1e293b] rounded-md shadow-sm border border-slate-700 p-5 md:p-6 print:hidden mb-8 transition-colors duration-200 relative overflow-hidden">
                                     <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse pointer-events-none"></div>
                                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3 relative z-10">
                                         <div>
@@ -627,14 +722,14 @@
                             </div>
                             <div id="dossierPersonalTab" class="hidden pb-10">
                                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 items-start">
-                                    <div class="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col max-h-[600px]">
+                                    <div class="glass-card rounded-xl p-5 flex flex-col max-h-[600px]">
                                          <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 shrink-0">
                                              <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><i data-lucide="award" class="w-4 h-4 text-slate-500"></i> Core Competencies Map</h3>
                                              <button onclick="openCompetencyModal()" class="text-[10px] uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 font-bold px-2 py-1 rounded-sm transition border border-slate-200 dark:border-slate-700">Add Record</button>
                                          </div>
                                          <div id="dossierCompetenciesList" class="flex flex-col gap-4 divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto pr-2 scrollbar-hide"></div>
                                     </div>
-                                    <div class="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col max-h-[600px]">
+                                    <div class="glass-card rounded-xl p-5 flex flex-col max-h-[600px]">
                                         <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0"><i data-lucide="target" class="w-4 h-4 text-slate-500"></i> "Why This Firm?" Draft</h3>
                                         <div id="dossierPersonalWhyView" class="text-sm text-slate-700 dark:text-slate-300 overflow-y-auto flex-1 ql-editor p-0 pr-2 scrollbar-hide"></div>
                                     </div>
@@ -646,25 +741,25 @@
                                 <div><span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Editing Profile</span><h1 class="text-3xl md:text-4xl font-serif font-black text-slate-900 dark:text-white mt-1" id="dossierFirmTitleEdit">Firm Name</h1></div>
                                 <div class="flex gap-2"><button onclick="saveDossierData()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 h-10 box-border rounded-sm text-sm transition shadow-sm whitespace-nowrap flex items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Close & Sync</button></div>
                             </div>
-                            <div class="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-slate-200 dark:border-slate-800 p-6 mb-6">
+                            <div class="glass-card rounded-xl p-6 mb-6">
                               <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">Firm Profile Metadata</h3>
                               <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                                   <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Firm Category / Type</label><input type="text" id="dossierFirmType" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 autosave-input shadow-inner"></div>
                                   <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Office Locations</label><input type="text" id="dossierLocations" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 autosave-input shadow-inner"></div>
                               </div>
                           </div>
-                            <div class="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-slate-200 dark:border-slate-800 p-6 mb-6">
-                                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">Application Deadlines</h3>
-                                <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
-                                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Scheme</label><input type="text" id="dossierSchemeType" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner"></div>
-                                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Open</label><input type="date" id="dossierOpenDate" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 autosave-input shadow-inner"></div>
-                                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Close</label><input type="date" id="dossierCloseDate" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 autosave-input shadow-inner"></div>
-                                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Status</label><select id="dossierRolling" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none text-slate-900 dark:text-white dark:bg-slate-800 autosave-input shadow-inner"><option value="Non-Rolling">Non-Rolling</option><option value="Rolling">Rolling Basis</option></select></div>
+                            <div class="glass-card rounded-xl p-6 mb-6">
+                                <div class="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
+                                    <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Application Deadlines</h3>
+                                    <button type="button" onclick="window.addDossierEditSchemeRow()" class="text-xs bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 font-bold px-3 py-1.5 rounded-sm transition border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Scheme
+                                    </button>
                                 </div>
+                                <div id="dossierEditSchemesContainer" class="space-y-4"></div>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
-                                <div class="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex flex-col"><h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 shrink-0"><i data-lucide="compass" class="w-4 h-4 text-slate-500"></i> Culture & Structure</h3><div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[250px]"><div id="toolbar-culture" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1"><span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span><span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span></div><div id="dossierCultureQuill" class="flex-1 bg-white dark:bg-slate-900 dark:text-white"></div></div></div>
-                                <div class="bg-white dark:bg-slate-900 rounded-md shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex flex-col"><h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 shrink-0"><i data-lucide="target" class="w-4 h-4 text-slate-500"></i> "Why This Firm?"</h3><div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[250px]"><div id="toolbar-personal-why" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1"><span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span><span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span></div><div id="dossierPersonalWhyQuill" class="flex-1 bg-white dark:bg-slate-900 dark:text-white"></div></div></div>
+                                <div class="glass-card rounded-xl p-6 flex flex-col"><h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 shrink-0"><i data-lucide="compass" class="w-4 h-4 text-slate-500"></i> Culture & Structure</h3><div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[250px]"><div id="toolbar-culture" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1"><span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span><span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span></div><div id="dossierCultureQuill" class="flex-1 bg-white dark:bg-slate-900 dark:text-white"></div></div></div>
+                                <div class="glass-card rounded-xl p-6 flex flex-col"><h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 shrink-0"><i data-lucide="target" class="w-4 h-4 text-slate-500"></i> "Why This Firm?"</h3><div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[250px]"><div id="toolbar-personal-why" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1"><span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span><span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span></div><div id="dossierPersonalWhyQuill" class="flex-1 bg-white dark:bg-slate-900 dark:text-white"></div></div></div>
                             </div>
                         </div>
                     </div>
@@ -672,7 +767,7 @@
             </div>
 
             <!-- 7. DICTIONARY APP -->
-            <div id="appDictionary" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120]">
+            <div id="appDictionary" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-200 bg-[#f8f9fb] dark:bg-[#0c101a]">
               <button onclick="toggleAppSidebar('dictSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Define Term">
                 <i data-lucide="plus" class="w-5 h-5"></i> <span>Add Term</span>
               </button>
@@ -743,7 +838,7 @@
             </div>
 
             <!-- 8. NEXUS GRAPH (FORCE-DIRECTED MATRIX) -->
-            <div id="appGraph" class="flex-1 flex-col hidden w-full h-full relative bg-slate-50 dark:bg-slate-950 overflow-hidden transition-colors duration-300">
+            <div id="appGraph" class="flex-1 flex-col hidden w-full h-full relative bg-[#f8f9fb] dark:bg-[#0c101a] overflow-hidden transition-colors duration-200">
               <div class="absolute top-4 left-4 z-20 flex flex-wrap gap-2 items-center bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-2 rounded-md border border-slate-200 dark:border-slate-800 shadow-md print:hidden">
                 <span class="text-xs font-bold text-slate-800 dark:text-slate-200 px-2 uppercase tracking-wider flex items-center gap-1.5"><i data-lucide="network" class="w-4 h-4"></i> The Nexus</span>
                 <div class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
@@ -764,7 +859,7 @@
             </div>
 
             <!-- 9. DEAL ANATOMY (PLAYBOOKS) -->
-            <div id="appPlaybooks" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-300 bg-slate-50 dark:bg-[#0b1120]">
+            <div id="appPlaybooks" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-200 bg-[#f8f9fb] dark:bg-[#0c101a]">
                 <button onclick="toggleAppSidebar('playbooksSidebar')" class="md:hidden fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_8px_30px_rgb(79,70,229,0.3)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2"><i data-lucide="menu" class="w-5 h-5"></i> <span>Playbooks</span></button>
 
                 <div id="playbooksSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[300px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-4 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex flex-col shadow-xl md:shadow-none pb-24 md:pb-6 h-full shrink-0 pt-safe-sidebar">
@@ -783,6 +878,12 @@
                       </button>
                       <span id="activePlaybookLabel" class="text-xs font-bold text-slate-800 dark:text-slate-200 px-2 uppercase tracking-wider">Select a Playbook</span>
                       <div class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
+                      
+                      <!-- Stage Boundary Configuration Trigger -->
+                      <button onclick="window.openStageConfigModal()" class="bg-white hover:bg-slate-50 text-slate-800 dark:bg-slate-800 dark:text-slate-200 font-bold px-3 py-1 rounded-sm text-xs transition border border-slate-300 dark:border-slate-700 shadow-sm flex items-center gap-1.5">
+                          <i data-lucide="layers" class="w-3.5 h-3.5 text-indigo-500"></i> Configure Stages
+                      </button>
+
                       <button onclick="window.zoomPlaybook('in')" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-1.5"><i data-lucide="zoom-in" class="w-3.5 h-3.5"></i> Zoom In</button>
                       <button onclick="window.zoomPlaybook('out')" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-1.5"><i data-lucide="zoom-out" class="w-3.5 h-3.5"></i> Zoom Out</button>
                       <button onclick="resetPlaybookView()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-sm text-xs transition border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-1.5"><i data-lucide="maximize" class="w-3.5 h-3.5"></i> Center</button>
@@ -811,21 +912,51 @@
                               <input type="number" id="pbNodeLevel" placeholder="Auto" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none font-bold text-slate-800 dark:text-white dark:bg-slate-800 text-center shadow-inner">
                           </div>
                       </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Context / When to Use</label>
-                            <textarea id="pbNodeTiming" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-3 text-sm focus:ring-1 focus:ring-indigo-500 outline-none min-h-[100px] resize-y dark:bg-slate-800 dark:text-white shadow-inner"></textarea>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest mb-1.5">Commercial Advantages</label>
-                            <textarea id="pbNodeAdv" class="w-full border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-sm p-3 text-sm focus:ring-1 focus:ring-emerald-500 outline-none min-h-[100px] resize-y dark:text-white shadow-inner"></textarea>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-red-600 dark:text-red-500 uppercase tracking-widest mb-1.5">Commercial Disadvantages</label>
-                            <textarea id="pbNodeDisadv" class="w-full border border-red-200 dark:border-red-800/50 bg-red-50/50 dark:bg-red-900/10 rounded-sm p-3 text-sm focus:ring-1 focus:ring-red-500 outline-none min-h-[100px] resize-y dark:text-white shadow-inner"></textarea>
-                        </div>
-                        <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
-                            <button onclick="saveNodeData()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-sm transition shadow-sm w-full flex justify-center items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Save Node Data</button>
-                        </div>
+
+                      <!-- Process Role / Milestone Selector -->
+                      <div>
+                          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Process Role</label>
+                          <select id="pbNodeRole" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-xs font-bold text-slate-800 dark:text-white dark:bg-slate-800 shadow-inner outline-none focus:ring-1 focus:ring-indigo-500">
+                              <option value="standard">Standard Deal Step</option>
+                              <option value="start">🟢 Process Starts Here</option>
+                              <option value="milestone">🔷 Major Decision / Milestone</option>
+                              <option value="complete">🏁 Process Completes / Closes</option>
+                          </select>
+                      </div>
+
+                      <!-- Linked KMS Concept & Live Preview -->
+                      <div>
+                          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Linked KMS Concept / Definition</label>
+                          <select id="pbNodeConceptLink" onchange="window.onPlaybookKmsLinkChange()" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2 text-xs font-bold text-slate-800 dark:text-white dark:bg-slate-800 shadow-inner outline-none focus:ring-1 focus:ring-indigo-500">
+                              <option value="">-- No Linked KMS Record --</option>
+                          </select>
+                          
+                          <!-- Live KMS Preview Card -->
+                          <div id="pbNodeKmsPreview" class="hidden mt-2 p-3 rounded-md bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs">
+                              <div class="flex justify-between items-center mb-1">
+                                  <span class="text-[9px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400" id="pbKmsPreviewType">Concept</span>
+                                  <button type="button" onclick="window.jumpToLinkedKms()" class="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline">Open Record &rarr;</button>
+                              </div>
+                              <h5 class="font-bold text-slate-900 dark:text-white truncate" id="pbKmsPreviewTitle">Title</h5>
+                              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-3 leading-relaxed" id="pbKmsPreviewSnippet"></p>
+                          </div>
+                      </div>
+
+                      <div>
+                          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Context / When to Use</label>
+                          <textarea id="pbNodeTiming" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-3 text-sm focus:ring-1 focus:ring-indigo-500 outline-none min-h-[100px] resize-y dark:bg-slate-800 dark:text-white shadow-inner"></textarea>
+                      </div>
+                      <div>
+                          <label class="block text-[10px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-widest mb-1.5">Commercial Advantages</label>
+                          <textarea id="pbNodeAdv" class="w-full border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-sm p-3 text-sm focus:ring-1 focus:ring-emerald-500 outline-none min-h-[100px] resize-y dark:text-white shadow-inner"></textarea>
+                      </div>
+                      <div>
+                          <label class="block text-[10px] font-bold text-red-600 dark:text-red-500 uppercase tracking-widest mb-1.5">Commercial Disadvantages</label>
+                          <textarea id="pbNodeDisadv" class="w-full border border-red-200 dark:border-red-800/50 bg-red-50/50 dark:bg-red-900/10 rounded-sm p-3 text-sm focus:ring-1 focus:ring-red-500 outline-none min-h-[100px] resize-y dark:text-white shadow-inner"></textarea>
+                      </div>
+                      <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+                          <button onclick="saveNodeData()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-sm transition shadow-sm w-full flex justify-center items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Save Node Data</button>
+                      </div>
                     </div>
                 </div>
             </div>
@@ -833,10 +964,11 @@
         </main>
         
         <!-- BOTTOM NAVIGATION (Mobile with Home Indicator Inset) -->
-        <div id="mobileBottomNav" class="md:hidden shrink-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-around items-start z-[50] print:hidden pb-safe transition-colors duration-300">
+        <div id="mobileBottomNav" class="md:hidden shrink-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-around items-start z-[50] print:hidden pb-safe transition-colors duration-200">
             <button onclick="switchState('DASHBOARD')" id="mobNavDashboard" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="layout-dashboard" class="w-5 h-5"></i> Home</button>
             <button onclick="switchState('INTELLIGENCE')" id="mobNavIntel" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="globe" class="w-5 h-5"></i> Intel</button>
             <button onclick="switchState('CONCEPTS')" id="mobNavConcepts" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="book-open" class="w-5 h-5"></i> KMS</button>
+            <button onclick="switchState('DICTIONARY')" id="mobNavDictionary" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="library" class="w-5 h-5"></i> Dict</button>
             <button onclick="switchState('DOSSIERS')" id="mobNavDossiers" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="building-2" class="w-5 h-5"></i> Dossiers</button>
             <button onclick="switchState('PLAYBOOKS')" id="mobNavPlaybooks" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="git-merge" class="w-5 h-5"></i> Deals</button>
         </div>
