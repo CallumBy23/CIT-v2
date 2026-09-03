@@ -10,7 +10,7 @@ const systemTemplates = `
   </div>
 
   <!-- GLOBAL OMNIBAR -->
-  <div id="omnibarContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] hidden flex-col items-center pt-[10vh] px-4 pb-safe pt-safe print:hidden" onclick="if(event.target===this) closeOmnibar()">
+  <div id="omnibarContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] hidden flex-col items-center pt-[10vh] px-4 pb-safe pt-safe print:hidden" onclick="if(event.target===this) closeOmnibar()">
     <div class="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-md shadow-2xl overflow-hidden flex flex-col animate-fade-in-up border border-slate-300 dark:border-slate-700">
         <div class="flex items-center px-4 py-3 border-b border-slate-200 dark:border-slate-800">
             <i data-lucide="search" class="w-5 h-5 text-slate-400 mr-3"></i>
@@ -22,7 +22,7 @@ const systemTemplates = `
   </div>
 
   <!-- UNIVERSAL QUICK ADD MODAL -->
-  <div id="quickAddModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] hidden flex-col items-center pt-[15vh] px-4 pb-safe pt-safe print:hidden" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
+  <div id="quickAddModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] hidden flex-col items-center pt-[15vh] px-4 pb-safe pt-safe print:hidden" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
     <div class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-md shadow-2xl overflow-hidden flex flex-col animate-fade-in-up border border-slate-300 dark:border-slate-700">
         <div class="flex justify-between items-center px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
             <h3 class="font-bold font-serif text-slate-800 dark:text-slate-100 flex items-center gap-2"><i data-lucide="zap" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i> Universal Quick Add <span class="text-[10px] font-sans font-normal text-slate-500 bg-slate-200 dark:bg-slate-800 px-1.5 rounded-sm ml-2 shadow-inner border border-slate-300 dark:border-slate-700">Cmd+Shift+Y</span></h3>
@@ -47,7 +47,7 @@ const systemTemplates = `
   <div id="toastContainer" class="fixed bottom-4 right-4 md:bottom-8 md:right-8 z-[9999] flex flex-col-reverse gap-3 pointer-events-none print:hidden pb-safe pr-safe"></div>
 
   <!-- EXPANDED GRAPH MODAL -->
-  <div id="macroGraphModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] hidden flex-col items-center justify-center p-4 md:p-8 transition-all opacity-0 pointer-events-none pt-safe pb-safe" onclick="if(event.target===this) window.closeExpandedGraph()">
+  <div id="macroGraphModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[100] hidden flex-col items-center justify-center p-4 md:p-8 transition-all opacity-0 pointer-events-none pt-safe pb-safe" onclick="if(event.target===this) window.closeExpandedGraph()">
       <div id="macroGraphModalInner" class="bg-white dark:bg-[#0f172a] rounded-xl w-full max-w-5xl shadow-2xl flex flex-col relative overflow-hidden border border-slate-200 dark:border-slate-700 transition-transform transform scale-95 duration-200">
           <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 p-4 md:p-6 bg-slate-50 dark:bg-slate-900/50">
               <div>
@@ -71,7 +71,7 @@ const systemTemplates = `
   </div>
 
   <!-- DAILY BRIEFING MODAL -->
-  <div id="dailyBriefingModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('dailyBriefingModal').classList.add('hidden')">
+  <div id="dailyBriefingModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('dailyBriefingModal').classList.add('hidden')">
     <div class="bg-white dark:bg-slate-900 rounded-md max-w-md w-full shadow-xl relative overflow-hidden flex flex-col animate-fade-in-up border border-slate-300 dark:border-slate-800">
       <div class="bg-slate-800 dark:bg-slate-950 p-4 flex justify-between items-center text-white border-b border-slate-700">
         <h3 class="text-lg font-serif font-bold flex items-center gap-2"><i data-lucide="clipboard-list" class="w-5 h-5"></i> Daily Briefing</h3>
@@ -85,7 +85,7 @@ const systemTemplates = `
   </div>
 
   <!-- DRAWING MODAL -->
-  <div id="drawingModalContainer" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-2 md:p-4 print:hidden flex-col pt-safe pb-safe" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
+  <div id="drawingModalContainer" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-2 md:p-4 print:hidden flex-col pt-safe pb-safe" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
     <div class="w-full max-w-5xl flex flex-col md:flex-row justify-between items-center gap-4 mb-4 mt-safe">
       <div class="flex items-center gap-2 md:gap-3 bg-white dark:bg-slate-900 p-2 rounded-md border border-slate-300 dark:border-slate-700 w-full md:w-auto overflow-x-auto shadow-sm scrollbar-hide">
         <button onclick="setDrawMode('pen')" id="btnToolPen" class="bg-indigo-600 text-white px-3 py-1.5 rounded-sm font-bold text-xs shadow-sm transition shrink-0 flex items-center gap-1.5"><i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> Pen</button>
@@ -118,7 +118,7 @@ const systemTemplates = `
   </div>
 
   <!-- EDIT MODAL (Market Intel) -->
-  <div id="editModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('editModalContainer').classList.add('hidden')">
+  <div id="editModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('editModalContainer').classList.add('hidden')">
     <div class="bg-white dark:bg-slate-900 rounded-md max-w-xl w-full p-6 shadow-xl relative max-h-full overflow-y-auto border border-slate-300 dark:border-slate-700">
       <button onclick="document.getElementById('editModalContainer').classList.add('hidden')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
       <h3 class="text-xl font-serif font-black text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Edit Insight</h3>
@@ -189,7 +189,7 @@ const systemTemplates = `
   </div>
 
   <!-- EDIT CONCEPT MODAL (KMS) -->
-  <div id="editConceptModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('editConceptModalContainer').classList.add('hidden')">
+  <div id="editConceptModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('editConceptModalContainer').classList.add('hidden')">
     <div class="bg-white dark:bg-slate-900 rounded-md max-w-3xl w-full p-6 shadow-xl relative max-h-full overflow-y-auto border border-slate-300 dark:border-slate-700">
       <button onclick="document.getElementById('editConceptModalContainer').classList.add('hidden')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
       <h3 class="text-xl font-serif font-black text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Edit Core Concept</h3>
@@ -228,26 +228,20 @@ const systemTemplates = `
   </div>
 
   <!-- ADD/EDIT COMPETENCY MODAL -->
-  <div id="compModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
+  <div id="compModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
     <div class="bg-white dark:bg-slate-900 rounded-md max-w-4xl w-full p-6 shadow-xl relative max-h-full overflow-y-auto border border-slate-300 dark:border-slate-700">
         <button onclick="document.getElementById('compModalContainer').classList.add('hidden'); document.getElementById('compModalContainer').classList.remove('flex');" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
         <h3 class="text-xl font-serif font-black text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2" id="compModalTitle">Add Core Competency</h3>
         <input type="hidden" id="compEditIndex">
         
         <div class="flex flex-col md:flex-row gap-4 md:gap-6">
-            <div class="md:w-1/4 shrink-0">
+            <div class="md:w-1/3 shrink-0">
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Competency Heading</label>
                 <input type="text" id="compHeadingInput" placeholder="E.g., Leadership" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none font-bold text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner">
             </div>
-            <div class="md:w-3/4 flex flex-col">
+            <div class="md:w-2/3 flex flex-col">
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Evidence / STAR Example</label>
-                <div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[200px] shadow-sm">
-                    <div id="toolbar-comp-modal" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1 sticky top-0 z-[50]">
-                        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span>
-                        <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
-                    </div>
-                    <div id="compModalQuill" class="flex-1 bg-white dark:bg-slate-900 h-40 dark:text-white"></div>
-                </div>
+                <textarea id="compModalTextarea" placeholder="Outline your STAR response or key competency notes..." class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-3 text-sm min-h-[220px] outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-800 dark:text-white shadow-inner resize-y leading-relaxed font-sans"></textarea>
             </div>
         </div>
 
@@ -259,26 +253,20 @@ const systemTemplates = `
   </div>
 
   <!-- ADD/EDIT PRACTICE MODAL -->
-  <div id="practiceModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
+  <div id="practiceModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
     <div class="bg-white dark:bg-slate-900 rounded-md max-w-4xl w-full p-6 shadow-xl relative max-h-full overflow-y-auto border border-slate-300 dark:border-slate-700">
         <button onclick="document.getElementById('practiceModalContainer').classList.add('hidden'); document.getElementById('practiceModalContainer').classList.remove('flex');" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
         <h3 class="text-xl font-serif font-black text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2" id="practiceModalTitle">Add Practice Area</h3>
         <input type="hidden" id="practiceEditIndex">
         
         <div class="flex flex-col md:flex-row gap-4 md:gap-6">
-            <div class="md:w-1/4 shrink-0">
+            <div class="md:w-1/3 shrink-0">
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Practice Area Name</label>
                 <input type="text" id="practiceHeadingInput" placeholder="E.g., Private Equity" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none font-bold text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner">
             </div>
-            <div class="md:w-3/4 flex flex-col">
+            <div class="md:w-2/3 flex flex-col">
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Details & Context</label>
-                <div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[200px] shadow-sm">
-                    <div id="toolbar-practice-modal" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1 sticky top-0 z-[50]">
-                        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span>
-                        <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
-                    </div>
-                    <div id="practiceModalQuill" class="flex-1 bg-white dark:bg-slate-900 h-40 dark:text-white"></div>
-                </div>
+                <textarea id="practiceModalTextarea" placeholder="Enter key expertise, notable cases, or departmental structure..." class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-3 text-sm min-h-[220px] outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-800 dark:text-white shadow-inner resize-y leading-relaxed font-sans"></textarea>
             </div>
         </div>
 
@@ -290,26 +278,20 @@ const systemTemplates = `
   </div>
 
   <!-- ADD/EDIT CLIENTS MODAL -->
-  <div id="clientsModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
+  <div id="clientsModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) { this.classList.add('hidden'); this.classList.remove('flex'); }">
     <div class="bg-white dark:bg-slate-900 rounded-md max-w-4xl w-full p-6 shadow-xl relative max-h-full overflow-y-auto border border-slate-300 dark:border-slate-700">
         <button onclick="document.getElementById('clientsModalContainer').classList.add('hidden'); document.getElementById('clientsModalContainer').classList.remove('flex');" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
         <h3 class="text-xl font-serif font-black text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2" id="clientsModalTitle">Add Client / Deal</h3>
         <input type="hidden" id="clientsEditIndex">
         
         <div class="flex flex-col md:flex-row gap-4 md:gap-6">
-            <div class="md:w-1/4 shrink-0">
+            <div class="md:w-1/3 shrink-0">
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Client / Deal Name</label>
-                <input type="text" id="clientsHeadingInput" placeholder="E.g., Project X" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none font-bold text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner">
+                <input type="text" id="clientsHeadingInput" placeholder="E.g., Project X / Lender syndicate" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none font-bold text-slate-900 dark:text-white dark:bg-slate-800 shadow-inner">
             </div>
-            <div class="md:w-3/4 flex flex-col">
+            <div class="md:w-2/3 flex flex-col">
                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Details & Context</label>
-                <div class="border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden flex flex-col flex-1 bg-white dark:bg-slate-900 min-h-[200px] shadow-sm">
-                    <div id="toolbar-clients-modal" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1 sticky top-0 z-[50]">
-                        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span>
-                        <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
-                    </div>
-                    <div id="clientsModalQuill" class="flex-1 bg-white dark:bg-slate-900 h-40 dark:text-white"></div>
-                </div>
+                <textarea id="clientsModalTextarea" placeholder="Describe the transaction, debt structure, borrower, or advisory role..." class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-3 text-sm min-h-[220px] outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-800 dark:text-white shadow-inner resize-y leading-relaxed font-sans"></textarea>
             </div>
         </div>
 
@@ -379,7 +361,7 @@ const systemTemplates = `
   </div>
 
   <!-- AI SYNTHESIS MODAL -->
-  <div id="aiModalContainer" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[70] flex items-center justify-center hidden p-2 md:p-4 transition-all print:hidden pt-safe pb-safe" onclick="if(event.target===this) closeAiModal()">
+  <div id="aiModalContainer" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-2 md:p-4 transition-all print:hidden pt-safe pb-safe" onclick="if(event.target===this) closeAiModal()">
     <div class="bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-md max-w-6xl w-full p-4 md:p-8 space-y-4 shadow-xl relative max-h-full overflow-hidden flex flex-col" id="aiModalBox">
       <button onclick="closeAiModal()" class="absolute top-4 right-4 md:top-4 md:right-5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition z-50"><i data-lucide="x" class="w-6 h-6"></i></button>
       <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 md:pb-4 mb-2 md:mb-4 shrink-0 pr-8">
@@ -394,7 +376,7 @@ const systemTemplates = `
   </div>
 
   <!-- DATABASE IMPORT MODAL -->
-  <div id="backupModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('backupModalContainer').classList.add('hidden')">
+  <div id="backupModalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4 print:hidden pt-safe pb-safe" onclick="if(event.target===this) document.getElementById('backupModalContainer').classList.add('hidden')">
     <div class="bg-white dark:bg-slate-900 rounded-md max-w-2xl w-full p-6 shadow-xl relative max-h-full overflow-y-auto border border-slate-300 dark:border-slate-700">
       <button onclick="document.getElementById('backupModalContainer').classList.add('hidden')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
       <h3 class="text-xl font-serif font-black text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">Database Import Config</h3>
@@ -412,7 +394,7 @@ const systemTemplates = `
   </div>
 
   <!-- RSS TRIAGE MODAL -->
-  <div id="rssTriageModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center hidden p-4 pt-safe pb-safe" onclick="if(event.target===this) closeRssTriage()">
+  <div id="rssTriageModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center hidden p-4 pt-safe pb-safe" onclick="if(event.target===this) closeRssTriage()">
     <div class="bg-white dark:bg-slate-900 rounded-md max-w-3xl w-full flex flex-col max-h-[90dvh] overflow-hidden shadow-xl relative border border-slate-300 dark:border-slate-700">
       <div class="p-5 md:p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0 bg-slate-50 dark:bg-slate-950">
         <div>
@@ -444,7 +426,7 @@ const systemTemplates = `
             <div id="fcFrontBody" class="hidden text-base md:text-xl font-medium text-slate-700 dark:text-slate-300 max-w-3xl mx-auto leading-relaxed overflow-y-auto max-h-[50vh] text-left p-6 border border-slate-200 dark:border-slate-700 rounded-sm bg-white dark:bg-slate-800 shadow-inner"></div>
             <p class="text-slate-400 mt-10 text-xs uppercase tracking-widest animate-pulse font-bold" id="fcInstruction">(Tap or click to reveal answer)</p>
             <div class="mt-8 w-full max-w-lg z-10 cursor-default" onclick="event.stopPropagation()">
-                <button onclick="toggleFeynmanDrawer(this)" id="btnShowFeynman" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center gap-1.5 mx-auto border border-slate-200 dark:border-slate-700 hover:border-slate-400 rounded-sm px-4 py-1.5 bg-white dark:bg-slate-900 shadow-sm"><i data-lucide="pen-tool" class="w-3 h-3"></i> Optional: Try Feynman Technique</button>
+                <button onclick="toggleFeynmanDrawer(this)" id="btnShowFeynman" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center gap-1.5 mx-auto border border-slate-200 dark:border-slate-700 hover:border-slate-400 rounded-sm px-4 py-1.5 bg-white dark:bg-slate-900 shadow-sm"><i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> Optional: Try Feynman Technique</button>
                 <div id="feynmanDrawer" class="hidden flex-col gap-3 mt-4 animate-fade-in-up bg-slate-50 dark:bg-[#0b1120] border border-slate-200 dark:border-slate-800 p-4 rounded-sm">
                     <textarea id="feynmanInput" placeholder="Explain this simply in your own words. No jargon..." spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-3 text-sm h-28 outline-none focus:ring-1 focus:ring-indigo-500 resize-none shadow-inner bg-white dark:bg-slate-900 dark:text-white"></textarea>
                     <div class="flex gap-2">

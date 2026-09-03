@@ -148,7 +148,6 @@ function getFirmPriority(firmName) {
     });
 
     if (allApplied) return { tier: 4, diff: Infinity };
-    // Tier 0 = Rolling Open, Tier 1 = Standard Open, Tier 2 = Expired, Tier 3 = Unknown
     if (nearestRollingDiff !== Infinity) return { tier: 0, diff: nearestRollingDiff }; 
     if (nearestActiveDiff !== Infinity) return { tier: 1, diff: nearestActiveDiff }; 
     if (newestExpiredDiff !== -Infinity) return { tier: 2, diff: Math.abs(newestExpiredDiff) }; 
@@ -190,7 +189,6 @@ function renderDossierList() {
 
         if (pA.tier !== pB.tier) return pA.tier - pB.tier; 
         
-        // Properly sorts rolling (Tier 0) and standard (Tier 1) open applications by deadline
         if (pA.tier === 0 || pA.tier === 1 || pA.tier === 3 || pA.tier === 4) {
             if (pA.diff === pB.diff) return strA.localeCompare(strB);
             return pA.diff - pB.diff; 
@@ -278,7 +276,6 @@ function renderStrategyRoom() {
             const isHidden = sb && sb.classList.contains("!hidden");
             const iconName = isHidden ? "panel-left" : "panel-left-close";
             
-            // Fix: Removed 'w-full' and 'truncate' to let text wrap naturally
             titleView.innerHTML = `
                 <div class="flex items-center gap-3">
                     <button onclick="window.toggleDossierSidebarDesktop()" class="hidden md:flex text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition shrink-0" title="Toggle Sidebar">
@@ -390,7 +387,7 @@ function renderStrategyRoom() {
                                 <button onclick="window.deletePractice(${idx})" class="text-[10px] text-gray-500 hover:text-red-600 font-bold bg-gray-100 hover:bg-red-50 px-2 py-1 rounded transition border border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Delete</button>
                             </div>
                         </div>
-                        <div class="prose prose-sm max-w-none text-gray-700 dark:text-slate-300 ql-editor p-0 break-words">${prac.body}</div>
+                        <div class="prose prose-sm max-w-none text-gray-700 dark:text-slate-300 whitespace-pre-wrap p-0 break-words leading-relaxed">${prac.body}</div>
                     `;
                     pracList.appendChild(row);
                 });
@@ -420,7 +417,7 @@ function renderStrategyRoom() {
                                 <button onclick="window.deleteClients(${idx})" class="text-[10px] text-gray-500 hover:text-red-600 font-bold bg-gray-100 hover:bg-red-50 px-2 py-1 rounded transition border border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Delete</button>
                             </div>
                         </div>
-                        <div class="prose prose-sm max-w-none text-gray-700 dark:text-slate-300 ql-editor p-0 break-words">${client.body}</div>
+                        <div class="prose prose-sm max-w-none text-gray-700 dark:text-slate-300 whitespace-pre-wrap p-0 break-words leading-relaxed">${client.body}</div>
                     `;
                     clientsList.appendChild(row);
                 });
@@ -463,7 +460,7 @@ function renderStrategyRoom() {
                                 <button onclick="window.deleteCompetency(${idx})" class="text-[10px] text-gray-500 hover:text-red-600 font-bold bg-gray-100 hover:bg-red-50 px-2 py-1 rounded transition border border-gray-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Delete</button>
                             </div>
                         </div>
-                        <div class="md:w-3/4 prose prose-sm max-w-none text-gray-700 dark:text-slate-300 ql-editor p-0 break-words">${comp.body}</div>
+                        <div class="md:w-3/4 prose prose-sm max-w-none text-gray-700 dark:text-slate-300 whitespace-pre-wrap p-0 break-words leading-relaxed">${comp.body}</div>
                     `;
                     compList.appendChild(row);
                 });
@@ -602,7 +599,6 @@ function toggleDossierMode(mode) {
         document.getElementById("dossierCloseDate").value = s.closeDate || "";
         document.getElementById("dossierRolling").value = s.rolling || "Non-Rolling";
         
-        // Lazy-load Dossier Profile Editors
         window.cultureQuill = window.getOrInitQuill('#dossierCultureQuill', { modules: { toolbar: '#toolbar-culture' } });
         window.personalWhyQuill = window.getOrInitQuill('#dossierPersonalWhyQuill', { modules: { toolbar: '#toolbar-personal-why' } });
 
@@ -617,72 +613,6 @@ function toggleDossierMode(mode) {
     }
 }
 
-// --- COMPETENCIES CRUD ---
-window.openCompetencyModal = function(idx = -1) {
-    document.getElementById('compModalContainer').classList.remove('hidden');
-    document.getElementById('compModalContainer').classList.add('flex');
-    const d = db.dossiers[currentDossierFirm];
-    
-    // Lazy-load Competency Modal Editor
-    window.compModalQuill = window.getOrInitQuill('#compModalQuill', { modules: { toolbar: '#toolbar-comp-modal' } });
-
-    if (idx >= 0 && d.competencies[idx]) {
-        document.getElementById('compModalTitle').innerText = "Edit Competency";
-        document.getElementById('compEditIndex').value = idx;
-        document.getElementById('compHeadingInput').value = d.competencies[idx].heading;
-        if(window.compModalQuill) window.compModalQuill.root.innerHTML = d.competencies[idx].body;
-    } else {
-        document.getElementById('compModalTitle').innerText = "Add Core Competency";
-        document.getElementById('compEditIndex').value = "";
-        document.getElementById('compHeadingInput').value = "";
-        if(window.compModalQuill) window.compModalQuill.root.innerHTML = "";
-    }
-};
-
-// --- PRACTICE AREA CRUD ---
-window.openPracticeModal = function(idx = -1) {
-    document.getElementById('practiceModalContainer').classList.remove('hidden');
-    document.getElementById('practiceModalContainer').classList.add('flex');
-    const d = db.dossiers[currentDossierFirm];
-
-    // Lazy-load Practice Area Editor
-    window.practiceQuill = window.getOrInitQuill('#practiceModalQuill', { modules: { toolbar: '#toolbar-practice-modal' } });
-
-    if (idx >= 0 && d.practice[idx]) {
-        document.getElementById('practiceModalTitle').innerText = "Edit Practice Area";
-        document.getElementById('practiceEditIndex').value = idx;
-        document.getElementById('practiceHeadingInput').value = d.practice[idx].heading;
-        if(window.practiceQuill) window.practiceQuill.root.innerHTML = d.practice[idx].body;
-    } else {
-        document.getElementById('practiceModalTitle').innerText = "Add Practice Area";
-        document.getElementById('practiceEditIndex').value = "";
-        document.getElementById('practiceHeadingInput').value = "";
-        if(window.practiceQuill) window.practiceQuill.root.innerHTML = "";
-    }
-};
-
-// --- KEY CLIENTS CRUD ---
-window.openClientsModal = function(idx = -1) {
-    document.getElementById('clientsModalContainer').classList.remove('hidden');
-    document.getElementById('clientsModalContainer').classList.add('flex');
-    const d = db.dossiers[currentDossierFirm];
-
-    // Lazy-load Clients/Deals Editor
-    window.clientsQuill = window.getOrInitQuill('#clientsModalQuill', { modules: { toolbar: '#toolbar-clients-modal' } });
-
-    if (idx >= 0 && d.clients[idx]) {
-        document.getElementById('clientsModalTitle').innerText = "Edit Client / Deal";
-        document.getElementById('clientsEditIndex').value = idx;
-        document.getElementById('clientsHeadingInput').value = d.clients[idx].heading;
-        if(window.clientsQuill) window.clientsQuill.root.innerHTML = d.clients[idx].body;
-    } else {
-        document.getElementById('clientsModalTitle').innerText = "Add Client / Deal";
-        document.getElementById('clientsEditIndex').value = "";
-        document.getElementById('clientsHeadingInput').value = "";
-        if(window.clientsQuill) window.clientsQuill.root.innerHTML = "";
-    }
-};
-
 function saveDossierData() {
     if(!currentDossierFirm) return;
     if (!db.dossiers[currentDossierFirm]) db.dossiers[currentDossierFirm] = {};
@@ -690,10 +620,10 @@ function saveDossierData() {
     db.dossiers[currentDossierFirm].firmType = document.getElementById("dossierFirmType").value;
     db.dossiers[currentDossierFirm].locations = document.getElementById("dossierLocations").value;
     
-    if (typeof cultureQuill !== 'undefined') {
+    if (typeof cultureQuill !== 'undefined' && cultureQuill.root) {
         db.dossiers[currentDossierFirm].culture = cultureQuill.root.innerHTML;
     }
-    if (typeof personalWhyQuill !== 'undefined') {
+    if (typeof personalWhyQuill !== 'undefined' && personalWhyQuill.root) {
         db.dossiers[currentDossierFirm].personalWhy = personalWhyQuill.root.innerHTML;
     }
     
@@ -748,37 +678,42 @@ window.switchDossierSubTab = function(tab) {
     }
 };
 
-// --- COMPETENCIES CRUD ---
+// --- COMPETENCIES CRUD (DIRECT INPUT) ---
 window.openCompetencyModal = function(idx = -1) {
-    document.getElementById('compModalContainer').classList.remove('hidden');
-    document.getElementById('compModalContainer').classList.add('flex');
+    const sb = document.getElementById('dossierSidebar');
+    if (sb && window.innerWidth < 768) sb.classList.add('-translate-x-full');
+
+    const modal = document.getElementById('compModalContainer');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
     const d = db.dossiers[currentDossierFirm];
     
     if (idx >= 0 && d.competencies[idx]) {
         document.getElementById('compModalTitle').innerText = "Edit Competency";
         document.getElementById('compEditIndex').value = idx;
-        document.getElementById('compHeadingInput').value = d.competencies[idx].heading;
-        if(typeof compModalQuill !== 'undefined') compModalQuill.root.innerHTML = d.competencies[idx].body;
+        document.getElementById('compHeadingInput').value = d.competencies[idx].heading || "";
+        document.getElementById('compModalTextarea').value = d.competencies[idx].body || "";
     } else {
         document.getElementById('compModalTitle').innerText = "Add Core Competency";
         document.getElementById('compEditIndex').value = "";
         document.getElementById('compHeadingInput').value = "";
-        if(typeof compModalQuill !== 'undefined') compModalQuill.root.innerHTML = "";
+        document.getElementById('compModalTextarea').value = "";
     }
+    setTimeout(() => document.getElementById('compHeadingInput').focus(), 50);
 };
 
 window.saveCompetency = function() {
     const heading = document.getElementById('compHeadingInput').value.trim();
     if (!heading) return alert("Please enter a competency heading.");
     
-    const body = typeof compModalQuill !== 'undefined' ? compModalQuill.root.innerHTML : "";
+    const body = document.getElementById('compModalTextarea').value.trim();
     const idxStr = document.getElementById('compEditIndex').value;
     
     const d = db.dossiers[currentDossierFirm];
     if (!Array.isArray(d.competencies)) d.competencies = [];
     
     if (idxStr !== "") {
-        const idx = parseInt(idxStr);
+        const idx = parseInt(idxStr, 10);
         d.competencies[idx] = { heading, body };
     } else {
         d.competencies.push({ heading, body });
@@ -798,34 +733,46 @@ window.deleteCompetency = function(idx) {
     }
 };
 
-// --- PRACTICE AREA CRUD ---
+// --- PRACTICE AREA CRUD (DIRECT INPUT) ---
 window.openPracticeModal = function(idx = -1) {
-    document.getElementById('practiceModalContainer').classList.remove('hidden');
-    document.getElementById('practiceModalContainer').classList.add('flex');
+    const sb = document.getElementById('dossierSidebar');
+    if (sb && window.innerWidth < 768) sb.classList.add('-translate-x-full');
+
+    const modal = document.getElementById('practiceModalContainer');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
     const d = db.dossiers[currentDossierFirm];
+
     if (idx >= 0 && d.practice[idx]) {
         document.getElementById('practiceModalTitle').innerText = "Edit Practice Area";
         document.getElementById('practiceEditIndex').value = idx;
-        document.getElementById('practiceHeadingInput').value = d.practice[idx].heading;
-        if(typeof practiceQuill !== 'undefined') practiceQuill.root.innerHTML = d.practice[idx].body;
+        document.getElementById('practiceHeadingInput').value = d.practice[idx].heading || "";
+        document.getElementById('practiceModalTextarea').value = d.practice[idx].body || "";
     } else {
         document.getElementById('practiceModalTitle').innerText = "Add Practice Area";
         document.getElementById('practiceEditIndex').value = "";
         document.getElementById('practiceHeadingInput').value = "";
-        if(typeof practiceQuill !== 'undefined') practiceQuill.root.innerHTML = "";
+        document.getElementById('practiceModalTextarea').value = "";
     }
+    setTimeout(() => document.getElementById('practiceHeadingInput').focus(), 50);
 };
 
 window.savePracticeFn = function() {
     const heading = document.getElementById('practiceHeadingInput').value.trim();
     if (!heading) return alert("Please enter a practice area name.");
-    const body = typeof practiceQuill !== 'undefined' ? practiceQuill.root.innerHTML : "";
+    const body = document.getElementById('practiceModalTextarea').value.trim();
     const idxStr = document.getElementById('practiceEditIndex').value;
     const d = db.dossiers[currentDossierFirm];
     if (!Array.isArray(d.practice)) d.practice = [];
-    if (idxStr !== "") d.practice[parseInt(idxStr)] = { heading, body };
-    else d.practice.push({ heading, body });
-    saveDatabase(); renderStrategyRoom();
+    
+    if (idxStr !== "") {
+        d.practice[parseInt(idxStr, 10)] = { heading, body };
+    } else {
+        d.practice.push({ heading, body });
+    }
+    
+    saveDatabase(); 
+    renderStrategyRoom();
     document.getElementById('practiceModalContainer').classList.add('hidden');
     document.getElementById('practiceModalContainer').classList.remove('flex');
 };
@@ -833,38 +780,51 @@ window.savePracticeFn = function() {
 window.deletePractice = function(idx) {
     if(confirm("Delete this practice area?")) {
         db.dossiers[currentDossierFirm].practice.splice(idx, 1);
-        saveDatabase(); renderStrategyRoom();
+        saveDatabase(); 
+        renderStrategyRoom();
     }
 };
 
-// --- KEY CLIENTS CRUD ---
+// --- KEY CLIENTS CRUD (DIRECT INPUT) ---
 window.openClientsModal = function(idx = -1) {
-    document.getElementById('clientsModalContainer').classList.remove('hidden');
-    document.getElementById('clientsModalContainer').classList.add('flex');
+    const sb = document.getElementById('dossierSidebar');
+    if (sb && window.innerWidth < 768) sb.classList.add('-translate-x-full');
+
+    const modal = document.getElementById('clientsModalContainer');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
     const d = db.dossiers[currentDossierFirm];
+
     if (idx >= 0 && d.clients[idx]) {
         document.getElementById('clientsModalTitle').innerText = "Edit Client / Deal";
         document.getElementById('clientsEditIndex').value = idx;
-        document.getElementById('clientsHeadingInput').value = d.clients[idx].heading;
-        if(typeof clientsQuill !== 'undefined') clientsQuill.root.innerHTML = d.clients[idx].body;
+        document.getElementById('clientsHeadingInput').value = d.clients[idx].heading || "";
+        document.getElementById('clientsModalTextarea').value = d.clients[idx].body || "";
     } else {
         document.getElementById('clientsModalTitle').innerText = "Add Client / Deal";
         document.getElementById('clientsEditIndex').value = "";
         document.getElementById('clientsHeadingInput').value = "";
-        if(typeof clientsQuill !== 'undefined') clientsQuill.root.innerHTML = "";
+        document.getElementById('clientsModalTextarea').value = "";
     }
+    setTimeout(() => document.getElementById('clientsHeadingInput').focus(), 50);
 };
 
 window.saveClientsFn = function() {
     const heading = document.getElementById('clientsHeadingInput').value.trim();
     if (!heading) return alert("Please enter a client or deal name.");
-    const body = typeof clientsQuill !== 'undefined' ? clientsQuill.root.innerHTML : "";
+    const body = document.getElementById('clientsModalTextarea').value.trim();
     const idxStr = document.getElementById('clientsEditIndex').value;
     const d = db.dossiers[currentDossierFirm];
     if (!Array.isArray(d.clients)) d.clients = [];
-    if (idxStr !== "") d.clients[parseInt(idxStr)] = { heading, body };
-    else d.clients.push({ heading, body });
-    saveDatabase(); renderStrategyRoom();
+    
+    if (idxStr !== "") {
+        d.clients[parseInt(idxStr, 10)] = { heading, body };
+    } else {
+        d.clients.push({ heading, body });
+    }
+    
+    saveDatabase(); 
+    renderStrategyRoom();
     document.getElementById('clientsModalContainer').classList.add('hidden');
     document.getElementById('clientsModalContainer').classList.remove('flex');
 };
@@ -872,7 +832,8 @@ window.saveClientsFn = function() {
 window.deleteClients = function(idx) {
     if(confirm("Delete this client/deal?")) {
         db.dossiers[currentDossierFirm].clients.splice(idx, 1);
-        saveDatabase(); renderStrategyRoom();
+        saveDatabase(); 
+        renderStrategyRoom();
     }
 };
   
@@ -974,11 +935,11 @@ function generateCheatSheet(firmName) {
     }
 
     const practiceHtml = (Array.isArray(d.practice) && d.practice.length > 0)
-        ? d.practice.map(p => `<div class="mb-3"><h4 class="font-bold text-gray-900 text-sm">${p.heading}</h4><div class="text-sm text-gray-700 mt-1">${p.body}</div></div>`).join('')
+        ? d.practice.map(p => `<div class="mb-3"><h4 class="font-bold text-gray-900 text-sm">${p.heading}</h4><div class="text-sm text-gray-700 whitespace-pre-wrap mt-1">${p.body}</div></div>`).join('')
         : '<p class="text-sm text-gray-500 italic">None logged.</p>';
 
     const clientsHtml = (Array.isArray(d.clients) && d.clients.length > 0)
-        ? d.clients.map(c => `<div class="mb-3"><h4 class="font-bold text-gray-900 text-sm">${c.heading}</h4><div class="text-sm text-gray-700 mt-1">${c.body}</div></div>`).join('')
+        ? d.clients.map(c => `<div class="mb-3"><h4 class="font-bold text-gray-900 text-sm">${c.heading}</h4><div class="text-sm text-gray-700 whitespace-pre-wrap mt-1">${c.body}</div></div>`).join('')
         : '<p class="text-sm text-gray-500 italic">None logged.</p>';
 
     const cultureHtml = d.culture || '<p class="text-sm text-gray-500 italic">None logged.</p>';
@@ -1008,11 +969,11 @@ function generateCheatSheet(firmName) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div class="break-inside-avoid">
                     <h2 class="text-sm font-bold text-gray-800 uppercase tracking-widest border-b border-gray-200 pb-2 mb-3">Core Practice Areas</h2>
-                    <div class="prose prose-sm max-w-none text-gray-700">${practiceHtml}</div>
+                    <div class="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">${practiceHtml}</div>
                 </div>
                 <div class="break-inside-avoid">
                     <h2 class="text-sm font-bold text-gray-800 uppercase tracking-widest border-b border-gray-200 pb-2 mb-3">Key Clients & Deals</h2>
-                    <div class="prose prose-sm max-w-none text-gray-700">${clientsHtml}</div>
+                    <div class="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">${clientsHtml}</div>
                 </div>
                 <div class="break-inside-avoid">
                     <h2 class="text-sm font-bold text-gray-800 uppercase tracking-widest border-b border-gray-200 pb-2 mb-3">Culture & Structure</h2>
