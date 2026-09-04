@@ -136,35 +136,46 @@ window.renderConcepts = function() {
         window.currentVisibleConceptIndices = [];
         window.populateConceptFilterDropdowns();
 
-        // 1. Compact Header Concept Mastery Widget
+        // 1. Single Dynamic Concept Mastery Widget (Active Category OR All Categories)
         const widgetContainer = document.getElementById("conceptMasteryWidget");
         if (widgetContainer) {
-            const catStats = {};
-            ((typeof db !== 'undefined' && db.concepts) || []).forEach(c => {
-                if (c && c.category && c.category !== "All") {
-                    if (!catStats[c.category]) catStats[c.category] = { total: 0, mastered: 0 };
-                    catStats[c.category].total++;
-                    if (c.srs && (c.srs.mastered || c.srs.interval >= 21)) {
-                        catStats[c.category].mastered++;
-                    }
+            const rawConcepts = (typeof db !== 'undefined' && db.concepts) ? db.concepts : [];
+            const activeCat = (window.conceptSelectedCategory && window.conceptSelectedCategory !== "All")
+                ? window.conceptSelectedCategory
+                : ((typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All")
+                    ? currentConceptCategory
+                    : "All");
+
+            let targetConcepts = [];
+            let displayLabel = "";
+
+            if (activeCat === "All") {
+                targetConcepts = rawConcepts;
+                displayLabel = "All Concepts";
+            } else {
+                targetConcepts = rawConcepts.filter(c => c && c.category === activeCat);
+                displayLabel = activeCat;
+            }
+
+            const total = targetConcepts.length;
+            let mastered = 0;
+            targetConcepts.forEach(c => {
+                if (c && c.srs && (c.srs.mastered || c.srs.interval >= 21)) {
+                    mastered++;
                 }
             });
 
-            const currentCat = (typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All")
-                ? currentConceptCategory
-                : (Object.keys(catStats)[0] || "Corporate / M&A");
-            
-            const stats = catStats[currentCat] || { total: 0, mastered: 0 };
-            const pct = stats.total === 0 ? 0 : Math.round((stats.mastered / stats.total) * 100);
+            const pct = total === 0 ? 0 : Math.round((mastered / total) * 100);
+            const isHighMastery = pct >= 50;
 
             widgetContainer.innerHTML = `
-                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 shadow-sm flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">${currentCat}:</span>
-                    <div class="w-16 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                        <div class="${pct >= 50 ? 'bg-emerald-500' : 'bg-indigo-600'} h-full rounded-full" style="width: ${pct}%"></div>
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 shadow-xs flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full ${isHighMastery ? 'bg-emerald-500' : 'bg-indigo-500'} animate-pulse shrink-0"></span>
+                    <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate max-w-[160px]">${displayLabel}:</span>
+                    <div class="w-16 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden shrink-0">
+                        <div class="${isHighMastery ? 'bg-emerald-500' : 'bg-indigo-600'} h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
                     </div>
-                    <span class="font-mono font-bold text-xs ${pct >= 50 ? 'text-emerald-600' : 'text-indigo-600'}">${pct}%</span>
+                    <span class="font-mono font-bold text-xs ${isHighMastery ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400'} shrink-0">${pct}%</span>
                 </div>
             `;
             widgetContainer.classList.remove('hidden');

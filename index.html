@@ -69,6 +69,21 @@
     svg.lucide, i[data-lucide] {
       stroke-width: 1.75px !important;
     }
+    .sidebar-hidden {
+      display: none !important;
+    }
+    @media (max-width: 767px) {
+      #mainSidebar.sidebar-visible {
+        display: flex !important;
+        position: fixed !important;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 16rem !important;
+        z-index: 100 !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+      }
+    }
   </style>
   <script>
     window.currentVisibleFactorIndices = [];
@@ -329,7 +344,7 @@
             </div>
         </div>
 
-            <!-- 5. CORE CONCEPTS (CALIBRATED COMPACT LAYOUT) -->
+            <!-- 5. CORE CONCEPTS -->
             <div id="appConcepts" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-[#f8f9fb] dark:bg-[#0c101a]">
                 
                 <!-- Left Log Drawer -->
@@ -366,7 +381,7 @@
                 <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-32 h-full transition-colors duration-200 custom-scrollbar">
                     <div class="max-w-[1600px] mx-auto w-full space-y-3">
                         
-                        <!-- 1. TIGHT COMPACT HEADER (Matches Market Intelligence) -->
+                        <!-- 1. TIGHT COMPACT HEADER -->
                         <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
                             <div>
                                 <h1 class="text-2xl md:text-3xl font-serif font-black text-slate-900 dark:text-white leading-tight">Knowledge Library</h1>
@@ -404,7 +419,7 @@
                             </button>
                         </div>
 
-                        <!-- 3. PRECISE FILTER TOOLBAR (Category / Practice Area / Mastery / Search / Sort) -->
+                        <!-- 3. PRECISE FILTER TOOLBAR -->
                         <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl p-2 shadow-sm print:hidden">
                             <div class="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
                                 <select id="conceptFilterCategory" onchange="window.onConceptFilterChange()" class="border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm">
@@ -443,10 +458,10 @@
                             </div>
                         </div>
 
-                        <!-- 4. HORIZONTAL ALPHABET BAR (ALL, A-Z) -->
+                        <!-- 4. HORIZONTAL ALPHABET BAR -->
                         <div id="conceptAlphabetBar" class="flex items-center gap-1 overflow-x-auto scrollbar-hide py-1 w-full print:hidden"></div>
 
-                        <!-- 5. TECHNICAL ASSESSMENT AI BOX (Strictly below the Alphabet Bar) -->
+                        <!-- 5. TECHNICAL ASSESSMENT AI BOX -->
                         <div class="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-[#0f172a] dark:to-[#1e293b] w-full rounded-xl p-3.5 shadow-md border border-slate-700 print:hidden flex flex-col gap-2.5 relative overflow-hidden" id="conceptAIHeader">
                           <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse pointer-events-none"></div>
                           <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 relative z-10">
@@ -820,13 +835,16 @@
     </div>
   </div>
 
-  <!-- EDIT CONCEPT MODAL -->
+  <<!-- EDIT CONCEPT MODAL (ENHANCED COMPLETE IN-STATE EDITOR) -->
   <div id="editConceptModalContainer" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar">
-      <div class="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
-        <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <i data-lucide="edit-3" class="w-4 h-4 text-indigo-500"></i> Edit Concept
-        </h3>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full p-6 md:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Concept Specification</span>
+          <h3 class="text-lg font-serif font-black text-slate-900 dark:text-white flex items-center gap-2 mt-0.5">
+            <i data-lucide="edit-3" class="w-4 h-4 text-indigo-500"></i> Edit Concept Details
+          </h3>
+        </div>
         <button type="button" onclick="document.getElementById('editConceptModalContainer').classList.add('hidden')" class="text-slate-400 hover:text-slate-800 dark:hover:text-white transition">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
@@ -835,7 +853,7 @@
       <input type="hidden" id="editConceptIndex">
       <div class="space-y-4">
         <div>
-          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Concept Name</label>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Concept Name / Term</label>
           <input type="text" id="editConceptTitle" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner">
         </div>
         
@@ -845,13 +863,13 @@
             <select id="editConceptCategory" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"></select>
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Sub-Tags / Practice Areas</label>
-            <input type="text" id="editConceptSubTag" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner">
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Sub-Tags / Practice Areas (Comma separated)</label>
+            <input type="text" id="editConceptSubTag" placeholder="e.g. M&A, Private Equity, Completion" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner">
           </div>
         </div>
 
         <div>
-          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Definition & Core Mechanics</label>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Technical Definition & Legal Framework</label>
           <div class="border border-slate-300 dark:border-slate-700 rounded-lg overflow-hidden flex flex-col bg-white dark:bg-slate-900 min-h-[220px]">
             <div id="editConceptToolbar" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-1">
               <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button></span>
@@ -861,11 +879,24 @@
           </div>
         </div>
 
-        <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-3 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition group" onclick="openDrawingPad(document.getElementById('editConceptIndex').value)">
-          <img id="editConceptDiagramPreview" class="hidden w-full max-h-36 object-contain mx-auto mb-2">
-          <span class="text-xs font-bold text-slate-500 group-hover:text-slate-800 dark:group-hover:text-white flex justify-center items-center gap-1.5">
-            <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> <span id="editConceptDiagramLabel">Edit Diagram</span>
-          </span>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Key Points & Core Mechanics (One per line)</label>
+          <textarea id="editConceptKeyPoints" rows="3" placeholder="Point 1&#10;Point 2&#10;Point 3" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Practical Deal Applications & Scenarios</label>
+          <textarea id="editConceptApplications" rows="2" placeholder="e.g. Used heavily in private equity auction sales where sellers want clean exits without post-closing price adjustments..." class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Attached Diagram / Visual Canvas</label>
+          <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-3 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition group" onclick="openDrawingPad(document.getElementById('editConceptIndex').value)">
+            <img id="editConceptDiagramPreview" class="hidden w-full max-h-36 object-contain mx-auto mb-2">
+            <span class="text-xs font-bold text-slate-500 group-hover:text-slate-800 dark:group-hover:text-white flex justify-center items-center gap-1.5">
+              <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> <span id="editConceptDiagramLabel">Edit Diagram Canvas</span>
+            </span>
+          </div>
         </div>
 
         <div class="flex justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -907,7 +938,7 @@
     </div>
   </div>
 
-  <!-- FLASHCARD MODAL -->
+  <!-- FLASHCARD MODAL (FIXED NO-CLIP SCROLL) -->
   <div id="flashcardModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden">
       <div class="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -930,8 +961,8 @@
         </div>
       </div>
 
-      <div class="flex-1 overflow-y-auto py-8 space-y-6 custom-scrollbar flex flex-col justify-center">
-        <div id="flashcardFront" class="flex flex-col items-center text-center justify-center space-y-4 cursor-pointer">
+      <div class="flex-1 overflow-y-auto py-6 space-y-6 custom-scrollbar flex flex-col">
+        <div id="flashcardFront" class="flex flex-col items-center text-center justify-center space-y-4 cursor-pointer my-auto">
           <span id="fcCategory" class="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800">General</span>
           <h2 id="fcTitle" class="text-3xl md:text-4xl font-serif font-black text-slate-900 dark:text-white max-w-xl leading-tight px-4">Card Term</h2>
           <div id="fcFrontBody" class="hidden prose prose-sm dark:prose-invert max-w-lg text-slate-700 dark:text-slate-300 px-4"></div>
@@ -955,12 +986,12 @@
         </div>
 
         <div id="flashcardBack" class="hidden flex-col space-y-4 cursor-pointer">
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center shrink-0">
             <span id="fcBackCategory" class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">Answer</span>
             <span class="text-[10px] text-slate-400 italic">Click card to unflip</span>
           </div>
-          <h3 id="fcBackTitle" class="text-2xl font-serif font-black text-slate-900 dark:text-white">Term</h3>
-          <div id="feynmanFeedback" class="hidden p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs text-purple-950 dark:text-purple-200 space-y-1">
+          <h3 id="fcBackTitle" class="text-2xl font-serif font-black text-slate-900 dark:text-white shrink-0">Term</h3>
+          <div id="feynmanFeedback" class="hidden p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs text-purple-950 dark:text-purple-200 space-y-1 shrink-0">
             <span class="font-bold uppercase tracking-wider text-[10px] text-purple-600 dark:text-purple-400">Tutor AI Feedback:</span>
             <p id="feynmanFeedbackContent" class="leading-relaxed"></p>
           </div>
@@ -1045,6 +1076,7 @@
   <script src="js/dictionary.js"></script>
   <script src="js/intel.js"></script>
   <script src="js/concepts.js"></script>
+  <script src="js/concept-detail.js"></script>
   <script src="js/flashcards.js"></script>
   <script src="js/dossiers.js"></script>
   <script src="js/ai-engine.js"></script>
