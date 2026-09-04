@@ -1,3 +1,36 @@
+/* ========================================================= */
+/* TRUE 80% HIGH-DENSITY COMPACT VIEWPORT                    */
+/* ========================================================= */
+html {
+  /* Scales all Tailwind rem units (paddings, margins, fonts, heights) to exactly 80% */
+  font-size: 80% !important; /* 12.8px base instead of 16px */
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: fixed;
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  bottom: 0;
+  background-color: #f8f9fb;
+}
+
+/* Ensure full layout fills without any trailing white space */
+#mainAppWrapper {
+  width: 100%;
+  height: 100%;
+}
+
 /* Absolute Lock: Prevents Safari from bouncing/expanding the viewport */
 html, body {
   position: fixed;
@@ -124,4 +157,9 @@ html, body {
 .dark .dict-term:hover {
   color: #93c5fd;
   background-color: #1e3a8a;
+}
+
+/* CRISP REFINED ICONS */
+svg.lucide, i[data-lucide] {
+  stroke-width: 1.65px !important;
 }

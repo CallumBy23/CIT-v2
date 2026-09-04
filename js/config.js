@@ -2,7 +2,7 @@
 // ==========================================
 const SUPABASE_URL = "https://zrvpmyagdjtxrvgcfizt.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_5QXCX2k49LhcebXthy3Nww_--7bvb0m"; 
-const GEMINI_API_KEY = "AQ.Ab8RN6IZ4fFDezQbK2Hm_Zfc_6-LnDqw-9cjS_vAai9hlUDLhg";
+const GEMINI_API_KEY = "AQ.Ab8RN6JntnhBP0FV4zW6vgQM99h5rTayWskVbOQxP1avha_Qqw";
 
 // Persistent Auth Client Instance
 const supabaseClient = (typeof supabase !== 'undefined') ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

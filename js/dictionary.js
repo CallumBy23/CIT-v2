@@ -357,3 +357,4 @@ window.toggleDictCollapse = function(expand) {
     saveDatabase();
     renderDictionary();
 };
+

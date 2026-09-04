@@ -2,36 +2,38 @@
 // ==========================================
 
 window.toggleIntelCard = function(index, event) {
-  if (event && (event.target.closest('button') || event.target.closest('a') || event.target.closest('input') || event.target.closest('.ql-editor'))) {
-    return;
+  if (event) {
+      if (event.target.closest('button') || event.target.closest('a') || event.target.closest('input') || event.target.closest('.ql-editor') || event.target.closest('.dict-term')) {
+          return;
+      }
   }
   
   if (!db.factors || !db.factors[index]) return;
-  
   const factor = db.factors[index];
-  factor.isCollapsed = !factor.isCollapsed;
   
-  // Targeted DOM update without re-rendering the feed
   const card = document.getElementById(`factor-card-${index}`);
-  if (card) {
-    const body = card.querySelector('.nexus-body');
-    const icon = card.querySelector('.nexus-icon i');
-    
-    if (body) {
-      if (factor.isCollapsed) {
-        body.classList.add('hidden');
+  if (!card) return;
+
+  const body = card.querySelector('.nexus-body');
+  const icon = card.querySelector('.nexus-icon i');
+  
+  if (body) {
+      // Read directly whether it is currently hidden in the DOM
+      const isCurrentlyHidden = body.classList.contains('hidden');
+      
+      if (isCurrentlyHidden) {
+          body.classList.remove('hidden');
+          factor.isCollapsed = false;
+          if (icon) icon.setAttribute('data-lucide', 'chevron-up');
       } else {
-        body.classList.remove('hidden');
+          body.classList.add('hidden');
+          factor.isCollapsed = true;
+          if (icon) icon.setAttribute('data-lucide', 'chevron-down');
       }
-    }
-    
-    if (icon) {
-      icon.setAttribute('data-lucide', factor.isCollapsed ? 'chevron-down' : 'chevron-up');
+
       if (window.lucide) window.lucide.createIcons();
-    }
   }
 
-  // Save to local cache only (prevents unnecessary cloud POST requests on every click)
   if (typeof saveToLocalCache === 'function') saveToLocalCache();
 };
 

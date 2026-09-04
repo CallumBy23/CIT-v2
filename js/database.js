@@ -4,6 +4,7 @@
 
 let uploadedBackupJsonString = "";
 window.currentUser = null;
+
 // ==========================================
 // AUTHENTICATION STATE CONTROLLER
 // ==========================================
@@ -54,36 +55,40 @@ window.updateAuthView = function() {
     const toggleBtn = document.getElementById("btnAuthToggle");
     const banner = document.getElementById("authErrorBanner");
     const pwdInput = document.getElementById("authPassword");
+    const regFields = document.getElementById("authRegisterFields");
 
     if (banner) banner.classList.add("hidden");
 
     if (window.authMode === 'login') {
-        title.innerText = "Welcome back";
-        subtitle.innerText = "Please enter your details";
-        pwdContainer.classList.remove("hidden");
-        pwdInput.required = true;
-        forgotRow.classList.remove("hidden");
-        submitBtnText.innerText = "Sign in";
-        togglePrompt.innerText = "Don't have an account?";
-        toggleBtn.innerText = "Sign up";
+        if (title) title.innerText = "Welcome back";
+        if (subtitle) subtitle.innerText = "Please enter your details to sync your workspace";
+        if (regFields) regFields.classList.add("hidden");
+        if (pwdContainer) pwdContainer.classList.remove("hidden");
+        if (pwdInput) pwdInput.required = true;
+        if (forgotRow) forgotRow.classList.remove("hidden");
+        if (submitBtnText) submitBtnText.innerText = "Sign in";
+        if (togglePrompt) togglePrompt.innerText = "Don't have an account?";
+        if (toggleBtn) toggleBtn.innerText = "Sign up";
     } else if (window.authMode === 'signup') {
-        title.innerText = "Create account";
-        subtitle.innerText = "Please enter your details";
-        pwdContainer.classList.remove("hidden");
-        pwdInput.required = true;
-        forgotRow.classList.add("hidden");
-        submitBtnText.innerText = "Sign up";
-        togglePrompt.innerText = "Already have an account?";
-        toggleBtn.innerText = "Sign in";
+        if (title) title.innerText = "Create account";
+        if (subtitle) subtitle.innerText = "Set up your workspace credentials";
+        if (regFields) regFields.classList.remove("hidden");
+        if (pwdContainer) pwdContainer.classList.remove("hidden");
+        if (pwdInput) pwdInput.required = true;
+        if (forgotRow) forgotRow.classList.add("hidden");
+        if (submitBtnText) submitBtnText.innerText = "Create Account";
+        if (togglePrompt) togglePrompt.innerText = "Already have an account?";
+        if (toggleBtn) toggleBtn.innerText = "Sign in";
     } else if (window.authMode === 'forgot') {
-        title.innerText = "Reset password";
-        subtitle.innerText = "We'll send a password recovery link to your email";
-        pwdContainer.classList.add("hidden");
-        pwdInput.required = false;
-        forgotRow.classList.add("hidden");
-        submitBtnText.innerText = "Send reset link";
-        togglePrompt.innerText = "Remember your password?";
-        toggleBtn.innerText = "Sign in";
+        if (title) title.innerText = "Reset password";
+        if (subtitle) subtitle.innerText = "We'll send a password recovery link to your email";
+        if (regFields) regFields.classList.add("hidden");
+        if (pwdContainer) pwdContainer.classList.add("hidden");
+        if (pwdInput) pwdInput.required = false;
+        if (forgotRow) forgotRow.classList.add("hidden");
+        if (submitBtnText) submitBtnText.innerText = "Send reset link";
+        if (togglePrompt) togglePrompt.innerText = "Remember your password?";
+        if (toggleBtn) toggleBtn.innerText = "Sign in";
     }
 };
 
@@ -94,7 +99,7 @@ window.handleAuthSubmit = async function(event) {
     const banner = document.getElementById("authErrorBanner");
     const btn = document.getElementById("btnAuthSubmit");
 
-    banner.classList.add("hidden");
+    if (banner) banner.classList.add("hidden");
     btn.disabled = true;
     const origText = btn.innerHTML;
     btn.innerHTML = `<span>⏳</span> Please wait...`;
@@ -103,10 +108,28 @@ window.handleAuthSubmit = async function(event) {
         if (window.authMode === 'login') {
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
             if (error) throw error;
-            // Session persists in localStorage automatically
         } else if (window.authMode === 'signup') {
-            const { data, error } = await supabaseClient.auth.signUp({ email, password });
+            const fullNameInput = document.getElementById("authFullName");
+            const usernameInput = document.getElementById("authUsername");
+            
+            const fullName = fullNameInput ? fullNameInput.value.trim() : "";
+            const username = usernameInput ? usernameInput.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '') : "";
+
+            if (!fullName) throw new Error("Please enter your full name.");
+            if (!username || username.length < 3) throw new Error("Username must be at least 3 alphanumeric characters.");
+
+            const { data, error } = await supabaseClient.auth.signUp({ 
+                email, 
+                password,
+                options: {
+                    data: {
+                        full_name: fullName,
+                        username: username
+                    }
+                }
+            });
             if (error) throw error;
+
             if (data.user && !data.session) {
                 banner.className = "text-xs p-3 rounded-lg leading-relaxed font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900";
                 banner.innerText = "Registration complete! You may now sign in.";
@@ -124,9 +147,11 @@ window.handleAuthSubmit = async function(event) {
             banner.classList.remove("hidden");
         }
     } catch (err) {
-        banner.className = "text-xs p-3 rounded-lg leading-relaxed font-medium bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900";
-        banner.innerText = err.message || "Authentication error.";
-        banner.classList.remove("hidden");
+        if (banner) {
+            banner.className = "text-xs p-3 rounded-lg leading-relaxed font-medium bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900";
+            banner.innerText = err.message || "Authentication error.";
+            banner.classList.remove("hidden");
+        }
     } finally {
         btn.disabled = false;
         btn.innerHTML = origText;
@@ -135,7 +160,10 @@ window.handleAuthSubmit = async function(event) {
 
 window.logoutUser = async function() {
     if (confirm("Sign out of Legal Nexus on this device?")) {
-        await supabaseClient.auth.signOut();
+        if (supabaseClient) {
+            await supabaseClient.auth.signOut();
+        }
+        localStorage.removeItem("LEGAL_NEXUS_DB");
         location.reload();
     }
 };
@@ -161,6 +189,50 @@ function setOnlineStatus(isOnline, errorMsg = "") {
     }
 }
 
+// --- USER PROFILE & UI DISPATCHER ---
+function updateUserUI(user) {
+    const fullNameEl = document.getElementById("userFullNameDisplay");
+    const usernameEl = document.getElementById("userUsernameDisplay");
+    const avatar = document.getElementById("userAvatar");
+    const welcomeTitle = document.getElementById("dashboardWelcomeTitle");
+
+    let email = "";
+    let metadata = {};
+
+    if (typeof user === 'string') {
+        email = user;
+    } else if (user && typeof user === 'object') {
+        email = user.email || "";
+        metadata = user.user_metadata || {};
+    }
+
+    const fullName = metadata.full_name || (email ? email.split('@')[0] : "Candidate");
+    const username = metadata.username ? `@${metadata.username}` : (email ? `@${email.split('@')[0]}` : "@guest");
+    const firstName = fullName.split(' ')[0];
+
+    if (fullNameEl) fullNameEl.innerText = fullName;
+    if (usernameEl) usernameEl.innerText = username;
+
+    if (avatar) {
+        const initials = fullName
+            .split(' ')
+            .filter(Boolean)
+            .map(n => n[0])
+            .join('')
+            .substring(0, 2)
+            .toUpperCase();
+        avatar.innerText = initials || "LN";
+    }
+
+    if (welcomeTitle) {
+        welcomeTitle.innerText = `Welcome back, ${firstName}`;
+    }
+
+    if (typeof window.renderSettingsView === 'function') {
+        window.renderSettingsView();
+    }
+}
+
 // --- AUTHENTICATION & DEVICE SESSION ENGINE ---
 async function initAuthSession() {
     if (!supabaseClient) {
@@ -174,10 +246,9 @@ async function initAuthSession() {
         if (session && session.user) {
             window.currentUser = session.user;
             window.closeAuthModal();
-            updateUserUI(session.user.email);
+            updateUserUI(session.user);
             await loadDatabase();
         } else {
-            // No saved session found on this device -> show login modal
             const cached = JSON.parse(localStorage.getItem("LEGAL_NEXUS_DB") || "null");
             if (cached) {
                 db = cached;
@@ -190,100 +261,24 @@ async function initAuthSession() {
         window.openAuthModal();
     }
 
-    // Auto-listen for session changes
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
             window.currentUser = session.user;
             window.closeAuthModal();
-            updateUserUI(session.user.email);
+            updateUserUI(session.user);
             await loadDatabase();
         } else if (event === 'SIGNED_OUT') {
             window.currentUser = null;
+            updateUserUI(null);
             window.openAuthModal();
         }
     });
 }
 
-function updateUserUI(email) {
-    const display = document.getElementById("userEmailDisplay");
-    const avatar = document.getElementById("userAvatar");
-    if (display && email) {
-        const name = email.split('@')[0];
-        display.innerText = name.charAt(0).toUpperCase() + name.slice(1);
-        if (avatar) avatar.innerText = name.slice(0, 2).toUpperCase();
-    }
-}
-
-window.openAuthModal = function() {
-    const m = document.getElementById("authModal");
-    if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
-};
-
-window.closeAuthModal = function() {
-    const m = document.getElementById("authModal");
-    if (m) { m.classList.add("hidden"); m.classList.remove("flex"); }
-};
-
-window.toggleAuthMode = function() {
-    window.authMode = window.authMode === 'login' ? 'signup' : 'login';
-    const isLogin = window.authMode === 'login';
-
-    document.getElementById("authModalTitle").innerText = isLogin ? "Welcome to Legal Nexus" : "Create Account";
-    document.getElementById("authModalSubtitle").innerText = isLogin 
-        ? "Sign in to sync your personal intelligence and KMS workspace." 
-        : "Your workspace will be securely encrypted and synced to this account.";
-    document.getElementById("btnAuthText").innerText = isLogin ? "Sign In" : "Register Account";
-    document.getElementById("btnAuthToggle").innerHTML = isLogin 
-        ? "Don't have an account? <span class='underline'>Create one</span>" 
-        : "Already registered? <span class='underline'>Sign In</span>";
-    document.getElementById("authErrorBanner").classList.add("hidden");
-};
-
-window.handleAuthSubmit = async function(event) {
-    event.preventDefault();
-    const email = document.getElementById("authEmail").value.trim();
-    const password = document.getElementById("authPassword").value;
-    const errorBanner = document.getElementById("authErrorBanner");
-    const btn = document.getElementById("btnAuthSubmit");
-
-    errorBanner.classList.add("hidden");
-    btn.disabled = true;
-    const origText = btn.innerHTML;
-    btn.innerHTML = `<span>⏳</span> Authenticating...`;
-
-    try {
-        if (window.authMode === 'login') {
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) throw error;
-        } else {
-            const { data, error } = await supabaseClient.auth.signUp({ email, password });
-            if (error) throw error;
-            if (data.user && !data.session) {
-                alert("Account created! You can now sign in.");
-                window.toggleAuthMode();
-            }
-        }
-    } catch (err) {
-        errorBanner.innerText = err.message || "Authentication failed.";
-        errorBanner.classList.remove("hidden");
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = origText;
-    }
-};
-
-window.logoutUser = async function() {
-    if (confirm("Log out of this device?")) {
-        await supabaseClient.auth.signOut();
-        location.reload();
-    }
-};
-
 // 1. Data Fetch Engine
 async function loadDatabase() {
     updateStatus("Syncing...", "yellow");
 
-    // Fast-boot from local cache
     const localCached = localStorage.getItem("LEGAL_NEXUS_DB");
     if (localCached) {
         try {
@@ -438,6 +433,7 @@ function renderActiveStateViews() {
     else if (appState === "PLAYBOOKS" && typeof renderPlaybookList === 'function') renderPlaybookList();
     else if (appState === "DICTIONARY" && typeof renderDictionary === 'function') renderDictionary();
     else if (appState === "VAULT" && typeof window.renderVault === 'function') window.renderVault();
+    else if (appState === "SETTINGS" && typeof window.renderSettingsView === 'function') window.renderSettingsView();
 }
 
 // 2. Cloud Save Engine
@@ -569,7 +565,6 @@ async function processImport() {
     const uid = window.currentUser.id;
 
     try {
-        // A. Import Concepts
         if (Array.isArray(parsed.concepts) && parsed.concepts.length > 0) {
             const rows = parsed.concepts.map(c => ({
                 user_id: uid,
@@ -583,7 +578,6 @@ async function processImport() {
             await supabaseClient.from('concepts').upsert(rows, { onConflict: 'user_id, title' });
         }
 
-        // B. Import Factors (Market Intel)
         if (Array.isArray(parsed.factors) && parsed.factors.length > 0) {
             await supabaseClient.from('factors').delete().eq('user_id', uid);
             const rows = parsed.factors.map(f => ({
@@ -602,7 +596,6 @@ async function processImport() {
             await supabaseClient.from('factors').insert(rows);
         }
 
-        // C. Import Dictionary
         if (Array.isArray(parsed.dictionary) && parsed.dictionary.length > 0) {
             const rows = parsed.dictionary.map(d => ({
                 user_id: uid,
@@ -614,7 +607,6 @@ async function processImport() {
             await supabaseClient.from('dictionary').upsert(rows, { onConflict: 'user_id, term' });
         }
 
-        // D. Import Dossiers
         if (parsed.dossiers && typeof parsed.dossiers === 'object') {
             const keys = Object.keys(parsed.dossiers);
             if (keys.length > 0) {
@@ -640,7 +632,6 @@ async function processImport() {
             }
         }
 
-        // E. Import Playbooks
         if (parsed.playbooks && typeof parsed.playbooks === 'object') {
             const pbKeys = Object.keys(parsed.playbooks);
             if (pbKeys.length > 0) {
@@ -656,12 +647,11 @@ async function processImport() {
             }
         }
 
-        // F. Metadata
         await supabaseClient.from('app_metadata').upsert([
             { user_id: uid, key: 'workspaces', value: parsed.workspaces || ["General Market", "Interview Vault"] },
             { user_id: uid, key: 'conceptCategories', value: parsed.conceptCategories || ["Corporate / M&A", "Capital Markets"] },
-            { key: 'dictCategories', value: parsed.dictCategories || ["General"], user_id: uid },
-            { key: 'macroMetrics', value: parsed.macroMetrics || {}, user_id: uid }
+            { user_id: uid, key: 'dictCategories', value: parsed.dictCategories || ["General"] },
+            { user_id: uid, key: 'macroMetrics', value: parsed.macroMetrics || {} }
         ], { onConflict: 'user_id, key' });
 
         alert("Data successfully imported into your account!");
@@ -773,3 +763,166 @@ function checkDailyBriefing(isManual = false) {
 document.addEventListener('DOMContentLoaded', () => {
     initAuthSession();
 });
+
+// --- USER PROFILE & UI DISPATCHER ---
+function updateUserUI(user) {
+    const fullNameEl = document.getElementById("userFullNameDisplay");
+    const usernameEl = document.getElementById("userUsernameDisplay");
+    const avatar = document.getElementById("userAvatar");
+    const welcomeTitle = document.getElementById("dashboardWelcomeTitle");
+
+    let email = "";
+    let metadata = {};
+
+    if (typeof user === 'string') {
+        email = user;
+    } else if (user && typeof user === 'object') {
+        email = user.email || "";
+        metadata = user.user_metadata || {};
+    }
+
+    const rawFullName = (metadata.full_name || (email ? email.split('@')[0] : "Candidate")).trim();
+    // Strictly extract the first name only
+    const firstName = rawFullName.split(/\s+/)[0] || "Candidate";
+    const username = metadata.username ? `@${metadata.username}` : (email ? `@${email.split('@')[0]}` : "@guest");
+
+    // Display first name only in bottom-left sidebar
+    if (fullNameEl) fullNameEl.innerText = firstName;
+    if (usernameEl) usernameEl.innerText = username;
+
+    if (avatar) {
+        avatar.innerText = firstName.substring(0, 2).toUpperCase() || "LN";
+    }
+
+    // Display first name only on the dashboard
+    if (welcomeTitle) {
+        welcomeTitle.innerText = `Welcome back, ${firstName}`;
+    }
+
+    if (typeof window.renderSettingsView === 'function') {
+        window.renderSettingsView();
+    }
+}
+
+// --- USER PROFILE & UI DISPATCHER ---
+function updateUserUI(user) {
+    const fullNameEl = document.getElementById("userFullNameDisplay");
+    const usernameEl = document.getElementById("userUsernameDisplay");
+    const avatar = document.getElementById("userAvatar");
+    const welcomeTitle = document.getElementById("dashboardWelcomeTitle");
+
+    let email = "";
+    let metadata = {};
+
+    // Check localStorage fallback if metadata hasn't reloaded yet
+    const localProfile = JSON.parse(localStorage.getItem("LEGAL_NEXUS_USER_PROFILE") || "{}");
+
+    if (typeof user === 'string') {
+        email = user;
+    } else if (user && typeof user === 'object') {
+        email = user.email || "";
+        metadata = user.user_metadata || {};
+    }
+
+    const fullName = (metadata.full_name || localProfile.full_name || (email ? email.split('@')[0] : "Candidate")).trim();
+    const rawUsername = (metadata.username || localProfile.username || (email ? email.split('@')[0] : "guest")).trim();
+    
+    // Strictly extract first name only
+    const firstName = fullName.split(/\s+/)[0] || "Candidate";
+    const username = `@${rawUsername.replace(/^@/, '')}`;
+
+    // Update bottom-left sidebar pill
+    if (fullNameEl) fullNameEl.innerText = firstName;
+    if (usernameEl) usernameEl.innerText = username;
+
+    if (avatar) {
+        avatar.innerText = firstName.substring(0, 2).toUpperCase() || "LN";
+    }
+
+    // Update dashboard header greeting
+    if (welcomeTitle) {
+        welcomeTitle.innerText = `Welcome back, ${firstName}`;
+    }
+
+    // Re-render settings view if open
+    if (typeof window.renderSettingsView === 'function') {
+        window.renderSettingsView();
+    }
+}
+
+// --- PROFILE EDIT CONTROLLER ---
+window.updateUserProfile = async function(event) {
+    if (event) event.preventDefault();
+    
+    const btn = document.getElementById("btnSaveProfile");
+    const banner = document.getElementById("profileSaveBanner");
+    const nameInput = document.getElementById("settingsFullName");
+    const userInput = document.getElementById("settingsUsername");
+
+    const newFullName = nameInput ? nameInput.value.trim() : "";
+    const newUsername = userInput ? userInput.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '') : "";
+
+    if (!newFullName) {
+        alert("Please enter a valid name.");
+        return;
+    }
+    if (!newUsername || newUsername.length < 3) {
+        alert("Username must be at least 3 alphanumeric characters.");
+        return;
+    }
+
+    const origHtml = btn ? btn.innerHTML : "";
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span>⏳</span> Saving...`;
+    }
+
+    // Immediately store locally for instant zero-latency UI consistency
+    localStorage.setItem("LEGAL_NEXUS_USER_PROFILE", JSON.stringify({
+        full_name: newFullName,
+        username: newUsername
+    }));
+
+    try {
+        if (supabaseClient && window.currentUser) {
+            const { data, error } = await supabaseClient.auth.updateUser({
+                data: {
+                    full_name: newFullName,
+                    username: newUsername
+                }
+            });
+
+            if (error) throw error;
+            if (data && data.user) {
+                window.currentUser = data.user;
+            }
+        }
+
+        // Apply first-name extraction and UI changes across the application
+        updateUserUI(window.currentUser);
+
+        // Hide edit drawer and reset button state
+        window.isEditingProfile = false;
+        if (typeof window.renderSettingsView === 'function') {
+            window.renderSettingsView();
+        }
+
+        if (typeof showToast === 'function') {
+            showToast("Profile updated successfully!", "success");
+        }
+    } catch (err) {
+        console.error("Profile update error:", err);
+        if (banner) {
+            banner.innerText = err.message || "Failed to update profile on server.";
+            banner.className = "text-xs p-3 rounded-lg font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 block";
+            banner.classList.remove("hidden");
+        } else {
+            alert(err.message || "Failed to update profile.");
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    }
+};

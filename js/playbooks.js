@@ -64,41 +64,46 @@ window.renderPlaybookList = function() {
 };
 
 window.addPlaybook = async function() {
-    const name = prompt("Enter Playbook Name (e.g., Private M&A):");
+    const name = prompt("Enter Playbook Name (e.g., Private M&A Deal Flow):");
     if (!name || !name.trim()) return;
     const cleanName = name.trim();
 
     if (!db.playbooks) db.playbooks = {};
-    if (!db.playbooks[cleanName]) {
-        db.playbooks[cleanName] = { 
-            nodes: [], 
-            edges: [], 
-            stages: JSON.parse(JSON.stringify(DEFAULT_STAGES)) 
-        };
-        currentPlaybook = cleanName;
-
-        // Immediate Direct Cloud Upsert
-        if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
-            try {
-                await supabaseClient.from('playbooks').upsert({
-                    user_id: window.currentUser.id,
-                    name: cleanName,
-                    nodes: [],
-                    edges: [],
-                    stages: DEFAULT_STAGES,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'user_id, name' });
-            } catch(e) {
-                console.warn("Playbook cloud sync notice:", e);
-            }
-        }
-
-        if (typeof saveDatabase === 'function') saveDatabase();
-        renderPlaybookList();
-        if (typeof showToast === 'function') showToast(`Playbook "${cleanName}" created.`, "success");
-    } else {
+    if (db.playbooks[cleanName]) {
         alert("A playbook with this name already exists.");
+        return;
     }
+
+    // 1. Instantly register in-memory
+    db.playbooks[cleanName] = { 
+        nodes: [], 
+        edges: [], 
+        stages: JSON.parse(JSON.stringify(DEFAULT_STAGES)) 
+    };
+    currentPlaybook = cleanName;
+
+    // 2. Persist locally first so data is never lost
+    if (typeof saveToLocalCache === 'function') saveToLocalCache();
+    if (typeof saveDatabase === 'function') saveDatabase();
+
+    // 3. Render UI immediately (0ms delay)
+    renderPlaybookList();
+
+    // 4. Background sync to Supabase without blocking UI execution
+    if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
+        supabaseClient.from('playbooks').upsert({
+            user_id: window.currentUser.id,
+            name: cleanName,
+            nodes: [],
+            edges: [],
+            stages: DEFAULT_STAGES,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id, name' }).then(({ error }) => {
+            if (error) console.warn("Background playbook remote sync:", error.message);
+        });
+    }
+
+    if (typeof showToast === 'function') showToast(`Playbook "${cleanName}" created.`, "success");
 };
 
 window.managePlaybook = function(oldName, event) {

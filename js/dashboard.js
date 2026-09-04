@@ -30,6 +30,22 @@ window.renderDashboard = function() {
         return;
     }
 
+    // --- Dynamic Welcome Title Sync ---
+    const welcomeTitle = document.getElementById("dashboardWelcomeTitle");
+    if (welcomeTitle) {
+        let firstName = "Candidate";
+        if (window.currentUser) {
+            const meta = window.currentUser.user_metadata || {};
+            if (meta.full_name) {
+                firstName = meta.full_name.trim().split(/\s+/)[0];
+            } else if (window.currentUser.email) {
+                const part = window.currentUser.email.split('@')[0];
+                firstName = part.charAt(0).toUpperCase() + part.slice(1);
+            }
+        }
+        welcomeTitle.innerText = `Welcome back, ${firstName}`;
+    }
+
     // --- 1. DATA AGGREGATION ---
     const nowMs = new Date().getTime();
     const today = new Date();

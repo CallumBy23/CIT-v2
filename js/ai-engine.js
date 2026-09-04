@@ -1,41 +1,53 @@
 // AI SIMULATORS, ASSESSMENT & AUTO-SCORING
 // ==========================================
 async function callGeminiApi(promptText) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR_")) {
-    throw new Error("Gemini API key is missing in config.js.");
+  if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR_") || GEMINI_API_KEY.trim() === "") {
+    throw new Error("Gemini API key is missing. Add your key in js/config.js.");
   }
 
   const cleanKey = GEMINI_API_KEY.trim();
-  // Standard endpoint without query param ambiguity
-  const endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+  
+  // Try stable v1 endpoint first, fall back if needed
+  const modelsToTry = [
+    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+  ];
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      'x-goog-api-key': cleanKey
-    },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{ text: promptText }]
-      }]
-    })
-  });
+  let lastError = null;
 
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error.message || "Gemini API error.");
+  for (const baseUrl of modelsToTry) {
+    try {
+      const endpoint = `${baseUrl}?key=${encodeURIComponent(cleanKey)}`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: promptText }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1024
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.candidates && data.candidates.length > 0 && data.candidates[0].content?.parts?.[0]?.text) {
+        return data.candidates[0].content.parts[0].text;
+      }
+
+      if (data.error) {
+        lastError = new Error(data.error.message || `HTTP ${response.status}`);
+      }
+    } catch (err) {
+      lastError = err;
+    }
   }
 
-  if (!data.candidates || data.candidates.length === 0) {
-    throw new Error("Gemini returned an empty response. Please try again.");
-  }
-
-  return data.candidates[0].content.parts[0].text;
-}
-
-function formatMarkdown(text) {
-  return text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold">$1</strong>').replace(/\*(.*?)\*/g, '<em class="italic">$1</em>').replace(/^- (.*$)/gim, '<li class="ml-4 list-disc">$1</li>');
+  throw lastError || new Error("Failed to generate content from Gemini API.");
 }
 
 function setupAiModal(title, badge, badgeClass, isPressure) {

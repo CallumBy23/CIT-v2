@@ -2,31 +2,39 @@
 // ==========================================
 
 window.toggleConceptCard = function(index, event) {
-    if (event && (event.target.closest('button') || event.target.closest('a') || event.target.closest('input') || event.target.closest('.ql-editor'))) {
-        return;
+    if (event) {
+        if (event.target.closest('button') || event.target.closest('a') || event.target.closest('input') || event.target.closest('.ql-editor') || event.target.closest('.dict-term')) {
+            return;
+        }
     }
     
     if (!db.concepts || !db.concepts[index]) return;
-    
     const concept = db.concepts[index];
-    concept.isCollapsed = !concept.isCollapsed;
 
-    const cards = document.querySelectorAll('#conceptsContainer > div');
-    const card = cards[currentVisibleConceptIndices.indexOf(index)];
+    // Find the card container from the click target
+    const headerRow = event ? event.target.closest('.group') : null;
+    const card = headerRow ? headerRow.closest('div.bg-white, div.dark\\:bg-\\[\\#0f172a\\]') : null;
     
-    if (card) {
-        const body = card.querySelector('.nexus-body');
-        const icon = card.querySelector('.nexus-icon i');
+    if (!card) return;
+
+    const body = card.querySelector('.nexus-body');
+    const icon = card.querySelector('.nexus-icon i');
+
+    if (body) {
+        // Read directly whether it is currently hidden in the DOM
+        const isCurrentlyHidden = body.classList.contains('hidden');
         
-        if (body) {
-            if (concept.isCollapsed) body.classList.add('hidden');
-            else body.classList.remove('hidden');
+        if (isCurrentlyHidden) {
+            body.classList.remove('hidden');
+            concept.isCollapsed = false;
+            if (icon) icon.setAttribute('data-lucide', 'chevron-up');
+        } else {
+            body.classList.add('hidden');
+            concept.isCollapsed = true;
+            if (icon) icon.setAttribute('data-lucide', 'chevron-down');
         }
-        
-        if (icon) {
-            icon.setAttribute('data-lucide', concept.isCollapsed ? 'chevron-down' : 'chevron-up');
-            if (window.lucide) window.lucide.createIcons();
-        }
+
+        if (window.lucide) window.lucide.createIcons();
     }
 
     if (typeof saveToLocalCache === 'function') saveToLocalCache();
