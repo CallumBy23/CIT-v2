@@ -358,3 +358,19 @@ window.toggleDictCollapse = function(expand) {
     renderDictionary();
 };
 
+window.deleteDictTerm = async function(term) {
+    if (!confirm(`Delete term "${term}"?`)) return;
+
+    if (supabaseClient && window.currentUser) {
+        await supabaseClient.from('dictionary')
+            .delete()
+            .match({ user_id: window.currentUser.id, term: term });
+    }
+
+    const idx = db.dictionary.findIndex(d => d.term === term);
+    if (idx > -1) {
+        db.dictionary.splice(idx, 1);
+    }
+    saveDatabase();
+    renderDictionary();
+};

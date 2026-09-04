@@ -7,8 +7,12 @@ let flashcardQueue = [];
 let currentFlashcardIndex = 0;
 window.currentFlashcardQueues = { red: [], orange: [], yellow: [], green: [] };
 
-// --- REVERSE FLASHCARD STATE ---
 window.isReverseFlashcards = localStorage.getItem('LEGAL_NEXUS_FC_REVERSE') === 'true';
+window.isRecallDrillMode = localStorage.getItem('LEGAL_NEXUS_RECALL_MODE') === 'true';
+window.isFeynmanMode = localStorage.getItem('LEGAL_NEXUS_FEYNMAN_MODE') === 'true';
+
+let recognitionInstance = null;
+let isRecordingVoice = false;
 
 window.toggleReverseMode = function() {
     window.isReverseFlashcards = !window.isReverseFlashcards;
@@ -44,7 +48,6 @@ function reviewSelectedCards(source) {
 window.openUniversalFlashcardDashboard = function() {
     currentFlashcardSource = 'all';
     const now = new Date().getTime();
-    
     let allCards = [];
 
     (db.concepts || []).forEach((c, index) => {
@@ -56,39 +59,12 @@ window.openUniversalFlashcardDashboard = function() {
     });
 
     if (allCards.length === 0) return alert("No flashcards found in library.");
-
-    window.currentFlashcardQueues = { red: [], orange: [], yellow: [], green: [] };
-
-    allCards.forEach(obj => {
-        let srs = obj.item.srs || { interval: 0, nextReview: 0, lastRating: 'forgot', mastered: false };
-        let isDue = srs.nextReview <= now;
-        let isMastered = srs.mastered === true;
-        let lastRating = srs.lastRating || 'forgot';
-
-        if (isMastered) {
-            window.currentFlashcardQueues.green.push(obj);
-        } else if (lastRating === 'forgot' || lastRating === 'hard' || srs.interval === 0) {
-            window.currentFlashcardQueues.red.push(obj);
-        } else if (isDue) {
-            window.currentFlashcardQueues.orange.push(obj);
-        } else {
-            window.currentFlashcardQueues.yellow.push(obj);
-        }
-    });
-
-    document.getElementById('fcRedCount').innerText = window.currentFlashcardQueues.red.length;
-    document.getElementById('fcOrangeCount').innerText = window.currentFlashcardQueues.orange.length;
-    document.getElementById('fcYellowCount').innerText = window.currentFlashcardQueues.yellow.length;
-    document.getElementById('fcGreenCount').innerText = window.currentFlashcardQueues.green.length;
-
-    document.getElementById('flashcardDashboardModal').classList.remove('hidden');
-    document.getElementById('flashcardDashboardModal').classList.add('flex');
+    buildSrsQueues(allCards, now);
 };
 
 function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
     currentFlashcardSource = source;
     const now = new Date().getTime();
-    
     let allCards = [];
 
     if (source === 'dossiers') {
@@ -116,7 +92,7 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
                     id: `intel_${idx}`,
                     category: 'Market Intelligence',
                     title: `${currentDossierFirm} Insight: ${f.title || f.headline || 'Untitled'}`,
-                    body: `<p><strong>Metric/Context:</strong> ${f.description || 'N/A'}</p><br><p><strong>Implications:</strong> ${f.implications || 'None logged.'}</p>`
+                    body: `<p><strong>Context:</strong> ${f.description || 'N/A'}</p><p><strong>Implications:</strong> ${f.implications || 'None logged.'}</p>`
                 });
             }
         });
@@ -190,7 +166,10 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
     }
 
     if (allCards.length === 0) return alert("No flashcards found matching these filters.");
+    buildSrsQueues(allCards, now);
+}
 
+function buildSrsQueues(allCards, now) {
     window.currentFlashcardQueues = { red: [], orange: [], yellow: [], green: [] };
 
     allCards.forEach(obj => {
@@ -210,18 +189,25 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
         }
     });
 
-    document.getElementById('fcRedCount').innerText = window.currentFlashcardQueues.red.length;
-    document.getElementById('fcOrangeCount').innerText = window.currentFlashcardQueues.orange.length;
-    document.getElementById('fcYellowCount').innerText = window.currentFlashcardQueues.yellow.length;
-    document.getElementById('fcGreenCount').innerText = window.currentFlashcardQueues.green.length;
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+    setVal('fcRedCount', window.currentFlashcardQueues.red.length);
+    setVal('fcOrangeCount', window.currentFlashcardQueues.orange.length);
+    setVal('fcYellowCount', window.currentFlashcardQueues.yellow.length);
+    setVal('fcGreenCount', window.currentFlashcardQueues.green.length);
 
-    document.getElementById('flashcardDashboardModal').classList.remove('hidden');
-    document.getElementById('flashcardDashboardModal').classList.add('flex');
+    const m = document.getElementById('flashcardDashboardModal');
+    if (m) {
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+    }
 }
 
 function launchQueue(queueColor) {
-    document.getElementById('flashcardDashboardModal').classList.add('hidden');
-    document.getElementById('flashcardDashboardModal').classList.remove('flex');
+    const dashModal = document.getElementById('flashcardDashboardModal');
+    if (dashModal) {
+        dashModal.classList.add('hidden');
+        dashModal.classList.remove('flex');
+    }
 
     flashcardQueue = [...window.currentFlashcardQueues[queueColor]];
     if (flashcardQueue.length === 0) return alert("This queue is empty!");
@@ -233,10 +219,12 @@ function startQueueDirectly() {
     flashcardQueue = flashcardQueue.sort(() => Math.random() - 0.5);
     currentFlashcardIndex = 0;
     
-    document.getElementById("flashcardModal").classList.remove("hidden");
-    document.getElementById("flashcardModal").classList.add("flex");
+    const fcModal = document.getElementById("flashcardModal");
+    if (fcModal) {
+        fcModal.classList.remove("hidden");
+        fcModal.classList.add("flex");
+    }
     
-    // Attach single-click listeners to front and back wrappers
     setupFlashcardClickListeners();
     renderCurrentFlashcard();
 }
@@ -247,10 +235,8 @@ function setupFlashcardClickListeners() {
 
     if (frontCard && !frontCard.dataset.clickFlipBound) {
         frontCard.dataset.clickFlipBound = "true";
-        frontCard.classList.add("cursor-pointer");
         frontCard.addEventListener("click", (e) => {
-            // Ignore clicks on active recall text inputs, buttons, and tools
-            if (e.target.closest("button") || e.target.closest("textarea") || e.target.closest("input") || e.target.closest("#recallInputDock") || e.target.closest("#feynmanDrawer")) {
+            if (e.target.closest("button") || e.target.closest("textarea") || e.target.closest("input") || e.target.closest("#recallDockWrapper") || e.target.closest("#feynmanWrapper")) {
                 return;
             }
             flipFlashcard();
@@ -259,7 +245,6 @@ function setupFlashcardClickListeners() {
 
     if (backCard && !backCard.dataset.clickFlipBound) {
         backCard.dataset.clickFlipBound = "true";
-        backCard.classList.add("cursor-pointer");
         backCard.addEventListener("click", (e) => {
             if (e.target.closest("button") || e.target.closest("textarea") || e.target.closest("input") || e.target.closest("a")) {
                 return;
@@ -269,16 +254,43 @@ function setupFlashcardClickListeners() {
     }
 }
 
+// Explicit button action: Push active card to the back of this active queue
+window.pushCardToEndOfQueue = function() {
+    const qItem = flashcardQueue[currentFlashcardIndex];
+    if (qItem) {
+        flashcardQueue.push(qItem);
+        if (typeof showToast === 'function') showToast("Card sent to the back of the queue.", "info");
+    }
+    currentFlashcardIndex++;
+    renderCurrentFlashcard();
+};
+
+function resetCardInputs() {
+    const feynmanInput = document.getElementById("feynmanInput");
+    const feynmanFeedback = document.getElementById("feynmanFeedback");
+    const recallInput = document.getElementById('recallAnswerInput');
+    const recallBanner = document.getElementById('recallResultBanner');
+    const recallCheckBtn = document.getElementById('btnRecallCheck');
+
+    if (feynmanInput) feynmanInput.value = "";
+    if (feynmanFeedback) feynmanFeedback.classList.add("hidden");
+    if (recallInput) recallInput.value = "";
+    if (recallBanner) recallBanner.classList.add('hidden');
+    if (recallCheckBtn) {
+        recallCheckBtn.innerText = "Check Answer";
+        recallCheckBtn.className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5";
+        recallCheckBtn.onclick = window.checkRecallAnswer;
+    }
+}
+
 function renderCurrentFlashcard() {
     if (currentFlashcardIndex >= flashcardQueue.length) {
         alert("Session Complete! Great job maintaining your commercial knowledge.");
-        document.getElementById("flashcardModal").classList.add("hidden");
-        document.getElementById("flashcardModal").classList.remove("flex");
-        if (currentFlashcardSource === 'concepts' && typeof renderConcepts === 'function') renderConcepts();
-        else if (currentFlashcardSource === 'dictionary' && typeof renderDictionary === 'function') renderDictionary();
-        else if (currentFlashcardSource === 'all' && typeof renderDashboard === 'function') renderDashboard();
+        closeFlashcards();
         return;
     }
+
+    resetCardInputs();
 
     const itemObj = flashcardQueue[currentFlashcardIndex];
     const item = itemObj.item;
@@ -290,14 +302,21 @@ function renderCurrentFlashcard() {
     const title = String(item.title || item.term || "Untitled");
     const body = String(item.body || item.definition || item.content || "No data logged.");
 
-    // Accurate dynamic card count
-    document.getElementById("flashcardCounter").innerText = `Card ${currentFlashcardIndex + 1} of ${flashcardQueue.length}`;
-    document.getElementById("fcCategory").innerText = category;
-    document.getElementById("fcBackCategory").innerText = category;
+    const counterEl = document.getElementById("flashcardCounter");
+    if (counterEl) counterEl.innerText = `Card ${currentFlashcardIndex + 1} of ${flashcardQueue.length}`;
+    
+    const catEl = document.getElementById("fcCategory");
+    if (catEl) catEl.innerText = category;
+    
+    const backCatEl = document.getElementById("fcBackCategory");
+    if (backCatEl) backCatEl.innerText = category;
+
+    const fcTitle = document.getElementById("fcTitle");
+    const fcFrontBody = document.getElementById("fcFrontBody");
+    const instructionEl = document.getElementById("fcInstruction");
 
     if (isReverse) {
-        document.getElementById("fcTitle").classList.add("hidden");
-        const fcFrontBody = document.getElementById("fcFrontBody");
+        if (fcTitle) fcTitle.classList.add("hidden");
         if (fcFrontBody) {
             fcFrontBody.classList.remove("hidden");
             let redactedBody = body;
@@ -308,22 +327,32 @@ function renderCurrentFlashcard() {
             }
             fcFrontBody.innerHTML = redactedBody;
         }
-        document.getElementById("fcInstruction").innerText = "(Tap to reveal the exact term)";
+        if (instructionEl) instructionEl.innerText = "(Tap card to reveal the exact term)";
     } else {
-        document.getElementById("fcTitle").classList.remove("hidden");
-        document.getElementById("fcTitle").innerText = title;
-        const fcFrontBody = document.getElementById("fcFrontBody");
+        if (fcTitle) {
+            fcTitle.classList.remove("hidden");
+            fcTitle.innerText = title;
+        }
         if (fcFrontBody) fcFrontBody.classList.add("hidden");
-        document.getElementById("fcInstruction").innerText = "(Tap to reveal the definition)";
+        if (instructionEl) instructionEl.innerText = "(Tap card to reveal definition)";
     }
 
-    document.getElementById("flashcardFront").classList.remove("hidden");
-    document.getElementById("flashcardFront").classList.add("flex");
-    document.getElementById("flashcardBack").classList.add("hidden");
-    document.getElementById("flashcardBack").classList.remove("flex");
-    document.getElementById("flashcardControls").classList.add("hidden");
+    const front = document.getElementById("flashcardFront");
+    const back = document.getElementById("flashcardBack");
+    const controls = document.getElementById("flashcardControls");
+
+    if (front) {
+        front.classList.remove("hidden");
+        front.classList.add("flex");
+    }
+    if (back) {
+        back.classList.add("hidden");
+        back.classList.remove("flex");
+    }
+    if (controls) controls.classList.add("hidden");
 
     window.applyRecallUIState();
+    window.applyFeynmanUIState();
 }
 
 function flipFlashcard() {
@@ -344,8 +373,9 @@ function flipFlashcard() {
     let easyInt = isFirstReview ? 4 : Math.round((srsData.interval || 1) * srsData.ease * 1.3);
     let masterInt = Math.max(30, Math.round((srsData.interval || 1) * srsData.ease * 1.5));
 
-    const controls = document.getElementById("flashcardControls").children;
-    if (controls.length >= 5) {
+    const controlsContainer = document.getElementById("flashcardControls");
+    if (controlsContainer && controlsContainer.children.length >= 5) {
+        const controls = controlsContainer.children;
         controls[0].querySelector("span:last-child").innerText = "< 1m";
         controls[1].querySelector("span:last-child").innerText = hardInt + "d";
         controls[2].querySelector("span:last-child").innerText = goodInt + "d";
@@ -360,20 +390,32 @@ function flipFlashcard() {
         bodyHtml = `<img src="${qItem.item.diagram}" class="w-full max-h-60 object-contain rounded-md border border-slate-200 dark:border-slate-700 mb-4 bg-white dark:bg-slate-800">` + bodyHtml;
     }
 
+    const fcBackTitle = document.getElementById("fcBackTitle");
+    const fcBody = document.getElementById("fcBody");
+
     if (qItem.isReverse) {
-        document.getElementById("fcBackTitle").innerText = "Term Revealed";
-        document.getElementById("fcBody").innerHTML = `<h2 class="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">${titleStr}</h2>` + bodyHtml;
+        if (fcBackTitle) fcBackTitle.innerText = "Term Revealed";
+        if (fcBody) fcBody.innerHTML = `<h2 class="text-2xl font-black text-indigo-600 dark:text-indigo-400 mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">${titleStr}</h2>` + bodyHtml;
     } else {
-        document.getElementById("fcBackTitle").innerText = titleStr;
-        document.getElementById("fcBody").innerHTML = bodyHtml;
+        if (fcBackTitle) fcBackTitle.innerText = titleStr;
+        if (fcBody) fcBody.innerHTML = bodyHtml;
     }
 
-    document.getElementById("flashcardFront").classList.add("hidden");
-    document.getElementById("flashcardFront").classList.remove("flex");
-    document.getElementById("flashcardBack").classList.remove("hidden");
-    document.getElementById("flashcardBack").classList.add("flex");
-    document.getElementById("flashcardControls").classList.remove("hidden");
-    document.getElementById("flashcardControls").classList.add("grid");
+    const front = document.getElementById("flashcardFront");
+    const back = document.getElementById("flashcardBack");
+
+    if (front) {
+        front.classList.add("hidden");
+        front.classList.remove("flex");
+    }
+    if (back) {
+        back.classList.remove("hidden");
+        back.classList.add("flex");
+    }
+    if (controlsContainer) {
+        controlsContainer.classList.remove("hidden");
+        controlsContainer.classList.add("grid");
+    }
 }
 
 function unflipFlashcard() {
@@ -397,6 +439,7 @@ function unflipFlashcard() {
 window.flipFlashcard = flipFlashcard;
 window.unflipFlashcard = unflipFlashcard;
 
+// Rating a card updates its SRS schedule and moves on — it does NOT push to the end of the queue
 function processFlashcardResult(rating) {
     const qItem = flashcardQueue[currentFlashcardIndex];
     if (!qItem) return;
@@ -449,7 +492,6 @@ function processFlashcardResult(rating) {
         srsData.nextReview = new Date().getTime() + (srsData.interval * 24 * 60 * 60 * 1000);
     }
 
-    // Persist to in-memory db
     if (qItem.item.isDossier) {
         db.dossiers[qItem.item.firmName].srs[qItem.item.dossierKey] = srsData;
     } else if (qItem.sourceType === 'concepts') {
@@ -460,20 +502,23 @@ function processFlashcardResult(rating) {
     
     if (typeof saveDatabase === 'function') saveDatabase(); 
     
-    // Advance to next card
+    // Advance to next card without loop
     currentFlashcardIndex++;
     renderCurrentFlashcard();
 }
 
 function closeFlashcards() {
-    document.getElementById("flashcardModal").classList.add("hidden");
-    document.getElementById("flashcardModal").classList.remove("flex");
+    const fcModal = document.getElementById("flashcardModal");
+    if (fcModal) {
+        fcModal.classList.add("hidden");
+        fcModal.classList.remove("flex");
+    }
     
     if (currentFlashcardSource === 'concepts' && typeof renderConcepts === 'function') {
-        if(typeof window.selectedConcepts !== 'undefined') window.selectedConcepts.clear();
+        if (typeof window.selectedConcepts !== 'undefined') window.selectedConcepts.clear();
         renderConcepts();
     } else if (currentFlashcardSource === 'dictionary' && typeof renderDictionary === 'function') {
-        if(typeof window.selectedDictionary !== 'undefined') window.selectedDictionary.clear();
+        if (typeof window.selectedDictionary !== 'undefined') window.selectedDictionary.clear();
         renderDictionary();
     } else if (currentFlashcardSource === 'all') {
         if (typeof renderConcepts === 'function') renderConcepts();
@@ -491,26 +536,23 @@ document.addEventListener('keydown', function(e) {
     
     if (document.activeElement && (document.activeElement.id === 'feynmanInput' || document.activeElement.id === 'recallAnswerInput')) return;
     
-    // Space toggles between Front and Back of the current card
     if (e.code === 'Space') {
         e.preventDefault();
-        if (!front.classList.contains("hidden")) {
+        if (front && !front.classList.contains("hidden")) {
             flipFlashcard();
-        } else if (!back.classList.contains("hidden")) {
+        } else if (back && !back.classList.contains("hidden")) {
             unflipFlashcard();
         }
         return;
     }
 
-    // Front: Enter also flips to the back
-    if (!front.classList.contains("hidden") && e.code === 'Enter') {
+    if (front && !front.classList.contains("hidden") && e.code === 'Enter') {
         e.preventDefault();
         flipFlashcard();
         return;
     } 
     
-    // Back: Grading controls (1-5 or Enter for 'good')
-    if (!back.classList.contains("hidden")) {
+    if (back && !back.classList.contains("hidden")) {
         if (e.code === 'Digit1') { e.preventDefault(); processFlashcardResult('forgot'); }
         if (e.code === 'Digit2') { e.preventDefault(); processFlashcardResult('hard'); }
         if (e.code === 'Digit3' || e.code === 'Enter') { e.preventDefault(); processFlashcardResult('good'); }
@@ -519,63 +561,80 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-function toggleFeynmanDrawer(btn) {
-    btn.classList.add("hidden");
-    const drawer = document.getElementById("feynmanDrawer");
-    drawer.classList.remove("hidden");
-    drawer.classList.add("flex");
-    document.getElementById("feynmanInput").focus();
-}
+// --- FEYNMAN EVALUATOR & TOGGLE ---
+window.toggleFeynmanMode = function() {
+    window.isFeynmanMode = !window.isFeynmanMode;
+    localStorage.setItem('LEGAL_NEXUS_FEYNMAN_MODE', window.isFeynmanMode);
+    window.applyFeynmanUIState();
+};
 
-async function evaluateFeynman() {
-    const input = document.getElementById('feynmanInput').value.trim();
-    if (!input) return alert("Please write your explanation first, or click Skip.");
+window.applyFeynmanUIState = function() {
+    const wrapper = document.getElementById('feynmanWrapper');
+    const btnLabel = document.getElementById('feynmanModeLabel');
+    const toggleBtn = document.getElementById('btnToggleFeynmanMode');
+
+    if (!wrapper || !btnLabel) return;
+
+    if (window.isFeynmanMode) {
+        wrapper.classList.remove('hidden');
+        btnLabel.innerText = "Feynman: ON";
+        if (toggleBtn) toggleBtn.classList.add('bg-purple-50', 'text-purple-700', 'border-purple-300', 'dark:bg-purple-950/50', 'dark:text-purple-300', 'dark:border-purple-700');
+    } else {
+        wrapper.classList.add('hidden');
+        btnLabel.innerText = "Feynman: OFF";
+        if (toggleBtn) toggleBtn.classList.remove('bg-purple-50', 'text-purple-700', 'border-purple-300', 'dark:bg-purple-950/50', 'dark:text-purple-300', 'dark:border-purple-700');
+    }
+};
+
+window.evaluateFeynman = async function() {
+    const inputEl = document.getElementById('feynmanInput');
+    const input = inputEl ? inputEl.value.trim() : "";
+    if (!input) return alert("Please type your plain-English explanation into the box first.");
 
     const btn = document.getElementById('btnFeynmanSubmit');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = `<span>⏳</span> Analyzing Draft...`;
+    const origText = btn.innerHTML;
+    btn.innerHTML = `<span>⏳</span> Evaluating plain explanation...`;
     btn.disabled = true;
 
     const qItem = flashcardQueue[currentFlashcardIndex];
     const isConcept = currentFlashcardSource === 'concepts' || (currentFlashcardSource === 'all' && qItem.sourceType === 'concepts');
     const term = isConcept ? String(qItem.item.title || "Concept") : String(qItem.item.term || "Term");
     
-    const rawDefinition = isConcept ? String(qItem.item.body || "") : String(qItem.item.definition || "");
-    const cleanDefinition = rawDefinition.replace(/<[^>]*>?/gm, '');
+    const rawDef = isConcept ? String(qItem.item.body || "") : String(qItem.item.definition || "");
+    const cleanDef = rawDef.replace(/<[^>]*>?/gm, '');
 
-    const aiPrompt = `Act as an expert commercial law tutor. I am using the Feynman Technique to explain a concept simply.
-    Term: "${term}"
-    Real Definition: "${cleanDefinition}"
-    
-    My Attempt: "${input}"
-    
-    In 2 to 3 very short sentences, evaluate my attempt. Is it accurate? Did I explain it simply, or did I rely on jargon? What critical piece did I miss?`;
+    const aiPrompt = `You are a legal trainer evaluating a candidate's plain-English Feynman explanation.
+Concept: "${term}"
+Real Definition: "${cleanDef}"
+
+Candidate Explanation: "${input}"
+
+In 2 short sentences:
+1. Is it accurate without relying on jargon?
+2. What vital legal or commercial detail is missing?`;
 
     try {
         const aiResponse = typeof callGeminiApi === 'function' 
             ? await callGeminiApi(aiPrompt) 
-            : "System simulated response. Grader requires API connection.";
+            : "AI response received.";
 
-        document.getElementById('feynmanFeedbackContent').innerText = aiResponse;
-        document.getElementById('feynmanFeedback').classList.remove('hidden');
+        const feedbackContent = document.getElementById('feynmanFeedbackContent');
+        if (feedbackContent) feedbackContent.innerText = aiResponse;
+        
+        const feedbackBox = document.getElementById('feynmanFeedback');
+        if (feedbackBox) feedbackBox.classList.remove('hidden');
+        
         flipFlashcard();
-    } catch (error) {
-        alert("AI Grader failed to connect. Flipping normally.");
+    } catch (err) {
+        alert("AI Evaluation note: " + err.message);
         flipFlashcard();
     } finally {
-        btn.innerHTML = originalText;
+        btn.innerHTML = origText;
         btn.disabled = false;
     }
-}
+};
 
-// ====================================================
-// ACTIVE RECALL DRILL & SPEECH-TO-TEXT ENGINE
-// ====================================================
-
-window.isRecallDrillMode = localStorage.getItem('LEGAL_NEXUS_RECALL_MODE') === 'true';
-let recognitionInstance = null;
-let isRecordingVoice = false;
-
+// --- RECALL DRILL TOGGLE ---
 window.toggleRecallDrillMode = function() {
     window.isRecallDrillMode = !window.isRecallDrillMode;
     localStorage.setItem('LEGAL_NEXUS_RECALL_MODE', window.isRecallDrillMode);
@@ -583,9 +642,7 @@ window.toggleRecallDrillMode = function() {
 };
 
 window.applyRecallUIState = function() {
-    const dock = document.getElementById('recallInputDock');
-    const badge = document.getElementById('recallCardBadge');
-    const instruction = document.getElementById('fcInstruction');
+    const dock = document.getElementById('recallDockWrapper');
     const btnLabel = document.getElementById('recallModeLabel');
     const toggleBtn = document.getElementById('btnToggleRecallMode');
 
@@ -593,27 +650,21 @@ window.applyRecallUIState = function() {
 
     if (window.isRecallDrillMode) {
         dock.classList.remove('hidden');
-        if (badge) badge.classList.remove('hidden');
-        if (instruction) instruction.classList.add('hidden');
         btnLabel.innerText = "Recall Drill: ON";
-        toggleBtn.classList.add('bg-blue-50', 'text-blue-700', 'border-blue-300', 'dark:bg-blue-950/50', 'dark:text-blue-300', 'dark:border-blue-700');
-        
+        if (toggleBtn) toggleBtn.classList.add('bg-blue-50', 'text-blue-700', 'border-blue-300', 'dark:bg-blue-950/50', 'dark:text-blue-300', 'dark:border-blue-700');
         const input = document.getElementById('recallAnswerInput');
         if (input) setTimeout(() => input.focus(), 50);
     } else {
         dock.classList.add('hidden');
-        if (badge) badge.classList.add('hidden');
-        if (instruction) instruction.classList.remove('hidden');
         btnLabel.innerText = "Recall Drill: OFF";
-        toggleBtn.classList.remove('bg-blue-50', 'text-blue-700', 'border-blue-300', 'dark:bg-blue-950/50', 'dark:text-blue-300', 'dark:border-blue-700');
+        if (toggleBtn) toggleBtn.classList.remove('bg-blue-50', 'text-blue-700', 'border-blue-300', 'dark:bg-blue-950/50', 'dark:text-blue-300', 'dark:border-blue-700');
     }
 };
 
-// --- NATIVE SPEECH-TO-TEXT (MICROPHONE RECOGNITION) ---
 window.toggleSpeechRecognition = function() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        alert("Speech recognition is not supported on this browser. Please use Chrome, Edge, or Safari.");
+        alert("Speech recognition is not supported on this browser.");
         return;
     }
 
@@ -633,31 +684,17 @@ window.toggleSpeechRecognition = function() {
 
         recognitionInstance.onstart = function() {
             isRecordingVoice = true;
-            if (micBtn) {
-                micBtn.classList.add('text-rose-500', 'animate-pulse', 'bg-rose-50', 'dark:bg-rose-950/50');
-            }
+            if (micBtn) micBtn.classList.add('text-rose-500', 'animate-pulse');
         };
 
         recognitionInstance.onresult = function(event) {
             const transcript = event.results[0][0].transcript;
-            if (input) {
-                input.value = input.value ? `${input.value} ${transcript}` : transcript;
-            }
-        };
-
-        recognitionInstance.onerror = function(event) {
-            console.warn("Speech error:", event.error);
-            isRecordingVoice = false;
-            if (micBtn) {
-                micBtn.classList.remove('text-rose-500', 'animate-pulse', 'bg-rose-50', 'dark:bg-rose-950/50');
-            }
+            if (input) input.value = input.value ? `${input.value} ${transcript}` : transcript;
         };
 
         recognitionInstance.onend = function() {
             isRecordingVoice = false;
-            if (micBtn) {
-                micBtn.classList.remove('text-rose-500', 'animate-pulse', 'bg-rose-50', 'dark:bg-rose-950/50');
-            }
+            if (micBtn) micBtn.classList.remove('text-rose-500', 'animate-pulse');
         };
 
         recognitionInstance.start();
@@ -666,7 +703,6 @@ window.toggleSpeechRecognition = function() {
     }
 };
 
-// --- LOCAL DETERMINISTIC KEYWORD MATCHER ---
 function cleanWords(text) {
     const stopWords = new Set(["the", "a", "an", "is", "are", "of", "and", "or", "in", "to", "for", "with", "that", "this", "by", "from", "as", "at", "be", "which", "on", "it"]);
     return text.toLowerCase()
@@ -689,21 +725,19 @@ function evaluateAnswerLocally(userText, modelText) {
 
     const matchRatio = matchedCount / modelWords.length;
     return {
-        passed: matchRatio >= 0.45 || (userText.length > 20 && matchRatio >= 0.35),
+        passed: matchRatio >= 0.40 || (userText.length > 20 && matchRatio >= 0.30),
         score: Math.round(matchRatio * 100)
     };
 }
 
-// --- CHECK ANSWER & RECALL QUEUE CYCLING ---
+// Check Active Recall Answer
 window.checkRecallAnswer = async function() {
     const input = document.getElementById('recallAnswerInput');
     const banner = document.getElementById('recallResultBanner');
-    const statusEl = document.getElementById('recallResultStatus');
-    const modelEl = document.getElementById('recallModelAnswer');
     const checkBtn = document.getElementById('btnRecallCheck');
 
     if (!input || !input.value.trim()) {
-        alert("Please type or speak your answer first.");
+        alert("Please write or speak your recall attempt first.");
         return;
     }
 
@@ -714,33 +748,30 @@ window.checkRecallAnswer = async function() {
         : String(qItem.item.body || qItem.item.definition || "");
     
     const cleanModel = modelText.replace(/<[^>]*>?/gm, '').trim();
-
     const evaluation = evaluateAnswerLocally(input.value, cleanModel);
 
     banner.classList.remove('hidden');
 
     if (evaluation.passed) {
-        // Correct recall: allow graduation to SRS rating
-        banner.className = "rounded-xl p-4 border transition-all text-xs flex flex-col gap-1.5 bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800";
-        statusEl.innerHTML = `<span class="flex items-center gap-1.5"><i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i> Correct! (${evaluation.score}% Keyword Match)</span>`;
-        modelEl.innerHTML = `<strong>Definition:</strong> ${cleanModel}`;
+        banner.className = "rounded-xl p-3 border text-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800 flex flex-col gap-1";
+        banner.innerHTML = `<strong>Correct Recall! (${evaluation.score}% Match)</strong><span>${cleanModel}</span>`;
 
-        checkBtn.innerText = "Continue to SRS Rating";
-        checkBtn.className = "flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 text-sm";
+        checkBtn.innerText = "Continue to Grading";
+        checkBtn.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5";
         checkBtn.onclick = function() {
             flipFlashcard();
         };
     } else {
-        // Incorrect recall: cycle to the back of the queue
-        banner.className = "rounded-xl p-4 border transition-all text-xs flex flex-col gap-1.5 bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-800";
-        statusEl.innerHTML = `<span class="flex items-center gap-1.5"><i data-lucide="x-circle" class="w-4 h-4 text-rose-600"></i> Incorrect — Recycling Card to End</span>`;
-        modelEl.innerHTML = `<strong>Expected:</strong> ${cleanModel}`;
+        banner.className = "rounded-xl p-3 border text-xs bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-800 flex flex-col gap-1";
+        banner.innerHTML = `<strong>Incorrect (${evaluation.score}% Match) — Sent to End</strong><span>Expected: ${cleanModel}</span>`;
 
+        // Recycle to the end only on failed active recall attempt
         flashcardQueue.push(qItem);
-        document.getElementById("flashcardCounter").innerText = `Card ${currentFlashcardIndex + 1} of ${flashcardQueue.length}`;
+        const counterEl = document.getElementById("flashcardCounter");
+        if (counterEl) counterEl.innerText = `Card ${currentFlashcardIndex + 1} of ${flashcardQueue.length}`;
 
-        checkBtn.innerText = "Understood (Moved to End)";
-        checkBtn.className = "flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 text-sm";
+        checkBtn.innerText = "Next Card (Recycled to End)";
+        checkBtn.className = "w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5";
         checkBtn.onclick = function() {
             currentFlashcardIndex++;
             renderCurrentFlashcard();

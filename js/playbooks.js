@@ -2,10 +2,10 @@
 // DEAL ANATOMY & PLAYBOOKS (Dynamic Bounding, Collapsing Lanes & Flow Roles)
 // =========================================================================
 
-let currentPlaybook = null;
-let playbookNetwork = null;
-let pbNodes = new vis.DataSet();
-let pbEdges = new vis.DataSet();
+window.currentPlaybook = window.currentPlaybook || "";
+window.playbookNetwork = null;
+var pbNodes = (typeof pbNodes !== 'undefined') ? pbNodes : new vis.DataSet();
+var pbEdges = (typeof pbEdges !== 'undefined') ? pbEdges : new vis.DataSet();
 
 const DEFAULT_STAGES = [
     { id: "s1", name: "Phase 1: Deal Initiation & Preliminary DD", minLevel: 1, maxLevel: 3, accent: "#6366f1" },
@@ -16,8 +16,8 @@ const DEFAULT_STAGES = [
 ];
 
 window.getPlaybookStages = function() {
-    if (currentPlaybook && db.playbooks && db.playbooks[currentPlaybook] && Array.isArray(db.playbooks[currentPlaybook].stages)) {
-        return db.playbooks[currentPlaybook].stages;
+    if (window.currentPlaybook && db.playbooks && db.playbooks[window.currentPlaybook] && Array.isArray(db.playbooks[window.currentPlaybook].stages)) {
+        return db.playbooks[window.currentPlaybook].stages;
     }
     return DEFAULT_STAGES;
 };
@@ -28,42 +28,59 @@ window.renderPlaybookList = function() {
     container.innerHTML = "";
 
     if (!db.playbooks) db.playbooks = {};
-    const playbooks = Object.keys(db.playbooks).sort((a, b) => a.localeCompare(b));
+    const playbookNames = Object.keys(db.playbooks).sort((a, b) => a.localeCompare(b));
     
-    if (playbooks.length === 0) {
-        container.innerHTML = `<p class="text-xs text-slate-500 italic mt-2">No playbooks created yet. Click + Add above.</p>`;
-        const canvasEl = document.getElementById('playbookCanvas');
-        if (canvasEl) canvasEl.style.display = 'none';
+    if (playbookNames.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-500 italic mt-2">No playbooks found. Click Add above.</p>`;
         const labelEl = document.getElementById('activePlaybookLabel');
         if (labelEl) labelEl.innerText = "No Playbook Selected";
+        if (window.playbookNetwork) {
+            window.playbookNetwork.destroy();
+            window.playbookNetwork = null;
+        }
         return;
     }
 
-    const canvasEl = document.getElementById('playbookCanvas');
-    if (canvasEl) canvasEl.style.display = 'block';
-
-    if (!currentPlaybook || !db.playbooks[currentPlaybook]) {
-        currentPlaybook = playbooks[0];
+    if (!window.currentPlaybook || !db.playbooks[window.currentPlaybook]) {
+        window.currentPlaybook = playbookNames[0];
     }
 
-    playbooks.forEach(name => {
+    playbookNames.forEach(name => {
         const btn = document.createElement("button");
-        const isActive = name === currentPlaybook;
-        btn.className = `w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition flex justify-between items-center ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200'}`;
-        btn.innerHTML = `<span class="truncate">${name}</span> <span onclick="managePlaybook('${name.replace(/'/g, "\\'")}', event)" class="text-xs opacity-50 hover:opacity-100 shrink-0 ml-2">⚙️</span>`;
+        const isActive = name === window.currentPlaybook;
+        btn.className = `w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-bold transition flex justify-between items-center ${
+            isActive 
+                ? 'bg-indigo-600 text-white shadow-sm' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+        }`;
+        
+        btn.innerHTML = `
+            <span class="truncate flex-1">${name}</span>
+            <span onclick="window.managePlaybook('${name.replace(/'/g, "\\'")}', event)" class="text-xs opacity-60 hover:opacity-100 p-1 ml-1 shrink-0">
+                <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+            </span>
+        `;
+        
         btn.onclick = (e) => {
             if (e.target.closest('span[onclick]')) return;
-            currentPlaybook = name;
-            renderPlaybookList();
-            if (window.innerWidth < 768) document.getElementById('playbooksSidebar').classList.add('-translate-x-full');
+            window.currentPlaybook = name;
+            window.renderPlaybookList();
+            if (window.innerWidth < 768) {
+                const sb = document.getElementById('playbooksSidebar');
+                if (sb) sb.classList.add('-translate-x-full');
+            }
         };
         container.appendChild(btn);
     });
 
-    renderPlaybookGraph(currentPlaybook);
+    if (window.lucide) window.lucide.createIcons();
+
+    setTimeout(() => {
+        window.renderPlaybookGraph(window.currentPlaybook);
+    }, 60);
 };
 
-window.addPlaybook = async function() {
+window.addPlaybook = function() {
     const name = prompt("Enter Playbook Name (e.g., Private M&A Deal Flow):");
     if (!name || !name.trim()) return;
     const cleanName = name.trim();
@@ -74,34 +91,17 @@ window.addPlaybook = async function() {
         return;
     }
 
-    // 1. Instantly register in-memory
     db.playbooks[cleanName] = { 
         nodes: [], 
         edges: [], 
         stages: JSON.parse(JSON.stringify(DEFAULT_STAGES)) 
     };
-    currentPlaybook = cleanName;
+    window.currentPlaybook = cleanName;
 
-    // 2. Persist locally first so data is never lost
     if (typeof saveToLocalCache === 'function') saveToLocalCache();
     if (typeof saveDatabase === 'function') saveDatabase();
 
-    // 3. Render UI immediately (0ms delay)
-    renderPlaybookList();
-
-    // 4. Background sync to Supabase without blocking UI execution
-    if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
-        supabaseClient.from('playbooks').upsert({
-            user_id: window.currentUser.id,
-            name: cleanName,
-            nodes: [],
-            edges: [],
-            stages: DEFAULT_STAGES,
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id, name' }).then(({ error }) => {
-            if (error) console.warn("Background playbook remote sync:", error.message);
-        });
-    }
+    window.renderPlaybookList();
 
     if (typeof showToast === 'function') showToast(`Playbook "${cleanName}" created.`, "success");
 };
@@ -114,19 +114,19 @@ window.managePlaybook = function(oldName, event) {
     if (input.toUpperCase() === "DELETE") {
         if (confirm(`Delete the "${oldName}" playbook?`)) {
             delete db.playbooks[oldName];
-            currentPlaybook = Object.keys(db.playbooks)[0] || null;
+            window.currentPlaybook = Object.keys(db.playbooks)[0] || "";
             
             if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
                 supabaseClient.from('playbooks').delete().match({ user_id: window.currentUser.id, name: oldName }).then(() => {});
             }
 
-            saveDatabase(); 
-            renderPlaybookList();
+            if (typeof saveDatabase === 'function') saveDatabase(); 
+            window.renderPlaybookList();
         }
     } else if (input !== oldName && !db.playbooks[input]) {
         db.playbooks[input] = db.playbooks[oldName];
         delete db.playbooks[oldName];
-        currentPlaybook = input;
+        window.currentPlaybook = input;
 
         if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
             supabaseClient.from('playbooks').delete().match({ user_id: window.currentUser.id, name: oldName }).then(() => {
@@ -134,14 +134,13 @@ window.managePlaybook = function(oldName, event) {
             });
         }
 
-        saveDatabase(); 
-        renderPlaybookList();
+        if (typeof saveDatabase === 'function') saveDatabase(); 
+        window.renderPlaybookList();
     }
 };
 
-// --- SILENT BACKGROUND LAYOUT CALCULATOR ---
 window.refreshPlaybookLayout = function() {
-    if (!currentPlaybook || !db.playbooks || !db.playbooks[currentPlaybook]) return;
+    if (!window.currentPlaybook || !db.playbooks || !db.playbooks[window.currentPlaybook]) return;
     
     let nodesMap = new Map();
     pbNodes.forEach(n => nodesMap.set(n.id, { ...n }));
@@ -206,7 +205,6 @@ window.refreshPlaybookLayout = function() {
         
         newX = Math.round(newX / 280) * 280; 
 
-        // Role-based Node Styling
         let nodeColor = { background: '#2563eb', border: '#1d4ed8', highlight: { background: '#3b82f6', border: '#1e40af' } };
         let shape = "box";
 
@@ -234,7 +232,6 @@ window.refreshPlaybookLayout = function() {
     pbNodes.update(updates);
 };
 
-// --- DYNAMIC BOUNDING & COLLAPSING SWIMLANE BOARD ---
 function drawPlaybookStageLanes(ctx) {
     const allNodes = pbNodes.get();
     if (allNodes.length === 0) return;
@@ -301,23 +298,42 @@ function drawPlaybookStageLanes(ctx) {
 }
 
 window.renderPlaybookGraph = function(playbookName) {
+    if (!playbookName) return;
+
+    if (!db.playbooks) db.playbooks = {};
+    if (!db.playbooks[playbookName]) {
+        db.playbooks[playbookName] = { 
+            nodes: [], 
+            edges: [], 
+            stages: typeof DEFAULT_STAGES !== 'undefined' ? JSON.parse(JSON.stringify(DEFAULT_STAGES)) : [] 
+        };
+    }
+
     const labelEl = document.getElementById('activePlaybookLabel');
     if (labelEl) labelEl.innerText = playbookName;
 
-    if (!db.playbooks) db.playbooks = {};
-    const dataObj = db.playbooks[playbookName] || { nodes: [], edges: [] };
+    const container = document.getElementById('playbookCanvas');
+    if (!container) return;
+
+    if (container.clientWidth === 0 || container.clientHeight === 0) {
+        setTimeout(() => window.renderPlaybookGraph(playbookName), 80);
+        return;
+    }
+
+    const dataObj = db.playbooks[playbookName];
     
     pbNodes.clear();
     pbEdges.clear();
     
-    if (dataObj.nodes) pbNodes.add(dataObj.nodes);
-    if (dataObj.edges) pbEdges.add(dataObj.edges);
+    if (Array.isArray(dataObj.nodes) && dataObj.nodes.length > 0) {
+        pbNodes.add(dataObj.nodes);
+    }
+    if (Array.isArray(dataObj.edges) && dataObj.edges.length > 0) {
+        pbEdges.add(dataObj.edges);
+    }
 
     window.refreshPlaybookLayout();
 
-    const container = document.getElementById('playbookCanvas');
-    if (!container) return;
-    
     const data = { nodes: pbNodes, edges: pbEdges };
     
     const options = {
@@ -379,7 +395,7 @@ window.renderPlaybookGraph = function(playbookName) {
                     window.refreshPlaybookLayout();
                     
                     setTimeout(() => {
-                        if (playbookNetwork) playbookNetwork.addEdgeMode();
+                        if (window.playbookNetwork) window.playbookNetwork.addEdgeMode();
                     }, 50);
                 }
             },
@@ -404,27 +420,24 @@ window.renderPlaybookGraph = function(playbookName) {
         },
         edges: {
             width: 2,
-            smooth: {
-                type: 'discrete',
-                roundness: 0.15
-            }
+            smooth: { type: 'discrete', roundness: 0.15 }
         }
     };
 
-    if (playbookNetwork !== null) {
-        playbookNetwork.destroy();
-        playbookNetwork = null;
+    if (window.playbookNetwork !== null) {
+        window.playbookNetwork.destroy();
+        window.playbookNetwork = null;
     }
     
-    playbookNetwork = new vis.Network(container, data, options);
+    window.playbookNetwork = new vis.Network(container, data, options);
 
-    playbookNetwork.on("beforeDrawing", function (ctx) {
+    window.playbookNetwork.on("beforeDrawing", function (ctx) {
         drawPlaybookStageLanes(ctx);
     });
     
-    playbookNetwork.on("dragEnd", function (params) {
+    window.playbookNetwork.on("dragEnd", function (params) {
         if (params.nodes.length > 0) {
-            const positions = playbookNetwork.getPositions(params.nodes);
+            const positions = window.playbookNetwork.getPositions(params.nodes);
             const updates = [];
             
             params.nodes.forEach(nodeId => {
@@ -453,15 +466,17 @@ window.renderPlaybookGraph = function(playbookName) {
         }
     });
 
-    playbookNetwork.on("doubleClick", function (params) {
+    window.playbookNetwork.on("doubleClick", function (params) {
         if (params.nodes.length > 0) openPlaybookDrawer(params.nodes[0]);
     });
     
-    playbookNetwork.once("afterDrawing", function() { playbookNetwork.fit(); });
+    window.playbookNetwork.once("afterDrawing", function() {
+        window.playbookNetwork.fit({ animation: false });
+    });
 };
 
 function syncPlaybookToDb() {
-    if (!currentPlaybook) return;
+    if (!window.currentPlaybook) return;
     const cleanNodes = pbNodes.get().map(n => {
         let clean = { ...n };
         delete clean._autoLevel; 
@@ -469,16 +484,16 @@ function syncPlaybookToDb() {
     });
     
     if (!db.playbooks) db.playbooks = {};
-    db.playbooks[currentPlaybook] = {
+    db.playbooks[window.currentPlaybook] = {
         nodes: cleanNodes,
         edges: pbEdges.get(),
         stages: window.getPlaybookStages()
     };
 
+    if (typeof saveToLocalCache === 'function') saveToLocalCache();
     if (typeof saveDatabase === 'function') saveDatabase();
 }
 
-// --- DIRECT NODE-TO-KMS LINKING SYSTEM ---
 window.populateKmsDropdown = function(selectedConceptTitle) {
     const select = document.getElementById('pbNodeConceptLink');
     if (!select) return;
@@ -592,7 +607,7 @@ window.openPlaybookDrawer = function(nodeId) {
 
 window.closePlaybookDrawer = function() {
     document.getElementById('playbookDrawer').classList.add('translate-x-full');
-    if (playbookNetwork) playbookNetwork.unselectAll();
+    if (window.playbookNetwork) window.playbookNetwork.unselectAll();
 };
 
 window.liveUpdateNodeLabel = function() {
@@ -631,12 +646,11 @@ window.saveNodeData = function() {
 
     syncPlaybookToDb();
     window.refreshPlaybookLayout();
-    closePlaybookDrawer();
+    window.closePlaybookDrawer();
     
     if (typeof showToast === 'function') showToast("Step properties saved.", "success");
 };
 
-// --- STAGE CONFIGURATION MODAL ---
 window.openStageConfigModal = function() {
     let modal = document.getElementById('stageConfigModal');
     if (!modal) {
@@ -688,7 +702,7 @@ window.closeStageConfigModal = function() {
 };
 
 window.saveStageConfig = function() {
-    if (!currentPlaybook || !db.playbooks || !db.playbooks[currentPlaybook]) return;
+    if (!window.currentPlaybook || !db.playbooks || !db.playbooks[window.currentPlaybook]) return;
     
     const names = document.querySelectorAll('.stage-name-input');
     const mins = document.querySelectorAll('.stage-min-input');
@@ -706,33 +720,31 @@ window.saveStageConfig = function() {
         });
     });
 
-    db.playbooks[currentPlaybook].stages = updated;
-    saveDatabase();
+    db.playbooks[window.currentPlaybook].stages = updated;
+    if (typeof saveDatabase === 'function') saveDatabase();
     window.closeStageConfigModal();
-    if (playbookNetwork) playbookNetwork.redraw();
+    if (window.playbookNetwork) window.playbookNetwork.redraw();
     if (typeof showToast === 'function') showToast("Stage boundaries updated.", "success");
 };
 
-// Zoom & Center controls
 window.zoomPlaybook = function(direction) {
-    if (!playbookNetwork) return;
-    const currentScale = playbookNetwork.getScale();
+    if (!window.playbookNetwork) return;
+    const currentScale = window.playbookNetwork.getScale();
     const newScale = direction === 'in' ? currentScale * 1.3 : currentScale / 1.3;
-    playbookNetwork.moveTo({
+    window.playbookNetwork.moveTo({
         scale: newScale,
         animation: { duration: 300, easingFunction: "easeInOutQuad" }
     });
 };
 
 window.resetPlaybookView = function() {
-    if (playbookNetwork) playbookNetwork.fit({ animation: { duration: 800, easingFunction: "easeInOutQuad" } });
+    if (window.playbookNetwork) window.playbookNetwork.fit({ animation: { duration: 800, easingFunction: "easeInOutQuad" } });
 };
 
-// --- KMS EXPORT INTEGRATION ---
 window.exportPlaybookToConcept = function() {
-    if (!currentPlaybook || !playbookNetwork) return;
+    if (!window.currentPlaybook || !window.playbookNetwork) return;
     
-    playbookNetwork.fit({ animation: false });
+    window.playbookNetwork.fit({ animation: false });
     
     setTimeout(() => {
         const canvas = document.querySelector('#playbookCanvas canvas');
@@ -744,7 +756,7 @@ window.exportPlaybookToConcept = function() {
         if (!action) return;
         
         if (action.trim().toUpperCase() === 'NEW') {
-            switchState('CONCEPTS');
+            if (typeof switchState === 'function') switchState('CONCEPTS');
             const sidebar = document.getElementById('conceptLogSidebar');
             if (sidebar) {
                 sidebar.classList.remove('-translate-x-full');
@@ -754,7 +766,7 @@ window.exportPlaybookToConcept = function() {
                 }
             }
             
-            document.getElementById('conceptTitle').value = `${currentPlaybook} Flowchart`;
+            document.getElementById('conceptTitle').value = `${window.currentPlaybook} Flowchart`;
             document.getElementById('conceptSubTag').value = "Deal Anatomy";
             
             if (typeof diagramTempBase64 !== 'undefined') diagramTempBase64 = imgData;
@@ -775,9 +787,9 @@ window.exportPlaybookToConcept = function() {
             
             if (targetIndex > -1) {
                 db.concepts[targetIndex].diagram = imgData;
-                saveDatabase();
+                if (typeof saveDatabase === 'function') saveDatabase();
                 if (typeof showToast === 'function') showToast(`Successfully attached to "${db.concepts[targetIndex].title}"`, "success");
-                if (appState === 'CONCEPTS' && typeof renderConcepts === 'function') renderConcepts();
+                if (typeof appState !== 'undefined' && appState === 'CONCEPTS' && typeof renderConcepts === 'function') renderConcepts();
             } else {
                 alert(`Could not find a concept named "${action.trim()}". Please check your spelling.`);
             }

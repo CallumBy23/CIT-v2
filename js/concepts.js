@@ -401,28 +401,19 @@ window.massDeleteConcepts = function() {
     }
 };
 
-window.deleteConcept = function(index) {
+window.deleteConcept = async function(index) {
     index = parseInt(index, 10);
-    if(!confirm(`Delete concept: "${db.concepts[index].title}"?`)) return;
+    const concept = db.concepts[index];
+    if (!concept || !confirm(`Delete concept: "${concept.title}"?`)) return;
     
-    const statusText = document.getElementById('statusText');
-    const statusDot = document.getElementById('statusDot');
-    if (statusText) statusText.innerText = "Syncing Deletion...";
-    if (statusDot) statusDot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)] animate-pulse";
+    // Remote RLS deletion
+    if (supabaseClient && window.currentUser) {
+        await supabaseClient.from('concepts')
+            .delete()
+            .match({ user_id: window.currentUser.id, title: concept.title });
+    }
 
-    let conceptTitle = db.concepts[index].title;
-    if (db.factors) {
-        db.factors.forEach(f => { if(f && f.linkedConcept === conceptTitle) f.linkedConcept = ""; });
-    }
-    
     db.concepts.splice(index, 1);
-    
-    if(window.selectedConcepts && window.selectedConcepts.has(index)) {
-        window.selectedConcepts.delete(index);
-        if (typeof window.updateMassDeleteConceptBtn === 'function') window.updateMassDeleteConceptBtn();
-    }
-    
-    if(typeof updateNexusDropdowns === 'function') { try { updateNexusDropdowns(); } catch(e){} }
-    if(typeof saveDatabase === 'function') saveDatabase();
+    saveDatabase();
     renderConcepts();
 };

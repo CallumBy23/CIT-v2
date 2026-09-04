@@ -85,7 +85,7 @@ function switchState(newState) {
           mobBtns[newState].className = "flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 dark:border-indigo-400 flex flex-col items-center gap-1 transition -mt-px";
       }
       
-      // Aggressive Show Active App
+      // Show Active App
       if (apps[newState]) {
           apps[newState].classList.remove("hidden");
           apps[newState].style.opacity = '1';
@@ -135,7 +135,10 @@ function switchState(newState) {
           renderDossierList();
       } 
       else if (newState === "PLAYBOOKS") {
-          if (typeof renderPlaybookList === 'function') renderPlaybookList();
+          // Allow DOM 60ms to compute non-zero container width & height before rendering graph
+          setTimeout(() => {
+              if (typeof renderPlaybookList === 'function') renderPlaybookList();
+          }, 60);
       }
       else if (newState === "DICTIONARY") {
           if (mainTabsWrapper) {
@@ -147,7 +150,7 @@ function switchState(newState) {
           renderTabs(); renderDictionary();
       }
       else if (newState === "GRAPH") {
-          if(typeof renderNexusGraph === 'function') setTimeout(renderNexusGraph, 50);
+          if(typeof renderNexusGraph === 'function') setTimeout(renderNexusGraph, 60);
       }
       else if (newState === "VAULT") {
           if (mainTabsWrapper) {
@@ -156,6 +159,9 @@ function switchState(newState) {
           }
           renderTabs();
           if (typeof window.renderVault === 'function') window.renderVault();
+      }
+      else if (newState === "SETTINGS") {
+          if (typeof window.renderSettingsView === 'function') window.renderSettingsView();
       }
       
   } catch (err) {
@@ -169,10 +175,8 @@ function toggleGlobalCollapse(type, forceOpen) {
   
   if (!dataList) return;
   
-  // 1. Update In-Memory State
   dataList.forEach(item => { if (item) item.isCollapsed = !forceOpen; });
 
-  // 2. Direct DOM mutation without full re-render
   const container = document.querySelector(containerId);
   if (container) {
     const bodies = container.querySelectorAll('.nexus-body');
@@ -222,7 +226,6 @@ function handleTabDragStart(e, name) {
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", name);
   }
-  // Use requestAnimationFrame so opacity doesn't stutter the initial grab
   requestAnimationFrame(() => {
     if (e.target) e.target.style.opacity = "0.35";
   });
@@ -254,7 +257,6 @@ function handleTabDragOver(e) {
 
 function handleTabDragLeave(e) {
   const btn = e.target.closest('button');
-  // Only remove class if leaving the actual button container, not a child span
   if (btn && e.relatedTarget && !btn.contains(e.relatedTarget)) {
     btn.classList.remove('tab-drag-over');
     if (currentDragHoverBtn === btn) currentDragHoverBtn = null;
@@ -294,10 +296,8 @@ function handleTabDrop(e, targetName) {
       const item = targetList.splice(fromIdx, 1)[0];
       targetList.splice(toIdx, 0, item);
       
-      // 1. Instant UI update first (0ms latency)
       renderTabs();
 
-      // 2. Offload heavier storage sync so it doesn't block the drop animation
       setTimeout(() => {
         if (typeof saveDatabase === 'function') saveDatabase();
       }, 50);
@@ -316,12 +316,10 @@ function renderTabs() {
   const inactiveClass = "px-4 py-3 text-xs md:text-sm font-semibold whitespace-nowrap border-b-[3px] border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-all uppercase tracking-wider tab-draggable cursor-pointer";
 
   if (appState === "INTELLIGENCE") {
-    
     const allIntelBtn = document.createElement("button");
     allIntelBtn.innerHTML = `<span>All Intelligence</span>`;
     allIntelBtn.className = currentWorkspace === "All" ? activeClass : inactiveClass;
     
-    // Dropping on "All" places the tab at the very beginning
     allIntelBtn.ondragover = (e) => handleTabDragOver(e);
     allIntelBtn.ondragenter = (e) => e.preventDefault();
     allIntelBtn.ondragleave = (e) => handleTabDragLeave(e);
@@ -387,7 +385,6 @@ function renderTabs() {
     container.appendChild(newWsBtn);
 
   } else if (appState === "CONCEPTS") {
-    
     const allConceptBtn = document.createElement("button");
     allConceptBtn.innerHTML = `<span>All Concepts</span>`;
     allConceptBtn.className = currentConceptCategory === "All" ? activeClass : inactiveClass;
@@ -459,7 +456,6 @@ function renderTabs() {
     container.appendChild(newCatBtn);
 
   } else if (appState === "DICTIONARY") {
-    
     if (!db.dictCategories || db.dictCategories.length === 0) {
       db.dictCategories = ["General", "Corporate / M&A", "Capital Markets", "Dispute Resolution", "Private Wealth"];
     }

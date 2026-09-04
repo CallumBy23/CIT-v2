@@ -160,10 +160,18 @@ window.handleAuthSubmit = async function(event) {
 
 window.logoutUser = async function() {
     if (confirm("Sign out of Legal Nexus on this device?")) {
-        if (supabaseClient) {
-            await supabaseClient.auth.signOut();
+        try {
+            if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                await supabaseClient.auth.signOut();
+            }
+        } catch (e) {
+            console.warn("Sign out remote notice:", e);
         }
         localStorage.removeItem("LEGAL_NEXUS_DB");
+        localStorage.removeItem("LEGAL_NEXUS_USER_PROFILE");
+        sessionStorage.removeItem("LN_BRIEFING_SHOWN_TODAY");
+        
+        window.currentUser = null;
         location.reload();
     }
 };
@@ -199,6 +207,8 @@ function updateUserUI(user) {
     let email = "";
     let metadata = {};
 
+    const localProfile = JSON.parse(localStorage.getItem("LEGAL_NEXUS_USER_PROFILE") || "{}");
+
     if (typeof user === 'string') {
         email = user;
     } else if (user && typeof user === 'object') {
@@ -206,22 +216,18 @@ function updateUserUI(user) {
         metadata = user.user_metadata || {};
     }
 
-    const fullName = metadata.full_name || (email ? email.split('@')[0] : "Candidate");
-    const username = metadata.username ? `@${metadata.username}` : (email ? `@${email.split('@')[0]}` : "@guest");
-    const firstName = fullName.split(' ')[0];
+    const fullName = (metadata.full_name || localProfile.full_name || (email ? email.split('@')[0] : "Candidate")).trim();
+    const rawUsername = (metadata.username || localProfile.username || (email ? email.split('@')[0] : "guest")).trim();
+    
+    // Extract first name only for dashboard and sidebar
+    const firstName = fullName.split(/\s+/)[0] || "Candidate";
+    const username = `@${rawUsername.replace(/^@/, '')}`;
 
-    if (fullNameEl) fullNameEl.innerText = fullName;
+    if (fullNameEl) fullNameEl.innerText = firstName;
     if (usernameEl) usernameEl.innerText = username;
 
     if (avatar) {
-        const initials = fullName
-            .split(' ')
-            .filter(Boolean)
-            .map(n => n[0])
-            .join('')
-            .substring(0, 2)
-            .toUpperCase();
-        avatar.innerText = initials || "LN";
+        avatar.innerText = firstName.substring(0, 2).toUpperCase() || "LN";
     }
 
     if (welcomeTitle) {
@@ -232,6 +238,80 @@ function updateUserUI(user) {
         window.renderSettingsView();
     }
 }
+
+// --- PROFILE EDIT CONTROLLER ---
+window.updateUserProfile = async function(event) {
+    if (event) event.preventDefault();
+    
+    const btn = document.getElementById("btnSaveProfile");
+    const banner = document.getElementById("profileSaveBanner");
+    const nameInput = document.getElementById("settingsFullName");
+    const userInput = document.getElementById("settingsUsername");
+
+    const newFullName = nameInput ? nameInput.value.trim() : "";
+    const newUsername = userInput ? userInput.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '') : "";
+
+    if (!newFullName) {
+        alert("Please enter a valid name.");
+        return;
+    }
+    if (!newUsername || newUsername.length < 3) {
+        alert("Username must be at least 3 alphanumeric characters.");
+        return;
+    }
+
+    const origHtml = btn ? btn.innerHTML : "";
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span>⏳</span> Saving...`;
+    }
+
+    localStorage.setItem("LEGAL_NEXUS_USER_PROFILE", JSON.stringify({
+        full_name: newFullName,
+        username: newUsername
+    }));
+
+    try {
+        if (supabaseClient && window.currentUser) {
+            const { data, error } = await supabaseClient.auth.updateUser({
+                data: {
+                    full_name: newFullName,
+                    username: newUsername
+                }
+            });
+
+            if (error) throw error;
+            if (data && data.user) {
+                window.currentUser = data.user;
+            }
+        }
+
+        updateUserUI(window.currentUser);
+
+        window.isEditingProfile = false;
+        if (typeof window.renderSettingsView === 'function') {
+            window.renderSettingsView();
+        }
+
+        if (typeof showToast === 'function') {
+            showToast("Profile updated successfully!", "success");
+        }
+    } catch (err) {
+        console.error("Profile update error:", err);
+        if (banner) {
+            banner.innerText = err.message || "Failed to update profile on server.";
+            banner.className = "text-xs p-3 rounded-lg font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 block";
+            banner.classList.remove("hidden");
+        } else {
+            alert(err.message || "Failed to update profile.");
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    }
+};
 
 // --- AUTHENTICATION & DEVICE SESSION ENGINE ---
 async function initAuthSession() {
@@ -325,13 +405,6 @@ async function loadDatabase() {
             supabaseClient.from('app_metadata').select('*').eq('user_id', uid)
         ]);
 
-        if (cErr) console.error("Concepts Table Error:", cErr);
-        if (fErr) console.error("Factors Table Error:", fErr);
-        if (dErr) console.error("Dictionary Table Error:", dErr);
-        if (dosErr) console.error("Dossiers Table Error:", dosErr);
-        if (pErr) console.error("Playbooks Table Error:", pErr);
-        if (mErr) console.error("Metadata Table Error:", mErr);
-
         if (cErr || fErr || dErr || dosErr || pErr || mErr) {
             throw new Error("Supabase returned an error during table fetch.");
         }
@@ -360,7 +433,7 @@ async function loadDatabase() {
                 region: f.region || "UK Focus",
                 workspace: f.workspace || "General Market",
                 linkedConcept: f.linked_concept || "",
-                linkedFirm: f.linked_firm || ""
+                linked_firm: f.linked_firm || ""
             }));
         }
 
@@ -393,15 +466,37 @@ async function loadDatabase() {
             db.targetFirms = Object.keys(db.dossiers);
         }
 
+        // Playbooks Deserializer with Robust JSON Parsing
         if (playbooksList && playbooksList.length > 0) {
             db.playbooks = {};
+            const parseSafe = (val) => {
+                if (!val) return [];
+                if (typeof val === 'string') {
+                    try { return JSON.parse(val); } catch(e) { return []; }
+                }
+                return Array.isArray(val) ? val : [];
+            };
+
+            const defaultStagesList = (typeof DEFAULT_STAGES !== 'undefined') ? DEFAULT_STAGES : [
+                { id: "s1", name: "Phase 1: Deal Initiation & Preliminary DD", minLevel: 1, maxLevel: 3, accent: "#6366f1" },
+                { id: "s2", name: "Phase 2: Definitive Drafting & Negotiations", minLevel: 4, maxLevel: 7, accent: "#0284c7" },
+                { id: "s3", name: "Phase 3: Interim Period & CP Checklist", minLevel: 8, maxLevel: 10, accent: "#d97706" },
+                { id: "s4", name: "Phase 4: Completion & Funds Flow", minLevel: 11, maxLevel: 13, accent: "#059669" },
+                { id: "s5", name: "Phase 5: Post-Closing Filings & Integration", minLevel: 14, maxLevel: 25, accent: "#9333ea" }
+            ];
+
             playbooksList.forEach(p => {
                 db.playbooks[p.name] = {
-                    nodes: p.nodes || [],
-                    edges: p.edges || [],
-                    stages: p.stages || []
+                    nodes: parseSafe(p.nodes),
+                    edges: parseSafe(p.edges),
+                    stages: parseSafe(p.stages).length > 0 ? parseSafe(p.stages) : JSON.parse(JSON.stringify(defaultStagesList))
                 };
             });
+
+            const pbKeys = Object.keys(db.playbooks);
+            if (pbKeys.length > 0 && (!currentPlaybook || !db.playbooks[currentPlaybook])) {
+                currentPlaybook = pbKeys[0];
+            }
         }
 
         (metadata || []).forEach(m => {
@@ -436,15 +531,66 @@ function renderActiveStateViews() {
     else if (appState === "SETTINGS" && typeof window.renderSettingsView === 'function') window.renderSettingsView();
 }
 
-// 2. Cloud Save Engine
+// 2. Cloud Save Engine (Complete RLS Data Sync)
 async function saveDatabase() {
     updateStatus("Saving...", "yellow");
     saveToLocalCache();
 
-    if (!supabaseClient || !window.currentUser) return;
+    if (!supabaseClient || !window.currentUser) {
+        updateStatus("Saved Locally", "yellow");
+        return;
+    }
     const uid = window.currentUser.id;
 
     try {
+        // A. Commit Concepts
+        if (Array.isArray(db.concepts) && db.concepts.length > 0) {
+            const conceptRows = db.concepts.map(c => ({
+                user_id: uid,
+                title: c.title || "Untitled Concept",
+                category: c.category || "General",
+                sub_tag: c.subTag || "",
+                body: c.body || "",
+                diagram: c.diagram || null,
+                srs: c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false }
+            }));
+            await supabaseClient.from('concepts').upsert(conceptRows, { onConflict: 'user_id, title' });
+        }
+
+        // B. Commit Intel (Factors)
+        if (Array.isArray(db.factors)) {
+            await supabaseClient.from('factors').delete().eq('user_id', uid);
+            if (db.factors.length > 0) {
+                const factorRows = db.factors.map(f => ({
+                    user_id: uid,
+                    title: f.title || f.headline || "Untitled Factor",
+                    summary: f.summary || "",
+                    description: f.description || "",
+                    implications: f.implications || "",
+                    metric: f.metric || "",
+                    pestle: f.pestle || "Economic",
+                    region: f.region || "UK Focus",
+                    workspace: f.workspace || "General Market",
+                    linked_concept: f.linkedConcept || "",
+                    linked_firm: f.linkedFirm || ""
+                }));
+                await supabaseClient.from('factors').insert(factorRows);
+            }
+        }
+
+        // C. Commit Dictionary
+        if (Array.isArray(db.dictionary) && db.dictionary.length > 0) {
+            const dictRows = db.dictionary.map(d => ({
+                user_id: uid,
+                term: d.term || "Untitled Term",
+                category: d.category || "General",
+                definition: d.definition || "",
+                srs: d.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false }
+            }));
+            await supabaseClient.from('dictionary').upsert(dictRows, { onConflict: 'user_id, term' });
+        }
+
+        // D. Commit App Metadata
         await supabaseClient.from('app_metadata').upsert([
             { user_id: uid, key: 'workspaces', value: db.workspaces },
             { user_id: uid, key: 'conceptCategories', value: db.conceptCategories },
@@ -452,19 +598,23 @@ async function saveDatabase() {
             { user_id: uid, key: 'macroMetrics', value: db.macroMetrics || {} }
         ], { onConflict: 'user_id, key' });
 
-        if (typeof currentPlaybook !== 'undefined' && currentPlaybook && db.playbooks[currentPlaybook]) {
-            const pb = db.playbooks[currentPlaybook];
-            await supabaseClient.from('playbooks').upsert({
+        // E. Commit ALL Playbooks (Not just currentPlaybook)
+        if (db.playbooks && typeof db.playbooks === 'object') {
+            const playbookRows = Object.keys(db.playbooks).map(pbName => ({
                 user_id: uid,
-                name: currentPlaybook,
-                nodes: pb.nodes || [],
-                edges: pb.edges || [],
-                stages: pb.stages || [],
+                name: pbName,
+                nodes: db.playbooks[pbName].nodes || [],
+                edges: db.playbooks[pbName].edges || [],
+                stages: db.playbooks[pbName].stages || [],
                 updated_at: new Date().toISOString()
-            }, { onConflict: 'user_id, name' });
+            }));
+            if (playbookRows.length > 0) {
+                await supabaseClient.from('playbooks').upsert(playbookRows, { onConflict: 'user_id, name' });
+            }
         }
 
-        if (typeof currentDossierFirm !== 'undefined' && currentDossierFirm && db.dossiers[currentDossierFirm]) {
+        // F. Commit Active Dossier
+        if (typeof currentDossierFirm !== 'undefined' && currentDossierFirm && db.dossiers && db.dossiers[currentDossierFirm]) {
             const f = db.dossiers[currentDossierFirm];
             await supabaseClient.from('dossiers').upsert({
                 user_id: uid,
@@ -499,7 +649,17 @@ function saveToLocalCache() {
 }
 
 function downloadLocalBackup() {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+    if (typeof syncPlaybookToDb === 'function') {
+        try { syncPlaybookToDb(); } catch(e){}
+    }
+
+    const exportPayload = {
+        ...db,
+        exportedAt: new Date().toISOString(),
+        clientVersion: "2.1"
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
     const a = document.createElement('a');
     a.setAttribute("href", dataStr);
     a.setAttribute("download", `legal_nexus_backup_${new Date().toISOString().slice(0,10)}.json`);
@@ -674,6 +834,11 @@ function openManualBriefing() {
 }
 
 function checkDailyBriefing(isManual = false) {
+    if (!isManual) {
+        const alreadyShown = sessionStorage.getItem("LN_BRIEFING_SHOWN_TODAY");
+        if (alreadyShown === "true") return;
+    }
+
     let briefingHTML = "";
     let hasAlerts = false;
 
@@ -754,6 +919,7 @@ function checkDailyBriefing(isManual = false) {
     }
   
     if (hasAlerts || isManual) {
+        sessionStorage.setItem("LN_BRIEFING_SHOWN_TODAY", "true");
         document.getElementById('briefingContent').innerHTML = briefingHTML;
         document.getElementById('dailyBriefingModal').classList.remove('hidden');
     }
@@ -763,166 +929,3 @@ function checkDailyBriefing(isManual = false) {
 document.addEventListener('DOMContentLoaded', () => {
     initAuthSession();
 });
-
-// --- USER PROFILE & UI DISPATCHER ---
-function updateUserUI(user) {
-    const fullNameEl = document.getElementById("userFullNameDisplay");
-    const usernameEl = document.getElementById("userUsernameDisplay");
-    const avatar = document.getElementById("userAvatar");
-    const welcomeTitle = document.getElementById("dashboardWelcomeTitle");
-
-    let email = "";
-    let metadata = {};
-
-    if (typeof user === 'string') {
-        email = user;
-    } else if (user && typeof user === 'object') {
-        email = user.email || "";
-        metadata = user.user_metadata || {};
-    }
-
-    const rawFullName = (metadata.full_name || (email ? email.split('@')[0] : "Candidate")).trim();
-    // Strictly extract the first name only
-    const firstName = rawFullName.split(/\s+/)[0] || "Candidate";
-    const username = metadata.username ? `@${metadata.username}` : (email ? `@${email.split('@')[0]}` : "@guest");
-
-    // Display first name only in bottom-left sidebar
-    if (fullNameEl) fullNameEl.innerText = firstName;
-    if (usernameEl) usernameEl.innerText = username;
-
-    if (avatar) {
-        avatar.innerText = firstName.substring(0, 2).toUpperCase() || "LN";
-    }
-
-    // Display first name only on the dashboard
-    if (welcomeTitle) {
-        welcomeTitle.innerText = `Welcome back, ${firstName}`;
-    }
-
-    if (typeof window.renderSettingsView === 'function') {
-        window.renderSettingsView();
-    }
-}
-
-// --- USER PROFILE & UI DISPATCHER ---
-function updateUserUI(user) {
-    const fullNameEl = document.getElementById("userFullNameDisplay");
-    const usernameEl = document.getElementById("userUsernameDisplay");
-    const avatar = document.getElementById("userAvatar");
-    const welcomeTitle = document.getElementById("dashboardWelcomeTitle");
-
-    let email = "";
-    let metadata = {};
-
-    // Check localStorage fallback if metadata hasn't reloaded yet
-    const localProfile = JSON.parse(localStorage.getItem("LEGAL_NEXUS_USER_PROFILE") || "{}");
-
-    if (typeof user === 'string') {
-        email = user;
-    } else if (user && typeof user === 'object') {
-        email = user.email || "";
-        metadata = user.user_metadata || {};
-    }
-
-    const fullName = (metadata.full_name || localProfile.full_name || (email ? email.split('@')[0] : "Candidate")).trim();
-    const rawUsername = (metadata.username || localProfile.username || (email ? email.split('@')[0] : "guest")).trim();
-    
-    // Strictly extract first name only
-    const firstName = fullName.split(/\s+/)[0] || "Candidate";
-    const username = `@${rawUsername.replace(/^@/, '')}`;
-
-    // Update bottom-left sidebar pill
-    if (fullNameEl) fullNameEl.innerText = firstName;
-    if (usernameEl) usernameEl.innerText = username;
-
-    if (avatar) {
-        avatar.innerText = firstName.substring(0, 2).toUpperCase() || "LN";
-    }
-
-    // Update dashboard header greeting
-    if (welcomeTitle) {
-        welcomeTitle.innerText = `Welcome back, ${firstName}`;
-    }
-
-    // Re-render settings view if open
-    if (typeof window.renderSettingsView === 'function') {
-        window.renderSettingsView();
-    }
-}
-
-// --- PROFILE EDIT CONTROLLER ---
-window.updateUserProfile = async function(event) {
-    if (event) event.preventDefault();
-    
-    const btn = document.getElementById("btnSaveProfile");
-    const banner = document.getElementById("profileSaveBanner");
-    const nameInput = document.getElementById("settingsFullName");
-    const userInput = document.getElementById("settingsUsername");
-
-    const newFullName = nameInput ? nameInput.value.trim() : "";
-    const newUsername = userInput ? userInput.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '') : "";
-
-    if (!newFullName) {
-        alert("Please enter a valid name.");
-        return;
-    }
-    if (!newUsername || newUsername.length < 3) {
-        alert("Username must be at least 3 alphanumeric characters.");
-        return;
-    }
-
-    const origHtml = btn ? btn.innerHTML : "";
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `<span>⏳</span> Saving...`;
-    }
-
-    // Immediately store locally for instant zero-latency UI consistency
-    localStorage.setItem("LEGAL_NEXUS_USER_PROFILE", JSON.stringify({
-        full_name: newFullName,
-        username: newUsername
-    }));
-
-    try {
-        if (supabaseClient && window.currentUser) {
-            const { data, error } = await supabaseClient.auth.updateUser({
-                data: {
-                    full_name: newFullName,
-                    username: newUsername
-                }
-            });
-
-            if (error) throw error;
-            if (data && data.user) {
-                window.currentUser = data.user;
-            }
-        }
-
-        // Apply first-name extraction and UI changes across the application
-        updateUserUI(window.currentUser);
-
-        // Hide edit drawer and reset button state
-        window.isEditingProfile = false;
-        if (typeof window.renderSettingsView === 'function') {
-            window.renderSettingsView();
-        }
-
-        if (typeof showToast === 'function') {
-            showToast("Profile updated successfully!", "success");
-        }
-    } catch (err) {
-        console.error("Profile update error:", err);
-        if (banner) {
-            banner.innerText = err.message || "Failed to update profile on server.";
-            banner.className = "text-xs p-3 rounded-lg font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 block";
-            banner.classList.remove("hidden");
-        } else {
-            alert(err.message || "Failed to update profile.");
-        }
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = origHtml;
-        }
-    }
-};
