@@ -1,17 +1,36 @@
 // AI SIMULATORS, ASSESSMENT & AUTO-SCORING
 // ==========================================
 async function callGeminiApi(promptText) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR_")) throw new Error("API Key missing.");
-  const modelRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`);
-  const modelData = await modelRes.json();
-  if (modelData.error) throw new Error(modelData.error.message);
-  const validModel = modelData.models.find(m => m.supportedGenerationMethods?.includes("generateContent") && m.name.includes("gemini"));
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${validModel.name}:generateContent?key=${GEMINI_API_KEY}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+  if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR_")) {
+    throw new Error("Gemini API key is missing in config.js.");
+  }
+
+  const cleanKey = GEMINI_API_KEY.trim();
+  // Standard endpoint without query param ambiguity
+  const endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-goog-api-key': cleanKey
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{ text: promptText }]
+      }]
+    })
   });
+
   const data = await response.json();
-  if (data.error) throw new Error(data.error.message);
+  if (data.error) {
+    throw new Error(data.error.message || "Gemini API error.");
+  }
+
+  if (!data.candidates || data.candidates.length === 0) {
+    throw new Error("Gemini returned an empty response. Please try again.");
+  }
+
   return data.candidates[0].content.parts[0].text;
 }
 

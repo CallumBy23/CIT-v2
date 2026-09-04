@@ -16,7 +16,7 @@ const DEFAULT_STAGES = [
 ];
 
 window.getPlaybookStages = function() {
-    if (currentPlaybook && db.playbooks[currentPlaybook] && Array.isArray(db.playbooks[currentPlaybook].stages)) {
+    if (currentPlaybook && db.playbooks && db.playbooks[currentPlaybook] && Array.isArray(db.playbooks[currentPlaybook].stages)) {
         return db.playbooks[currentPlaybook].stages;
     }
     return DEFAULT_STAGES;
@@ -27,16 +27,20 @@ window.renderPlaybookList = function() {
     if (!container) return;
     container.innerHTML = "";
 
-    const playbooks = Object.keys(db.playbooks || {}).sort((a, b) => a.localeCompare(b));
+    if (!db.playbooks) db.playbooks = {};
+    const playbooks = Object.keys(db.playbooks).sort((a, b) => a.localeCompare(b));
     
     if (playbooks.length === 0) {
         container.innerHTML = `<p class="text-xs text-slate-500 italic mt-2">No playbooks created yet. Click + Add above.</p>`;
-        document.getElementById('playbookCanvas').style.display = 'none';
-        document.getElementById('activePlaybookLabel').innerText = "No Playbook Selected";
+        const canvasEl = document.getElementById('playbookCanvas');
+        if (canvasEl) canvasEl.style.display = 'none';
+        const labelEl = document.getElementById('activePlaybookLabel');
+        if (labelEl) labelEl.innerText = "No Playbook Selected";
         return;
     }
 
-    document.getElementById('playbookCanvas').style.display = 'block';
+    const canvasEl = document.getElementById('playbookCanvas');
+    if (canvasEl) canvasEl.style.display = 'block';
 
     if (!currentPlaybook || !db.playbooks[currentPlaybook]) {
         currentPlaybook = playbooks[0];
@@ -45,7 +49,7 @@ window.renderPlaybookList = function() {
     playbooks.forEach(name => {
         const btn = document.createElement("button");
         const isActive = name === currentPlaybook;
-        btn.className = `w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition flex justify-between items-center ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`;
+        btn.className = `w-full text-left px-4 py-2.5 rounded-lg text-sm font-bold transition flex justify-between items-center ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200'}`;
         btn.innerHTML = `<span class="truncate">${name}</span> <span onclick="managePlaybook('${name.replace(/'/g, "\\'")}', event)" class="text-xs opacity-50 hover:opacity-100 shrink-0 ml-2">⚙️</span>`;
         btn.onclick = (e) => {
             if (e.target.closest('span[onclick]')) return;
@@ -59,13 +63,41 @@ window.renderPlaybookList = function() {
     renderPlaybookGraph(currentPlaybook);
 };
 
-window.addPlaybook = function() {
+window.addPlaybook = async function() {
     const name = prompt("Enter Playbook Name (e.g., Private M&A):");
-    if (name && !db.playbooks[name]) {
-        db.playbooks[name] = { nodes: [], edges: [], stages: JSON.parse(JSON.stringify(DEFAULT_STAGES)) };
-        currentPlaybook = name;
-        saveDatabase();
+    if (!name || !name.trim()) return;
+    const cleanName = name.trim();
+
+    if (!db.playbooks) db.playbooks = {};
+    if (!db.playbooks[cleanName]) {
+        db.playbooks[cleanName] = { 
+            nodes: [], 
+            edges: [], 
+            stages: JSON.parse(JSON.stringify(DEFAULT_STAGES)) 
+        };
+        currentPlaybook = cleanName;
+
+        // Immediate Direct Cloud Upsert
+        if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
+            try {
+                await supabaseClient.from('playbooks').upsert({
+                    user_id: window.currentUser.id,
+                    name: cleanName,
+                    nodes: [],
+                    edges: [],
+                    stages: DEFAULT_STAGES,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id, name' });
+            } catch(e) {
+                console.warn("Playbook cloud sync notice:", e);
+            }
+        }
+
+        if (typeof saveDatabase === 'function') saveDatabase();
         renderPlaybookList();
+        if (typeof showToast === 'function') showToast(`Playbook "${cleanName}" created.`, "success");
+    } else {
+        alert("A playbook with this name already exists.");
     }
 };
 
@@ -78,6 +110,11 @@ window.managePlaybook = function(oldName, event) {
         if (confirm(`Delete the "${oldName}" playbook?`)) {
             delete db.playbooks[oldName];
             currentPlaybook = Object.keys(db.playbooks)[0] || null;
+            
+            if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
+                supabaseClient.from('playbooks').delete().match({ user_id: window.currentUser.id, name: oldName }).then(() => {});
+            }
+
             saveDatabase(); 
             renderPlaybookList();
         }
@@ -85,6 +122,13 @@ window.managePlaybook = function(oldName, event) {
         db.playbooks[input] = db.playbooks[oldName];
         delete db.playbooks[oldName];
         currentPlaybook = input;
+
+        if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
+            supabaseClient.from('playbooks').delete().match({ user_id: window.currentUser.id, name: oldName }).then(() => {
+                syncPlaybookToDb();
+            });
+        }
+
         saveDatabase(); 
         renderPlaybookList();
     }
@@ -92,7 +136,7 @@ window.managePlaybook = function(oldName, event) {
 
 // --- SILENT BACKGROUND LAYOUT CALCULATOR ---
 window.refreshPlaybookLayout = function() {
-    if (!currentPlaybook || !db.playbooks[currentPlaybook]) return;
+    if (!currentPlaybook || !db.playbooks || !db.playbooks[currentPlaybook]) return;
     
     let nodesMap = new Map();
     pbNodes.forEach(n => nodesMap.set(n.id, { ...n }));
@@ -157,7 +201,7 @@ window.refreshPlaybookLayout = function() {
         
         newX = Math.round(newX / 280) * 280; 
 
-        // Role-based Node Styling (Start, Complete, Milestone, or KMS link)
+        // Role-based Node Styling
         let nodeColor = { background: '#2563eb', border: '#1d4ed8', highlight: { background: '#3b82f6', border: '#1e40af' } };
         let shape = "box";
 
@@ -193,7 +237,6 @@ function drawPlaybookStageLanes(ctx) {
     const isDark = document.documentElement.classList.contains('dark');
     const stages = window.getPlaybookStages();
 
-    // 1. Calculate the exact lateral boundaries of existing nodes
     let minX = Infinity;
     let maxX = -Infinity;
     allNodes.forEach(n => {
@@ -201,23 +244,19 @@ function drawPlaybookStageLanes(ctx) {
         if (n.x > maxX) maxX = n.x;
     });
 
-    // Provide comfortable lateral padding around the board
     const boardPadding = 180;
     const boardLeft = (minX === Infinity ? -400 : minX) - boardPadding;
     const boardRight = (maxX === -Infinity ? 400 : maxX) + boardPadding;
     const boardWidth = boardRight - boardLeft;
 
     stages.forEach(stage => {
-        // 2. Auto-Collapse: Detect if any node exists inside this stage's level range
         const nodesInStage = allNodes.filter(n => {
             const lvl = n.level || n.manualLevel || 1;
             return lvl >= stage.minLevel && lvl <= stage.maxLevel;
         });
 
-        // COLLAPSE ON ITSELF: If zero nodes exist in this stage, draw nothing!
         if (nodesInStage.length === 0) return;
 
-        // Measure true vertical height of this stage from the nodes present
         const minLvlInStage = Math.min(...nodesInStage.map(n => n.level || n.manualLevel || stage.minLevel));
         const maxLvlInStage = Math.max(...nodesInStage.map(n => n.level || n.manualLevel || stage.maxLevel));
 
@@ -225,12 +264,10 @@ function drawPlaybookStageLanes(ctx) {
         const bottomY = (maxLvlInStage * 160) + 75;
         const height = bottomY - topY;
 
-        // Draw bounded container box for this phase
         ctx.fillStyle = isDark ? "rgba(15, 23, 42, 0.45)" : "rgba(248, 250, 252, 0.75)";
         ctx.strokeStyle = isDark ? "rgba(51, 65, 85, 0.6)" : "rgba(203, 213, 225, 0.8)";
         ctx.lineWidth = 1.5;
 
-        // Rounded swimlane card container
         const r = 12;
         ctx.beginPath();
         ctx.moveTo(boardLeft + r, topY);
@@ -246,7 +283,6 @@ function drawPlaybookStageLanes(ctx) {
         ctx.fill();
         ctx.stroke();
 
-        // Stage Title Pill Header
         ctx.fillStyle = stage.accent || "#6366f1";
         ctx.beginPath();
         ctx.arc(boardLeft + 22, topY + 22, 5, 0, 2 * Math.PI);
@@ -260,7 +296,10 @@ function drawPlaybookStageLanes(ctx) {
 }
 
 window.renderPlaybookGraph = function(playbookName) {
-    document.getElementById('activePlaybookLabel').innerText = playbookName;
+    const labelEl = document.getElementById('activePlaybookLabel');
+    if (labelEl) labelEl.innerText = playbookName;
+
+    if (!db.playbooks) db.playbooks = {};
     const dataObj = db.playbooks[playbookName] || { nodes: [], edges: [] };
     
     pbNodes.clear();
@@ -272,6 +311,8 @@ window.renderPlaybookGraph = function(playbookName) {
     window.refreshPlaybookLayout();
 
     const container = document.getElementById('playbookCanvas');
+    if (!container) return;
+    
     const data = { nodes: pbNodes, edges: pbEdges };
     
     const options = {
@@ -356,7 +397,6 @@ window.renderPlaybookGraph = function(playbookName) {
             shadow: { enabled: true, color: 'rgba(0,0,0,0.08)', size: 6, x: 0, y: 3 },
             borderWidth: 2
         },
-        // Orthogonal bus-style curves prevent criss-cross diagonals
         edges: {
             width: 2,
             smooth: {
@@ -373,7 +413,6 @@ window.renderPlaybookGraph = function(playbookName) {
     
     playbookNetwork = new vis.Network(container, data, options);
 
-    // Dynamic bounded lane rendering
     playbookNetwork.on("beforeDrawing", function (ctx) {
         drawPlaybookStageLanes(ctx);
     });
@@ -424,12 +463,14 @@ function syncPlaybookToDb() {
         return clean;
     });
     
+    if (!db.playbooks) db.playbooks = {};
     db.playbooks[currentPlaybook] = {
         nodes: cleanNodes,
         edges: pbEdges.get(),
         stages: window.getPlaybookStages()
     };
-    saveDatabase();
+
+    if (typeof saveDatabase === 'function') saveDatabase();
 }
 
 // --- DIRECT NODE-TO-KMS LINKING SYSTEM ---
@@ -590,7 +631,7 @@ window.saveNodeData = function() {
     if (typeof showToast === 'function') showToast("Step properties saved.", "success");
 };
 
-// --- STAGE CONFIGURATION MODAL (CUSTOMISE BOUNDARIES) ---
+// --- STAGE CONFIGURATION MODAL ---
 window.openStageConfigModal = function() {
     let modal = document.getElementById('stageConfigModal');
     if (!modal) {
@@ -642,7 +683,7 @@ window.closeStageConfigModal = function() {
 };
 
 window.saveStageConfig = function() {
-    if (!currentPlaybook || !db.playbooks[currentPlaybook]) return;
+    if (!currentPlaybook || !db.playbooks || !db.playbooks[currentPlaybook]) return;
     
     const names = document.querySelectorAll('.stage-name-input');
     const mins = document.querySelectorAll('.stage-min-input');
@@ -700,11 +741,12 @@ window.exportPlaybookToConcept = function() {
         if (action.trim().toUpperCase() === 'NEW') {
             switchState('CONCEPTS');
             const sidebar = document.getElementById('conceptLogSidebar');
-            sidebar.classList.remove('-translate-x-full');
-            
-            if (window.innerWidth >= 768) {
-                sidebar.classList.remove('md:hidden');
-                sidebar.classList.add('md:flex');
+            if (sidebar) {
+                sidebar.classList.remove('-translate-x-full');
+                if (window.innerWidth >= 768) {
+                    sidebar.classList.remove('md:hidden');
+                    sidebar.classList.add('md:flex');
+                }
             }
             
             document.getElementById('conceptTitle').value = `${currentPlaybook} Flowchart`;

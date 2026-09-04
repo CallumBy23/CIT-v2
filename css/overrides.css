@@ -347,3 +347,74 @@ button[onclick*="toggleDarkMode"]:disabled {
 #playbookCanvas canvas {
     outline: none !important;
 }
+
+/* ========================================================= */
+/* CARD HEADLINES: NEUTRAL BASE + DYNAMIC ACCENT ON HOVER     */
+/* ========================================================= */
+
+/* 1. Rest State (Not Hovered): Clean, neutral typography */
+#cardsContainer > div h4,
+#conceptsContainer > div h4,
+#dictionaryContainer > div h4,
+#vaultContainer > div h4,
+#dossierNexusFeed > div h4,
+.nexus-card h4,
+.nexus-title {
+    color: #0f172a !important; /* Deep neutral slate in light mode */
+    transition: color 0.15s ease-in-out;
+}
+
+/* Dark Mode (Not Hovered) */
+.dark #cardsContainer > div h4,
+.dark #conceptsContainer > div h4,
+.dark #dictionaryContainer > div h4,
+.dark #vaultContainer > div h4,
+.dark #dossierNexusFeed > div h4 {
+    color: #f8fafc !important;
+}
+
+/* Warm Paper Mode (Not Hovered) */
+[data-theme="warm"] #cardsContainer > div h4,
+[data-theme="warm"] #conceptsContainer > div h4,
+[data-theme="warm"] #dictionaryContainer > div h4,
+[data-theme="warm"] #vaultContainer > div h4,
+[data-theme="warm"] #dossierNexusFeed > div h4 {
+    color: #1c1917 !important; /* Warm charcoal */
+}
+
+/* 2. Hover State: Color shifts dynamically to the selected palette accent */
+#cardsContainer > div:hover h4,
+#conceptsContainer > div:hover h4,
+#dictionaryContainer > div:hover h4,
+#vaultContainer > div:hover h4,
+#dossierNexusFeed > div:hover h4,
+.nexus-card:hover h4 {
+    color: var(--theme-primary, #2563eb) !important;
+}
+
+/* Dark Mode Hover */
+.dark #cardsContainer > div:hover h4,
+.dark #conceptsContainer > div:hover h4,
+.dark #dictionaryContainer > div:hover h4,
+.dark #vaultContainer > div:hover h4,
+.dark #dossierNexusFeed > div:hover h4 {
+    color: var(--theme-primary, #60a5fa) !important;
+    filter: brightness(1.25);
+}
+
+/* Warm Paper Hover */
+[data-theme="warm"] #cardsContainer > div:hover h4,
+[data-theme="warm"] #conceptsContainer > div:hover h4,
+[data-theme="warm"] #dictionaryContainer > div:hover h4,
+[data-theme="warm"] #vaultContainer > div:hover h4,
+[data-theme="warm"] #dossierNexusFeed > div:hover h4 {
+    color: var(--theme-primary, #1e3a8a) !important;
+    filter: brightness(0.9);
+}
+
+/* Inherit color into any highlighted glossary terms inside the title */
+#cardsContainer > div h4 .dict-highlight-target,
+#conceptsContainer > div h4 .dict-highlight-target {
+    color: inherit !important;
+    text-decoration-color: currentColor !important;
+}

@@ -105,7 +105,7 @@ const systemTemplates = `
             <i data-lucide="image" class="w-3.5 h-3.5"></i> Background
             <input type="file" accept="image/*" class="hidden" onchange="uploadCanvasBackground(event)">
         </label>
-        <button onclick="saveDrawing()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-1.5 rounded-sm text-xs transition shadow-sm flex items-center gap-1.5"><i data-lucide="save" class="w-3.5 h-3.5"></i> Save</button>
+        <button onclick="saveDrawing()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-1.5 rounded-sm text-xs transition shadow-sm flex items-center gap-1.5"><i data-lucide="save" class="w-4 h-4"></i> Save</button>
         <button onclick="closeDrawingPad()" class="text-slate-400 hover:text-white transition ml-2"><i data-lucide="x" class="w-6 h-6"></i></button>
       </div>
     </div>
@@ -415,22 +415,20 @@ const systemTemplates = `
   <div id="flashcardModal" class="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] hidden flex-col items-center justify-center p-4 pt-safe pb-safe" onclick="if(event.target===this) closeFlashcards()">
     <div class="w-full max-w-3xl flex flex-col items-center h-full max-h-[85vh] relative animate-fade-in-up">
       <div class="w-full flex justify-between items-center mb-4 shrink-0 px-2">
-        <span class="text-slate-400 font-bold tracking-widest uppercase text-xs border border-slate-700 bg-slate-800 px-3 py-1 rounded-sm shadow-inner" id="flashcardCounter">Card 1 of 5</span>
+        <span class="text-slate-400 font-bold tracking-widest uppercase text-xs border border-slate-700 bg-slate-800 px-3 py-1 rounded-sm shadow-inner" id="flashcardCounter">Card 1 of 1</span>
         <button onclick="closeFlashcards()" class="text-slate-400 hover:text-white transition"><i data-lucide="x" class="w-7 h-7"></i></button>
       </div>
       <div class="w-full flex-1 bg-white dark:bg-slate-900 rounded-md shadow-2xl overflow-hidden flex flex-col relative border border-slate-300 dark:border-slate-700" id="flashcardContainer">
         
-        <!-- FRONT OF CARD (ACTIVE RECALL DRILL & CLASSIC REVEAL) -->
-        <div id="flashcardFront" class="absolute inset-0 flex flex-col items-center justify-between p-6 md:p-8 text-center cursor-default bg-white dark:bg-slate-900 overflow-y-auto">
-            <!-- Top Mode Bar & Category -->
+        <!-- FRONT OF CARD -->
+        <div id="flashcardFront" class="absolute inset-0 flex flex-col items-center justify-between p-6 md:p-8 text-center cursor-pointer bg-white dark:bg-slate-900 overflow-y-auto select-none" onclick="if(!event.target.closest('button') && !event.target.closest('input') && !event.target.closest('textarea') && !event.target.closest('#recallInputDock') && !event.target.closest('#feynmanDrawer')) flipFlashcard()">
             <div class="w-full flex justify-between items-center shrink-0">
                 <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 px-3 py-1 rounded-sm shadow-sm" id="fcCategory">Category</span>
-                <button type="button" onclick="window.toggleRecallDrillMode()" id="btnToggleRecallMode" class="text-xs font-bold px-3 py-1 rounded-full border transition flex items-center gap-1.5 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <button type="button" onclick="event.stopPropagation(); window.toggleRecallDrillMode()" id="btnToggleRecallMode" class="text-xs font-bold px-3 py-1 rounded-full border transition flex items-center gap-1.5 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
                     <i data-lucide="sparkles" class="w-3.5 h-3.5 text-blue-500"></i> <span id="recallModeLabel">Recall Drill: OFF</span>
                 </button>
             </div>
 
-            <!-- Card Recall Display -->
             <div class="my-auto w-full max-w-xl flex flex-col items-center justify-center py-4">
                 <div id="recallCardBadge" class="hidden mb-4 px-3 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                     Active Recall Drill
@@ -439,21 +437,17 @@ const systemTemplates = `
                 <h2 class="text-3xl md:text-5xl font-serif font-black text-slate-900 dark:text-white leading-tight" id="fcTitle">Concept Title</h2>
                 <div id="fcFrontBody" class="hidden text-base md:text-lg font-medium text-slate-700 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed overflow-y-auto max-h-[35vh] text-left p-5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800/50 mt-4 shadow-inner"></div>
                 
-                <!-- Classic Mode Instruction -->
-                <p class="text-slate-400 mt-6 text-xs uppercase tracking-widest animate-pulse font-bold cursor-pointer" id="fcInstruction" onclick="flipFlashcard()">(Tap or click to reveal answer)</p>
+                <p class="text-slate-400 mt-6 text-xs uppercase tracking-widest animate-pulse font-bold" id="fcInstruction">(Tap card to reveal answer)</p>
 
-                <!-- Active Recall Input Dock -->
-                <div id="recallInputDock" class="hidden w-full mt-6 flex flex-col gap-3 text-left">
+                <div id="recallInputDock" class="hidden w-full mt-6 flex flex-col gap-3 text-left" onclick="event.stopPropagation()">
                     <div class="relative w-full">
                         <textarea id="recallAnswerInput" rows="3" placeholder="Type or speak the definition..." class="w-full border-2 border-slate-300 dark:border-slate-700 rounded-xl p-3.5 pr-12 text-sm focus:border-blue-500 outline-none dark:bg-slate-800 dark:text-white shadow-inner resize-none transition-colors"></textarea>
                         
-                        <!-- Native Speech-to-Text Button -->
                         <button type="button" id="btnRecallMic" onclick="window.toggleSpeechRecognition()" class="absolute right-3 top-3 p-2 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Speak Answer">
                             <i data-lucide="mic" class="w-5 h-5"></i>
                         </button>
                     </div>
 
-                    <!-- Evaluation Banner -->
                     <div id="recallResultBanner" class="hidden rounded-xl p-4 border transition-all text-xs flex flex-col gap-1.5">
                         <div class="flex items-center justify-between font-bold" id="recallResultStatus"></div>
                         <div class="text-slate-600 dark:text-slate-300 leading-relaxed" id="recallModelAnswer"></div>
@@ -470,19 +464,18 @@ const systemTemplates = `
                 </div>
             </div>
 
-            <!-- Bottom Feynman Placeholder -->
-            <div class="w-full flex justify-center mt-2 shrink-0">
+            <div class="w-full flex justify-center mt-2 shrink-0" onclick="event.stopPropagation()">
                 <button onclick="toggleFeynmanDrawer(this)" id="btnShowFeynman" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 hover:border-slate-400 rounded-sm px-4 py-1.5 bg-white dark:bg-slate-900 shadow-sm"><i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> Optional: Feynman Technique</button>
             </div>
         </div>
 
         <!-- BACK OF CARD -->
-        <div id="flashcardBack" class="absolute inset-0 flex-col hidden overflow-hidden bg-white dark:bg-slate-900">
+        <div id="flashcardBack" class="absolute inset-0 flex-col hidden overflow-hidden bg-white dark:bg-slate-900 cursor-pointer" onclick="if(!event.target.closest('button') && !event.target.closest('a') && !event.target.closest('input')) unflipFlashcard()">
             <div class="p-6 md:p-8 bg-slate-50 dark:bg-[#0b1120] border-b border-slate-200 dark:border-slate-800 shrink-0">
               <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 block" id="fcBackCategory">Category</span>
               <h3 class="text-2xl md:text-3xl font-serif font-black text-slate-900 dark:text-white" id="fcBackTitle">Concept Title</h3>
             </div>
-            <div class="flex-1 overflow-y-auto flex flex-col">
+            <div class="flex-1 overflow-y-auto flex flex-col cursor-text" onclick="event.stopPropagation()">
                 <div id="feynmanFeedback" class="hidden m-6 md:m-8 mb-0 p-5 bg-slate-100 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-sm shadow-inner shrink-0">
                    <h4 class="text-[10px] font-bold text-slate-800 dark:text-slate-300 uppercase tracking-widest mb-2 flex items-center gap-1.5"><i data-lucide="bot" class="w-3.5 h-3.5"></i> AI Grader Feedback</h4>
                    <div id="feynmanFeedbackContent" class="text-sm text-slate-700 dark:text-slate-200 font-medium leading-relaxed"></div>
@@ -491,6 +484,7 @@ const systemTemplates = `
             </div>
         </div>
       </div>
+      
       <!-- Controls -->
       <div id="flashcardControls" class="w-full grid grid-cols-5 gap-2 md:gap-3 mt-4 shrink-0 hidden pb-safe">
         <button onclick="processFlashcardResult('forgot')" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold py-3 md:py-4 rounded-md text-xs flex flex-col items-center transition shadow-md"><i data-lucide="rotate-ccw" class="w-5 h-5 mb-1 text-red-500"></i> <span class="uppercase text-[10px] md:text-xs">Forgot</span> <span class="text-[9px] font-normal text-slate-400 mt-1">&lt; 1m</span></button>
@@ -504,6 +498,78 @@ const systemTemplates = `
 
   <!-- CHEAT SHEET PRINT CONTAINER -->
   <div id="cheatSheetContainer" class="hidden absolute inset-0 bg-white dark:bg-slate-950 z-[99999] p-4 md:p-8 min-h-[100dvh] overflow-y-auto print:p-0 pt-safe pb-safe"></div>
+
+  <!-- FULL-SCREEN CLEAN AUTHENTICATION VIEW -->
+  <div id="authModal" class="fixed inset-0 bg-[#f8f9fa] dark:bg-[#0b0f19] z-[99999] hidden flex-col justify-between p-6 md:p-12 overflow-y-auto">
+    <!-- Top Left Brand Header -->
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
+        <i data-lucide="scale" class="w-5 h-5"></i>
+      </div>
+      <span class="text-xl font-bold font-sans tracking-tight text-slate-900 dark:text-white">Legal Nexus</span>
+    </div>
+
+    <!-- Centered Card Form -->
+    <div class="w-full flex justify-center my-auto py-8">
+      <div class="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-slate-800 rounded-2xl max-w-[440px] w-full p-8 md:p-10 shadow-sm relative">
+        
+        <!-- Headers -->
+        <div class="mb-8 text-left">
+          <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 mb-2" id="authModalSubtitle">Please enter your details</p>
+          <h2 class="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight" id="authModalTitle">Welcome back</h2>
+        </div>
+
+        <!-- Main Form -->
+        <form onsubmit="window.handleAuthSubmit(event)" class="space-y-4">
+          <!-- Sign-up specific inputs -->
+          <div id="authSignUpFields" class="hidden space-y-4">
+            <div>
+              <input type="text" id="authFullName" autocomplete="name" class="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition shadow-none" placeholder="Full Name (e.g. Callum)">
+            </div>
+            <div>
+              <input type="text" id="authUsername" autocomplete="username" class="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition shadow-none" placeholder="Username (e.g. callum_b)">
+            </div>
+          </div>
+
+          <div>
+            <input type="email" id="authEmail" required autocomplete="email" class="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition shadow-none" placeholder="Email address">
+          </div>
+
+          <div id="authPasswordContainer">
+            <input type="password" id="authPassword" autocomplete="current-password" class="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition shadow-none" placeholder="Password">
+          </div>
+
+          <!-- Forgot Password Link Row -->
+          <div class="flex justify-end pt-1" id="forgotPasswordRow">
+            <button type="button" onclick="window.toggleForgotPasswordMode()" class="text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 transition" id="btnForgotPassword">
+              Forgot password
+            </button>
+          </div>
+
+          <!-- Error / Success Notification Banner -->
+          <div id="authErrorBanner" class="hidden text-xs p-3 rounded-lg leading-relaxed font-medium"></div>
+
+          <!-- Primary Submit Button -->
+          <button type="submit" id="btnAuthSubmit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition shadow-sm flex items-center justify-center gap-2 text-sm mt-2">
+            <span id="btnAuthText">Sign in</span>
+          </button>
+        </form>
+
+        <!-- Toggle Mode Link Footer -->
+        <div class="mt-8 text-center" id="authFooterRow">
+          <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            <span id="authTogglePrompt">Don't have an account?</span> 
+            <button type="button" onclick="window.toggleAuthMode()" class="font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 ml-1 transition" id="btnAuthToggle">
+              Sign up
+            </button>
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="hidden md:block h-6"></div>
+  </div>
 `;
 
 document.addEventListener("DOMContentLoaded", () => {

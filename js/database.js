@@ -1,358 +1,692 @@
-// DATABASE FETCHING, SAVING & SYNC CONFLICT PROTECTOR
+// ==========================================
+// SUPABASE MULTI-USER AUTH, DATA ENGINE & SYNC
 // ==========================================
 
-// --- MACRO DATA COMPRESSION FIREWALL ---
-function compressMacroData(historyArray) {
-    if (!historyArray || !Array.isArray(historyArray)) return [];
-    
-    const fiveYearsAgo = new Date();
-    fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
-    const cutoffTime = fiveYearsAgo.getTime();
+let uploadedBackupJsonString = "";
+window.currentUser = null;
+// ==========================================
+// AUTHENTICATION STATE CONTROLLER
+// ==========================================
+window.authMode = 'login'; // 'login', 'signup', or 'forgot'
 
-    const recentData = historyArray.filter(p => p && p.d >= cutoffTime);
-
-    const monthlyMap = new Map();
-    recentData.forEach(p => {
-        const d = new Date(p.d);
-        const monthKey = `${d.getFullYear()}-${d.getMonth()}`; 
-        if (!monthlyMap.has(monthKey) || p.d < monthlyMap.get(monthKey).d) {
-            monthlyMap.set(monthKey, p);
-        }
-    });
-
-    return Array.from(monthlyMap.values()).sort((a, b) => a.d - b.d);
-}
-
-// --- SMART NON-DESTRUCTIVE DATABASE MERGE ---
-function smartMergeDatabases(local, remote) {
-    const merged = { ...local };
-
-    // 1. Workspaces & Categories (Unions)
-    merged.workspaces = Array.from(new Set([...(local.workspaces || []), ...(remote.workspaces || [])]));
-    merged.conceptCategories = Array.from(new Set([...(local.conceptCategories || []), ...(remote.conceptCategories || [])]));
-    merged.dictCategories = Array.from(new Set([...(local.dictCategories || []), ...(remote.dictCategories || [])]));
-    merged.targetFirms = Array.from(new Set([...(local.targetFirms || []), ...(remote.targetFirms || [])]));
-
-    // 2. Factors / Intel (Deduplicate by Title + Date)
-    const factorKeys = new Set((local.factors || []).map(f => `${f.title}_${f.date}`));
-    (remote.factors || []).forEach(rf => {
-        if (!factorKeys.has(`${rf.title}_${rf.date}`)) {
-            merged.factors.push(rf);
-        }
-    });
-
-    // 3. Concepts (Deduplicate by Title)
-    const conceptTitles = new Set((local.concepts || []).map(c => c.title.toLowerCase().trim()));
-    (remote.concepts || []).forEach(rc => {
-        if (!conceptTitles.has(rc.title.toLowerCase().trim())) {
-            merged.concepts.push(rc);
-        }
-    });
-
-    // 4. Dictionary (Deduplicate by Term)
-    const dictTerms = new Set((local.dictionary || []).map(d => d.term.toLowerCase().trim()));
-    (remote.dictionary || []).forEach(rd => {
-        if (!dictTerms.has(rd.term.toLowerCase().trim())) {
-            merged.dictionary.push(rd);
-        }
-    });
-
-    // 5. Vault (Deduplicate by Timestamp or Title)
-    const vaultKeys = new Set((local.vault || []).map(v => `${v.title}_${v.timestamp}`));
-    (remote.vault || []).forEach(rv => {
-        if (!vaultKeys.has(`${rv.title}_${rv.timestamp}`)) {
-            merged.vault.push(rv);
-        }
-    });
-
-    // 6. Dossiers (Deep merge per firm)
-    merged.dossiers = { ...(local.dossiers || {}) };
-    for (const firm in remote.dossiers || {}) {
-        if (!merged.dossiers[firm]) {
-            merged.dossiers[firm] = remote.dossiers[firm];
-        } else {
-            const lDoss = merged.dossiers[firm];
-            const rDoss = remote.dossiers[firm];
-            lDoss.practice = Array.isArray(lDoss.practice) ? lDoss.practice : [];
-            lDoss.clients = Array.isArray(lDoss.clients) ? lDoss.clients : [];
-            lDoss.competencies = Array.isArray(lDoss.competencies) ? lDoss.competencies : [];
-            
-            const pHeadings = new Set(lDoss.practice.map(p => p.heading));
-            (rDoss.practice || []).forEach(rp => { if (!pHeadings.has(rp.heading)) lDoss.practice.push(rp); });
-
-            const cHeadings = new Set(lDoss.clients.map(c => c.heading));
-            (rDoss.clients || []).forEach(rc => { if (!cHeadings.has(rc.heading)) lDoss.clients.push(rc); });
-
-            const compHeadings = new Set(lDoss.competencies.map(comp => comp.heading));
-            (rDoss.competencies || []).forEach(rcomp => { if (!compHeadings.has(rcomp.heading)) lDoss.competencies.push(rcomp); });
-        }
+window.openAuthModal = function() {
+    const m = document.getElementById("authModal");
+    if (m) {
+        m.classList.remove("hidden");
+        m.classList.add("flex");
+        if (window.lucide) window.lucide.createIcons();
     }
-
-    // 7. Playbooks (Merge keys)
-    merged.playbooks = { ...(remote.playbooks || {}), ...(local.playbooks || {}) };
-
-    merged.lastUpdated = Math.max(local.lastUpdated || 0, remote.lastUpdated || 0, Date.now());
-    return merged;
-}
-
-// --- CONFLICT RESOLUTION MODAL ---
-function showConflictResolutionModal(remoteDb) {
-    const existing = document.getElementById("syncConflictModal");
-    if (existing) existing.remove();
-
-    const localDate = new Date(db.lastUpdated || 0).toLocaleTimeString('en-GB');
-    const remoteDate = new Date(remoteDb.lastUpdated || 0).toLocaleTimeString('en-GB');
-
-    const modalHtml = `
-      <div id="syncConflictModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-900 border border-amber-500/50 rounded-xl max-w-lg w-full p-6 shadow-2xl animate-fade-in-up">
-            <div class="flex items-center gap-3 text-amber-600 dark:text-amber-400 mb-3">
-                <i data-lucide="shield-alert" class="w-6 h-6"></i>
-                <h3 class="text-lg font-serif font-black text-slate-900 dark:text-white">Cloud Sync Conflict Detected</h3>
-            </div>
-            <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
-                A newer database version was saved from another device at <strong>${remoteDate}</strong>. Your current device last synced at <strong>${localDate}</strong>.
-            </p>
-            <div class="flex flex-col gap-2.5">
-                <button onclick="resolveConflict('merge')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-md text-xs transition shadow-sm flex items-center justify-center gap-2">
-                    <i data-lucide="git-merge" class="w-4 h-4"></i> Smart Merge (Keep Both Devices' Changes)
-                </button>
-                <button onclick="resolveConflict('pull')" class="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 font-bold py-2 px-4 rounded-md text-xs transition border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-2">
-                    <i data-lucide="download" class="w-4 h-4"></i> Pull Cloud Version (Discard Local Edits)
-                </button>
-                <button onclick="resolveConflict('force')" class="w-full bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-red-600 dark:text-red-400 font-bold py-2 px-4 rounded-md text-xs transition border border-red-200 dark:border-red-900/50 flex items-center justify-center gap-2">
-                    <i data-lucide="upload" class="w-4 h-4"></i> Force Overwrite (Replace Cloud With Local)
-                </button>
-            </div>
-        </div>
-      </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    if (window.lucide) window.lucide.createIcons();
-
-    window._pendingRemoteDb = remoteDb;
-}
-
-window.resolveConflict = async function(strategy) {
-    const remoteDb = window._pendingRemoteDb;
-    const modal = document.getElementById("syncConflictModal");
-    if (modal) modal.remove();
-
-    if (strategy === 'merge') {
-        db = smartMergeDatabases(db, remoteDb);
-        saveToLocalCache();
-        await executeDirectSave();
-        if (typeof showToast === 'function') showToast("Databases successfully merged!", "success");
-    } else if (strategy === 'pull') {
-        db = remoteDb;
-        saveToLocalCache();
-        if (typeof showToast === 'function') showToast("Cloud version loaded.", "info");
-    } else if (strategy === 'force') {
-        db.lastUpdated = Date.now();
-        await executeDirectSave();
-        if (typeof showToast === 'function') showToast("Cloud overwritten with local state.", "warning");
-    }
-
-    if (typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
-    if (typeof switchState === 'function') switchState(appState);
 };
 
-// --- CORE FETCH & SYNC ---
+window.closeAuthModal = function() {
+    const m = document.getElementById("authModal");
+    if (m) {
+        m.classList.add("hidden");
+        m.classList.remove("flex");
+    }
+};
+
+window.toggleAuthMode = function() {
+    if (window.authMode === 'forgot') {
+        window.authMode = 'login';
+    } else {
+        window.authMode = (window.authMode === 'login') ? 'signup' : 'login';
+    }
+    window.updateAuthView();
+};
+
+window.toggleForgotPasswordMode = function() {
+    if (window.authMode === 'forgot') {
+        window.authMode = 'login';
+    } else {
+        window.authMode = 'forgot';
+    }
+    window.updateAuthView();
+};
+
+window.updateAuthView = function() {
+    const title = document.getElementById("authModalTitle");
+    const subtitle = document.getElementById("authModalSubtitle");
+    const pwdContainer = document.getElementById("authPasswordContainer");
+    const forgotRow = document.getElementById("forgotPasswordRow");
+    const submitBtnText = document.getElementById("btnAuthText");
+    const togglePrompt = document.getElementById("authTogglePrompt");
+    const toggleBtn = document.getElementById("btnAuthToggle");
+    const banner = document.getElementById("authErrorBanner");
+    const pwdInput = document.getElementById("authPassword");
+
+    if (banner) banner.classList.add("hidden");
+
+    if (window.authMode === 'login') {
+        title.innerText = "Welcome back";
+        subtitle.innerText = "Please enter your details";
+        pwdContainer.classList.remove("hidden");
+        pwdInput.required = true;
+        forgotRow.classList.remove("hidden");
+        submitBtnText.innerText = "Sign in";
+        togglePrompt.innerText = "Don't have an account?";
+        toggleBtn.innerText = "Sign up";
+    } else if (window.authMode === 'signup') {
+        title.innerText = "Create account";
+        subtitle.innerText = "Please enter your details";
+        pwdContainer.classList.remove("hidden");
+        pwdInput.required = true;
+        forgotRow.classList.add("hidden");
+        submitBtnText.innerText = "Sign up";
+        togglePrompt.innerText = "Already have an account?";
+        toggleBtn.innerText = "Sign in";
+    } else if (window.authMode === 'forgot') {
+        title.innerText = "Reset password";
+        subtitle.innerText = "We'll send a password recovery link to your email";
+        pwdContainer.classList.add("hidden");
+        pwdInput.required = false;
+        forgotRow.classList.add("hidden");
+        submitBtnText.innerText = "Send reset link";
+        togglePrompt.innerText = "Remember your password?";
+        toggleBtn.innerText = "Sign in";
+    }
+};
+
+window.handleAuthSubmit = async function(event) {
+    event.preventDefault();
+    const email = document.getElementById("authEmail").value.trim();
+    const password = document.getElementById("authPassword").value;
+    const banner = document.getElementById("authErrorBanner");
+    const btn = document.getElementById("btnAuthSubmit");
+
+    banner.classList.add("hidden");
+    btn.disabled = true;
+    const origText = btn.innerHTML;
+    btn.innerHTML = `<span>⏳</span> Please wait...`;
+
+    try {
+        if (window.authMode === 'login') {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            // Session persists in localStorage automatically
+        } else if (window.authMode === 'signup') {
+            const { data, error } = await supabaseClient.auth.signUp({ email, password });
+            if (error) throw error;
+            if (data.user && !data.session) {
+                banner.className = "text-xs p-3 rounded-lg leading-relaxed font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900";
+                banner.innerText = "Registration complete! You may now sign in.";
+                banner.classList.remove("hidden");
+                window.authMode = 'login';
+                window.updateAuthView();
+            }
+        } else if (window.authMode === 'forgot') {
+            const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin
+            });
+            if (error) throw error;
+            banner.className = "text-xs p-3 rounded-lg leading-relaxed font-medium bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900";
+            banner.innerText = "Recovery email sent! Please check your inbox.";
+            banner.classList.remove("hidden");
+        }
+    } catch (err) {
+        banner.className = "text-xs p-3 rounded-lg leading-relaxed font-medium bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900";
+        banner.innerText = err.message || "Authentication error.";
+        banner.classList.remove("hidden");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+    }
+};
+
+window.logoutUser = async function() {
+    if (confirm("Sign out of Legal Nexus on this device?")) {
+        await supabaseClient.auth.signOut();
+        location.reload();
+    }
+};
+
+function updateStatus(text, color) {
+    const dot = document.getElementById("statusDot");
+    const label = document.getElementById("statusText");
+    if (label) label.innerText = text;
+    if (dot) {
+        dot.className = `w-2.5 h-2.5 rounded-full ${
+            color === 'green' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+            color === 'yellow' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' :
+            'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'
+        }`;
+    }
+}
+
+function setOnlineStatus(isOnline, errorMsg = "") {
+    if (isOnline) {
+        updateStatus("Synced", "green");
+    } else {
+        updateStatus(errorMsg || "Syncing...", "yellow");
+    }
+}
+
+// --- AUTHENTICATION & DEVICE SESSION ENGINE ---
+async function initAuthSession() {
+    if (!supabaseClient) {
+        updateStatus("Client Missing", "red");
+        return;
+    }
+
+    try {
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        
+        if (session && session.user) {
+            window.currentUser = session.user;
+            window.closeAuthModal();
+            updateUserUI(session.user.email);
+            await loadDatabase();
+        } else {
+            // No saved session found on this device -> show login modal
+            const cached = JSON.parse(localStorage.getItem("LEGAL_NEXUS_DB") || "null");
+            if (cached) {
+                db = cached;
+                renderActiveStateViews();
+            }
+            window.openAuthModal();
+        }
+    } catch (e) {
+        console.error("Auth init error:", e);
+        window.openAuthModal();
+    }
+
+    // Auto-listen for session changes
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+            window.currentUser = session.user;
+            window.closeAuthModal();
+            updateUserUI(session.user.email);
+            await loadDatabase();
+        } else if (event === 'SIGNED_OUT') {
+            window.currentUser = null;
+            window.openAuthModal();
+        }
+    });
+}
+
+function updateUserUI(email) {
+    const display = document.getElementById("userEmailDisplay");
+    const avatar = document.getElementById("userAvatar");
+    if (display && email) {
+        const name = email.split('@')[0];
+        display.innerText = name.charAt(0).toUpperCase() + name.slice(1);
+        if (avatar) avatar.innerText = name.slice(0, 2).toUpperCase();
+    }
+}
+
+window.openAuthModal = function() {
+    const m = document.getElementById("authModal");
+    if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
+};
+
+window.closeAuthModal = function() {
+    const m = document.getElementById("authModal");
+    if (m) { m.classList.add("hidden"); m.classList.remove("flex"); }
+};
+
+window.toggleAuthMode = function() {
+    window.authMode = window.authMode === 'login' ? 'signup' : 'login';
+    const isLogin = window.authMode === 'login';
+
+    document.getElementById("authModalTitle").innerText = isLogin ? "Welcome to Legal Nexus" : "Create Account";
+    document.getElementById("authModalSubtitle").innerText = isLogin 
+        ? "Sign in to sync your personal intelligence and KMS workspace." 
+        : "Your workspace will be securely encrypted and synced to this account.";
+    document.getElementById("btnAuthText").innerText = isLogin ? "Sign In" : "Register Account";
+    document.getElementById("btnAuthToggle").innerHTML = isLogin 
+        ? "Don't have an account? <span class='underline'>Create one</span>" 
+        : "Already registered? <span class='underline'>Sign In</span>";
+    document.getElementById("authErrorBanner").classList.add("hidden");
+};
+
+window.handleAuthSubmit = async function(event) {
+    event.preventDefault();
+    const email = document.getElementById("authEmail").value.trim();
+    const password = document.getElementById("authPassword").value;
+    const errorBanner = document.getElementById("authErrorBanner");
+    const btn = document.getElementById("btnAuthSubmit");
+
+    errorBanner.classList.add("hidden");
+    btn.disabled = true;
+    const origText = btn.innerHTML;
+    btn.innerHTML = `<span>⏳</span> Authenticating...`;
+
+    try {
+        if (window.authMode === 'login') {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+        } else {
+            const { data, error } = await supabaseClient.auth.signUp({ email, password });
+            if (error) throw error;
+            if (data.user && !data.session) {
+                alert("Account created! You can now sign in.");
+                window.toggleAuthMode();
+            }
+        }
+    } catch (err) {
+        errorBanner.innerText = err.message || "Authentication failed.";
+        errorBanner.classList.remove("hidden");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+    }
+};
+
+window.logoutUser = async function() {
+    if (confirm("Log out of this device?")) {
+        await supabaseClient.auth.signOut();
+        location.reload();
+    }
+};
+
+// 1. Data Fetch Engine
 async function loadDatabase() {
+    updateStatus("Syncing...", "yellow");
+
+    // Fast-boot from local cache
     const localCached = localStorage.getItem("LEGAL_NEXUS_DB");
-    let localLastUpdated = 0;
-    
     if (localCached) {
-      try { 
-          const parsed = JSON.parse(localCached);
-          localLastUpdated = parsed.lastUpdated || 0;
-          if (parsed.workspaces) db.workspaces = parsed.workspaces;
-          if (parsed.factors) db.factors = parsed.factors;
-          if (parsed.conceptCategories) db.conceptCategories = parsed.conceptCategories;
-          if (parsed.concepts) db.concepts = parsed.concepts;
-          if (parsed.dossiers) db.dossiers = parsed.dossiers;
-          if (parsed.dictionary) db.dictionary = parsed.dictionary;
-          if (parsed.targetFirms) db.targetFirms = parsed.targetFirms;
-          if (parsed.dictCategories) db.dictCategories = parsed.dictCategories; 
-          if (parsed.macroMetrics) db.macroMetrics = parsed.macroMetrics; 
-          if (parsed.playbooks) db.playbooks = parsed.playbooks;
-          if (parsed.vault) db.vault = parsed.vault; 
-          db.lastUpdated = localLastUpdated;
-      } catch (e) {
-          console.warn("Local cache parsing failed.", e);
-      }
-    }
-  
-    db.workspaces = db.workspaces || [];
-    if (!db.workspaces.includes("General Market")) db.workspaces.unshift("General Market");
-    
-    db.conceptCategories = db.conceptCategories || [];
-    if (db.conceptCategories.length === 0) db.conceptCategories = ["Corporate / M&A", "Capital Markets", "Intellectual Property", "Commercial Contracts", "Dispute Resolution"];
-
-    db.dictCategories = db.dictCategories || [];
-    if (db.dictCategories.length === 0) db.dictCategories = ["General", "Corporate / M&A", "Capital Markets", "Dispute Resolution", "Private Wealth"];
-  
-    db.dossiers = db.dossiers || {};
-    for (const firm in db.dossiers) {
-        if (!db.dossiers[firm].firmType) db.dossiers[firm].firmType = "";
-        if (!db.dossiers[firm].locations) db.dossiers[firm].locations = "";
-        if (db.dossiers[firm].applied === undefined) db.dossiers[firm].applied = false;
+        try {
+            const parsed = JSON.parse(localCached);
+            if (parsed.workspaces) db.workspaces = parsed.workspaces;
+            if (parsed.factors) db.factors = parsed.factors;
+            if (parsed.conceptCategories) db.conceptCategories = parsed.conceptCategories;
+            if (parsed.concepts) db.concepts = parsed.concepts;
+            if (parsed.dossiers) db.dossiers = parsed.dossiers;
+            if (parsed.dictionary) db.dictionary = parsed.dictionary;
+            if (parsed.targetFirms) db.targetFirms = parsed.targetFirms;
+            if (parsed.dictCategories) db.dictCategories = parsed.dictCategories;
+            if (parsed.playbooks) db.playbooks = parsed.playbooks;
+            if (parsed.macroMetrics) db.macroMetrics = parsed.macroMetrics;
+            if (parsed.vault) db.vault = parsed.vault;
+        } catch (e) {
+            console.warn("Local cache parsing error:", e);
+        }
     }
 
-    db.playbooks = db.playbooks || {}; 
-    db.vault = db.vault || []; 
+    renderActiveStateViews();
 
+    if (!supabaseClient || !window.currentUser) {
+        updateStatus("Signed Out", "yellow");
+        return;
+    }
+
+    try {
+        const uid = window.currentUser.id;
+
+        const [
+            { data: concepts, error: cErr },
+            { data: factors, error: fErr },
+            { data: dictionary, error: dErr },
+            { data: dossiersList, error: dosErr },
+            { data: playbooksList, error: pErr },
+            { data: metadata, error: mErr }
+        ] = await Promise.all([
+            supabaseClient.from('concepts').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+            supabaseClient.from('factors').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+            supabaseClient.from('dictionary').select('*').eq('user_id', uid).order('term', { ascending: true }),
+            supabaseClient.from('dossiers').select('*').eq('user_id', uid),
+            supabaseClient.from('playbooks').select('*').eq('user_id', uid),
+            supabaseClient.from('app_metadata').select('*').eq('user_id', uid)
+        ]);
+
+        if (cErr) console.error("Concepts Table Error:", cErr);
+        if (fErr) console.error("Factors Table Error:", fErr);
+        if (dErr) console.error("Dictionary Table Error:", dErr);
+        if (dosErr) console.error("Dossiers Table Error:", dosErr);
+        if (pErr) console.error("Playbooks Table Error:", pErr);
+        if (mErr) console.error("Metadata Table Error:", mErr);
+
+        if (cErr || fErr || dErr || dosErr || pErr || mErr) {
+            throw new Error("Supabase returned an error during table fetch.");
+        }
+
+        if (concepts && concepts.length > 0) {
+            db.concepts = concepts.map(c => ({
+                id: c.id,
+                title: c.title,
+                category: c.category || "General",
+                subTag: c.sub_tag || "",
+                body: c.body || "",
+                diagram: c.diagram || null,
+                srs: c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false }
+            }));
+        }
+
+        if (factors && factors.length > 0) {
+            db.factors = factors.map(f => ({
+                id: f.id,
+                title: f.title,
+                summary: f.summary || "",
+                description: f.description || "",
+                implications: f.implications || "",
+                metric: f.metric || "",
+                pestle: f.pestle || "Economic",
+                region: f.region || "UK Focus",
+                workspace: f.workspace || "General Market",
+                linkedConcept: f.linked_concept || "",
+                linkedFirm: f.linked_firm || ""
+            }));
+        }
+
+        if (dictionary && dictionary.length > 0) {
+            db.dictionary = dictionary.map(d => ({
+                id: d.id,
+                term: d.term,
+                category: d.category || "General",
+                definition: d.definition || "",
+                srs: d.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false }
+            }));
+        }
+
+        if (dossiersList && dossiersList.length > 0) {
+            db.dossiers = {};
+            dossiersList.forEach(d => {
+                db.dossiers[d.firm_name] = {
+                    firmType: d.firm_type || "",
+                    locations: d.locations || "",
+                    culture: d.culture || "",
+                    personalWhy: d.personal_why || "",
+                    practice: d.practice || [],
+                    clients: d.clients || [],
+                    competencies: d.competencies || [],
+                    schemes: d.schemes || [],
+                    srs: d.srs || {},
+                    applied: d.applied || false
+                };
+            });
+            db.targetFirms = Object.keys(db.dossiers);
+        }
+
+        if (playbooksList && playbooksList.length > 0) {
+            db.playbooks = {};
+            playbooksList.forEach(p => {
+                db.playbooks[p.name] = {
+                    nodes: p.nodes || [],
+                    edges: p.edges || [],
+                    stages: p.stages || []
+                };
+            });
+        }
+
+        (metadata || []).forEach(m => {
+            if (m.key === 'workspaces' && Array.isArray(m.value)) db.workspaces = m.value;
+            if (m.key === 'conceptCategories' && Array.isArray(m.value)) db.conceptCategories = m.value;
+            if (m.key === 'dictCategories' && Array.isArray(m.value)) db.dictCategories = m.value;
+            if (m.key === 'macroMetrics' && typeof m.value === 'object') db.macroMetrics = m.value;
+        });
+
+        saveToLocalCache();
+        updateStatus("Synced", "green");
+        renderActiveStateViews();
+
+    } catch (err) {
+        console.error("Supabase Load Error:", err);
+        updateStatus("Sync Error", "red");
+    }
+
+    if (typeof checkDailyBriefing === 'function') checkDailyBriefing();
+}
+
+function renderActiveStateViews() {
     if (typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
-    
-    if (appState === "DASHBOARD" && typeof renderDashboard === 'function') renderDashboard();
-    else if (appState === "INTELLIGENCE" && typeof renderFeed === 'function') renderFeed();
+    if (typeof renderTabs === 'function') renderTabs();
+    if (typeof renderDashboard === 'function') renderDashboard();
+    if (appState === "INTELLIGENCE" && typeof renderFeed === 'function') renderFeed();
     else if (appState === "CONCEPTS" && typeof renderConcepts === 'function') renderConcepts();
     else if (appState === "DOSSIERS" && typeof renderDossierList === 'function') renderDossierList();
     else if (appState === "PLAYBOOKS" && typeof renderPlaybookList === 'function') renderPlaybookList();
     else if (appState === "DICTIONARY" && typeof renderDictionary === 'function') renderDictionary();
     else if (appState === "VAULT" && typeof window.renderVault === 'function') window.renderVault();
-    
-    try {
-        const response = await fetch(SCRIPT_URL);
-        if (response.ok) {
-          const loadedDb = await response.json();
-          const serverLastUpdated = loadedDb.lastUpdated || 0;
-        
-          const localDataCount = (db.factors?.length || 0) + (db.concepts?.length || 0) + (db.dictionary?.length || 0) + (db.vault?.length || 0);
-          const serverDataCount = (loadedDb.factors?.length || 0) + (loadedDb.concepts?.length || 0) + (loadedDb.dictionary?.length || 0) + (loadedDb.vault?.length || 0);
-          
-          const isServerNewer = serverLastUpdated > localLastUpdated;
-          const isServerHeavier = serverDataCount > localDataCount;
-          
-          if (loadedDb && !loadedDb.error && typeof loadedDb === "object" && !Array.isArray(loadedDb)) {
-              if (isServerNewer || isServerHeavier || localDataCount === 0) {
-                  db = {
-                      workspaces: (loadedDb.workspaces && loadedDb.workspaces.length > 0) ? loadedDb.workspaces : db.workspaces,
-                      factors: (loadedDb.factors && loadedDb.factors.length > 0) ? loadedDb.factors : (db.factors || []),
-                      conceptCategories: (loadedDb.conceptCategories && loadedDb.conceptCategories.length > 0) ? loadedDb.conceptCategories : db.conceptCategories,
-                      dictCategories: (loadedDb.dictCategories && loadedDb.dictCategories.length > 0) ? loadedDb.dictCategories : db.dictCategories, 
-                      concepts: (loadedDb.concepts && loadedDb.concepts.length > 0) ? loadedDb.concepts : (db.concepts || []),
-                      dossiers: (loadedDb.dossiers && Object.keys(loadedDb.dossiers).length > 0) ? loadedDb.dossiers : (db.dossiers || {}),
-                      dictionary: (loadedDb.dictionary && loadedDb.dictionary.length > 0) ? loadedDb.dictionary : (db.dictionary || []),
-                      targetFirms: (loadedDb.targetFirms && loadedDb.targetFirms.length > 0) ? loadedDb.targetFirms : (db.targetFirms || []),
-                      macroMetrics: (loadedDb.macroMetrics && Object.keys(loadedDb.macroMetrics).length > 0) ? loadedDb.macroMetrics : (db.macroMetrics || {}), 
-                      playbooks: (loadedDb.playbooks && Object.keys(loadedDb.playbooks).length > 0) ? loadedDb.playbooks : (db.playbooks || {}),
-                      vault: (loadedDb.vault && loadedDb.vault.length > 0) ? loadedDb.vault : (db.vault || []), 
-                      lastUpdated: serverLastUpdated > 0 ? serverLastUpdated : Date.now()
-                  };
-        
-                  saveToLocalCache();
-                  setOnlineStatus(true);
-                  
-                  if (typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
-                  if (typeof switchState === 'function') switchState(appState);
-              } else if (serverLastUpdated < localLastUpdated) {
-                  setOnlineStatus(true, "Local data is newer. Syncing up on next save.");
-              }
-          }
-        }
-    } catch (error) { 
-        setOnlineStatus(false, `Network Error: ${error.message}`);
-    }
-    
-    if (typeof window.renderMacroWidget === 'function') window.renderMacroWidget();
-    if (typeof checkDailyBriefing === 'function') checkDailyBriefing();
 }
 
-// --- CONFLICT-PROTECTED SAVE ---
+// 2. Cloud Save Engine
 async function saveDatabase() {
-    setOnlineStatus(false, "Checking Cloud Sync...");
+    updateStatus("Saving...", "yellow");
+    saveToLocalCache();
+
+    if (!supabaseClient || !window.currentUser) return;
+    const uid = window.currentUser.id;
 
     try {
-        const checkRes = await fetch(SCRIPT_URL);
-        if (checkRes.ok) {
-            const remote = await checkRes.json();
-            const remoteLastUpdated = remote.lastUpdated || 0;
-            const localLastUpdated = db.lastUpdated || 0;
+        await supabaseClient.from('app_metadata').upsert([
+            { user_id: uid, key: 'workspaces', value: db.workspaces },
+            { user_id: uid, key: 'conceptCategories', value: db.conceptCategories },
+            { user_id: uid, key: 'dictCategories', value: db.dictCategories || ["General"] },
+            { user_id: uid, key: 'macroMetrics', value: db.macroMetrics || {} }
+        ], { onConflict: 'user_id, key' });
 
-            // Conflict condition: Cloud has edits made AFTER this device's last state
-            if (remoteLastUpdated > localLastUpdated) {
-                setOnlineStatus(false, "Sync Conflict Halted");
-                showConflictResolutionModal(remote);
-                return;
-            }
+        if (typeof currentPlaybook !== 'undefined' && currentPlaybook && db.playbooks[currentPlaybook]) {
+            const pb = db.playbooks[currentPlaybook];
+            await supabaseClient.from('playbooks').upsert({
+                user_id: uid,
+                name: currentPlaybook,
+                nodes: pb.nodes || [],
+                edges: pb.edges || [],
+                stages: pb.stages || [],
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id, name' });
         }
-    } catch (e) {
-        console.warn("Pre-flight check failed, attempting direct save.", e);
-    }
 
-    await executeDirectSave();
+        if (typeof currentDossierFirm !== 'undefined' && currentDossierFirm && db.dossiers[currentDossierFirm]) {
+            const f = db.dossiers[currentDossierFirm];
+            await supabaseClient.from('dossiers').upsert({
+                user_id: uid,
+                firm_name: currentDossierFirm,
+                firm_type: f.firmType || f.type || "",
+                locations: f.locations || "",
+                culture: f.culture || "",
+                personal_why: f.personalWhy || "",
+                practice: f.practice || [],
+                clients: f.clients || [],
+                competencies: f.competencies || [],
+                schemes: f.schemes || [],
+                srs: f.srs || {},
+                applied: f.applied || false,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'user_id, firm_name' });
+        }
+
+        updateStatus("Synced", "green");
+    } catch (err) {
+        console.error("Supabase Save Error:", err);
+        updateStatus("Save Failed", "red");
+    }
 }
 
-async function executeDirectSave() {
-    if (db.macroMetrics) {
-        for (const key in db.macroMetrics) {
-            if (db.macroMetrics[key] && Array.isArray(db.macroMetrics[key].history)) {
-                db.macroMetrics[key].history = compressMacroData(db.macroMetrics[key].history);
-            }
-        }
-    }
-
-    db.lastUpdated = Date.now(); 
-    saveToLocalCache();
-  
-    try { 
-      const response = await fetch(SCRIPT_URL, { 
-          method: 'POST',
-          body: JSON.stringify(db) 
-      }); 
-      
-      if (response.ok) {
-          const result = await response.json();
-          if (result.status === "success") {
-              setOnlineStatus(true);
-          } else {
-              setOnlineStatus(false, result.message || "Google Apps Script error.");
-          }
-      } else {
-          setOnlineStatus(false, `HTTP Save Error: ${response.status}`);
-      }
-    } catch (error) { 
-        setOnlineStatus(false, `Network Save Error: ${error.message}`); 
-    }
-}
-  
 function saveToLocalCache() {
     try {
         localStorage.setItem("LEGAL_NEXUS_DB", JSON.stringify(db));
     } catch (e) {
-        if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-            const statusText = document.getElementById('statusText');
-            if (statusText) statusText.innerText = "Syncing (Cache Full)";
+        console.warn("Local cache save failed:", e);
+    }
+}
+
+function downloadLocalBackup() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+    const a = document.createElement('a');
+    a.setAttribute("href", dataStr);
+    a.setAttribute("download", `legal_nexus_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (typeof showToast === 'function') showToast("Backup JSON exported.", "success");
+}
+
+function openImportModal() {
+    const modal = document.getElementById('backupModalContainer');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        uploadedBackupJsonString = e.target.result;
+        const textarea = document.getElementById("backupTextarea");
+        const btn = document.getElementById("importConfirmBtn");
+
+        if (textarea) textarea.value = uploadedBackupJsonString.substring(0, 5000) + (uploadedBackupJsonString.length > 5000 ? "\n... [Full File Ready for Import]" : "");
+        if (btn) btn.classList.remove("hidden");
+    };
+    reader.readAsText(file);
+}
+
+// 3. User-Scoped Lossless Importer
+async function processImport() {
+    const textarea = document.getElementById("backupTextarea");
+    const rawContent = (uploadedBackupJsonString && uploadedBackupJsonString.trim()) ? uploadedBackupJsonString.trim() : (textarea ? textarea.value.trim() : "");
+
+    if (!rawContent) {
+        alert("Please select a valid JSON backup file first.");
+        return;
+    }
+
+    if (!window.currentUser) {
+        alert("Please sign in to import data into your personal account.");
+        window.openAuthModal();
+        return;
+    }
+
+    let parsed;
+    try {
+        parsed = JSON.parse(rawContent);
+    } catch (e) {
+        console.error("JSON parse error:", e);
+        alert("Invalid JSON format. Please ensure you selected the complete exported file.");
+        return;
+    }
+
+    const btn = document.getElementById("importConfirmBtn");
+    const origText = btn.innerHTML;
+    btn.innerHTML = `<span>⏳</span> Uploading to Supabase...`;
+    btn.disabled = true;
+    const uid = window.currentUser.id;
+
+    try {
+        // A. Import Concepts
+        if (Array.isArray(parsed.concepts) && parsed.concepts.length > 0) {
+            const rows = parsed.concepts.map(c => ({
+                user_id: uid,
+                title: c.title || "Untitled Concept",
+                category: c.category || "General",
+                sub_tag: c.subTag || "",
+                body: c.body || "",
+                diagram: c.diagram || null,
+                srs: c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false }
+            }));
+            await supabaseClient.from('concepts').upsert(rows, { onConflict: 'user_id, title' });
         }
+
+        // B. Import Factors (Market Intel)
+        if (Array.isArray(parsed.factors) && parsed.factors.length > 0) {
+            await supabaseClient.from('factors').delete().eq('user_id', uid);
+            const rows = parsed.factors.map(f => ({
+                user_id: uid,
+                title: f.title || f.headline || "Untitled Factor",
+                summary: f.summary || "",
+                description: f.description || "",
+                implications: f.implications || "",
+                metric: f.metric || "",
+                pestle: f.pestle || "Economic",
+                region: f.region || "UK Focus",
+                workspace: f.workspace || "General Market",
+                linked_concept: f.linkedConcept || "",
+                linked_firm: f.linkedFirm || ""
+            }));
+            await supabaseClient.from('factors').insert(rows);
+        }
+
+        // C. Import Dictionary
+        if (Array.isArray(parsed.dictionary) && parsed.dictionary.length > 0) {
+            const rows = parsed.dictionary.map(d => ({
+                user_id: uid,
+                term: d.term || "Untitled Term",
+                category: d.category || "General",
+                definition: d.definition || "",
+                srs: d.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false }
+            }));
+            await supabaseClient.from('dictionary').upsert(rows, { onConflict: 'user_id, term' });
+        }
+
+        // D. Import Dossiers
+        if (parsed.dossiers && typeof parsed.dossiers === 'object') {
+            const keys = Object.keys(parsed.dossiers);
+            if (keys.length > 0) {
+                const rows = keys.map(k => {
+                    const f = parsed.dossiers[k];
+                    return {
+                        user_id: uid,
+                        firm_name: k,
+                        firm_type: f.firmType || f.type || "",
+                        locations: f.locations || "",
+                        culture: f.culture || "",
+                        personal_why: f.personalWhy || "",
+                        practice: f.practice || [],
+                        clients: f.clients || [],
+                        competencies: f.competencies || [],
+                        schemes: f.schemes || [],
+                        srs: f.srs || {},
+                        applied: f.applied || false,
+                        updated_at: new Date().toISOString()
+                    };
+                });
+                await supabaseClient.from('dossiers').upsert(rows, { onConflict: 'user_id, firm_name' });
+            }
+        }
+
+        // E. Import Playbooks
+        if (parsed.playbooks && typeof parsed.playbooks === 'object') {
+            const pbKeys = Object.keys(parsed.playbooks);
+            if (pbKeys.length > 0) {
+                const rows = pbKeys.map(name => ({
+                    user_id: uid,
+                    name: name,
+                    nodes: parsed.playbooks[name].nodes || [],
+                    edges: parsed.playbooks[name].edges || [],
+                    stages: parsed.playbooks[name].stages || [],
+                    updated_at: new Date().toISOString()
+                }));
+                await supabaseClient.from('playbooks').upsert(rows, { onConflict: 'user_id, name' });
+            }
+        }
+
+        // F. Metadata
+        await supabaseClient.from('app_metadata').upsert([
+            { user_id: uid, key: 'workspaces', value: parsed.workspaces || ["General Market", "Interview Vault"] },
+            { user_id: uid, key: 'conceptCategories', value: parsed.conceptCategories || ["Corporate / M&A", "Capital Markets"] },
+            { key: 'dictCategories', value: parsed.dictCategories || ["General"], user_id: uid },
+            { key: 'macroMetrics', value: parsed.macroMetrics || {}, user_id: uid }
+        ], { onConflict: 'user_id, key' });
+
+        alert("Data successfully imported into your account!");
+        const modal = document.getElementById('backupModalContainer');
+        if (modal) modal.classList.add('hidden');
+        uploadedBackupJsonString = "";
+        await loadDatabase();
+
+    } catch (err) {
+        console.error("Migration error:", err);
+        alert("Import Error: " + err.message);
+    } finally {
+        btn.innerHTML = origText;
+        btn.disabled = false;
     }
 }
-  
-function setOnlineStatus(isOnline, errorMsg = "") {
-    const dot = document.getElementById('statusDot');
-    const text = document.getElementById('statusText');
-    if (!dot || !text) return;
-    
-    if (isOnline) {
-        dot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]";
-        text.innerText = "Synced";
-        text.title = "";
-    } else {
-        dot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse";
-        text.innerText = errorMsg || "Syncing...";
-        text.title = errorMsg;
-    }
-}
-  
+
 function openManualBriefing() {
     if (typeof checkDailyBriefing === 'function') checkDailyBriefing(true);
 }
-  
+
 function checkDailyBriefing(isManual = false) {
     let briefingHTML = "";
     let hasAlerts = false;
-  
+
     const now = new Date();
     now.setHours(0,0,0,0);
     const twoWeeks = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
@@ -434,3 +768,8 @@ function checkDailyBriefing(isManual = false) {
         document.getElementById('dailyBriefingModal').classList.remove('hidden');
     }
 }
+
+// Boot with Session Check
+document.addEventListener('DOMContentLoaded', () => {
+    initAuthSession();
+});

@@ -93,7 +93,7 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
 
     if (source === 'dossiers') {
         if (!currentDossierFirm) return alert("Select a firm first.");
-        const firm = db.dossiers[currentDossierFirm];
+        const firm = db.dossiers[currentDossierFirm] || {};
         if (!firm.srs) firm.srs = {};
         
         let practiceBody = (Array.isArray(firm.practice) && firm.practice.length > 0) 
@@ -125,25 +125,18 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
             const selected = window.selectedDossierCards ? Array.from(window.selectedDossierCards) : [];
             if (selected.length === 0) return alert("Please select at least one item using the checkboxes to review.");
             possibleCards = possibleCards.filter(c => selected.includes(c.id));
-            
-            flashcardQueue = possibleCards.map(card => ({
-                item: {
-                    title: card.title, category: card.category, body: card.body,
-                    srs: firm.srs[card.id] || null, isDossier: true, dossierKey: card.id, firmName: currentDossierFirm
-                },
-                originalIndex: 0 
-            }));
-            
-            return startQueueDirectly();
         }
 
-        allCards = possibleCards.map(card => ({
+        flashcardQueue = possibleCards.map(card => ({
             item: {
                 title: card.title, category: card.category, body: card.body,
                 srs: firm.srs[card.id] || null, isDossier: true, dossierKey: card.id, firmName: currentDossierFirm
             },
+            sourceType: 'dossiers',
             originalIndex: 0 
         }));
+
+        if (useSelectedOnly) return startQueueDirectly();
 
     } else {
         let dataSource = source === 'concepts' ? (db.concepts || []) : (db.dictionary || []);
@@ -159,7 +152,11 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
             }
 
             if (specificIndices.length === 0) return alert("Please select items using checkboxes first.");
-            flashcardQueue = specificIndices.map(index => ({ item: dataSource[index], originalIndex: index }));
+            flashcardQueue = specificIndices.map(index => ({ 
+                item: dataSource[index], 
+                sourceType: source,
+                originalIndex: index 
+            }));
             return startQueueDirectly();
         }
 
@@ -176,7 +173,7 @@ function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
         } catch(e) {}
         
         allCards = dataSource
-            .map((item, index) => ({ item, originalIndex: index }))
+            .map((item, index) => ({ item, sourceType: source, originalIndex: index }))
             .filter(obj => {
                 let itemCat = obj.item.category || "General";
                 let matchesTab = (activeCat === "All" || activeCat === "All Terms" || itemCat === activeCat);
@@ -238,16 +235,41 @@ function startQueueDirectly() {
     
     document.getElementById("flashcardModal").classList.remove("hidden");
     document.getElementById("flashcardModal").classList.add("flex");
+    
+    // Attach single-click listeners to front and back wrappers
+    setupFlashcardClickListeners();
     renderCurrentFlashcard();
 }
 
-function renderCurrentFlashcard() {
-    document.getElementById("btnShowFeynman").classList.remove("hidden");
-    document.getElementById("feynmanDrawer").classList.remove("flex");
-    document.getElementById("feynmanDrawer").classList.add("hidden");
-    document.getElementById("feynmanInput").value = "";
-    document.getElementById("feynmanFeedback").classList.add("hidden");
+function setupFlashcardClickListeners() {
+    const frontCard = document.getElementById("flashcardFront");
+    const backCard = document.getElementById("flashcardBack");
 
+    if (frontCard && !frontCard.dataset.clickFlipBound) {
+        frontCard.dataset.clickFlipBound = "true";
+        frontCard.classList.add("cursor-pointer");
+        frontCard.addEventListener("click", (e) => {
+            // Ignore clicks on active recall text inputs, buttons, and tools
+            if (e.target.closest("button") || e.target.closest("textarea") || e.target.closest("input") || e.target.closest("#recallInputDock") || e.target.closest("#feynmanDrawer")) {
+                return;
+            }
+            flipFlashcard();
+        });
+    }
+
+    if (backCard && !backCard.dataset.clickFlipBound) {
+        backCard.dataset.clickFlipBound = "true";
+        backCard.classList.add("cursor-pointer");
+        backCard.addEventListener("click", (e) => {
+            if (e.target.closest("button") || e.target.closest("textarea") || e.target.closest("input") || e.target.closest("a")) {
+                return;
+            }
+            unflipFlashcard();
+        });
+    }
+}
+
+function renderCurrentFlashcard() {
     if (currentFlashcardIndex >= flashcardQueue.length) {
         alert("Session Complete! Great job maintaining your commercial knowledge.");
         document.getElementById("flashcardModal").classList.add("hidden");
@@ -268,6 +290,7 @@ function renderCurrentFlashcard() {
     const title = String(item.title || item.term || "Untitled");
     const body = String(item.body || item.definition || item.content || "No data logged.");
 
+    // Accurate dynamic card count
     document.getElementById("flashcardCounter").innerText = `Card ${currentFlashcardIndex + 1} of ${flashcardQueue.length}`;
     document.getElementById("fcCategory").innerText = category;
     document.getElementById("fcBackCategory").innerText = category;
@@ -277,12 +300,11 @@ function renderCurrentFlashcard() {
         const fcFrontBody = document.getElementById("fcFrontBody");
         if (fcFrontBody) {
             fcFrontBody.classList.remove("hidden");
-            
             let redactedBody = body;
             if (title && title !== "Untitled") {
                 const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const termRegex = new RegExp(escapeRegExp(title), 'gi');
-                redactedBody = redactedBody.replace(termRegex, '<span class="bg-slate-800 text-transparent rounded px-4 mx-1 border border-slate-900 select-none shadow-inner" title="Redacted Term">___</span>');
+                redactedBody = redactedBody.replace(termRegex, '<span class="bg-slate-800 text-transparent rounded px-4 mx-1 select-none">___</span>');
             }
             fcFrontBody.innerHTML = redactedBody;
         }
@@ -301,24 +323,12 @@ function renderCurrentFlashcard() {
     document.getElementById("flashcardBack").classList.remove("flex");
     document.getElementById("flashcardControls").classList.add("hidden");
 
-    // Reset Recall Form State
-    const input = document.getElementById('recallAnswerInput');
-    const banner = document.getElementById('recallResultBanner');
-    const checkBtn = document.getElementById('btnRecallCheck');
-
-    if (input) input.value = "";
-    if (banner) banner.classList.add('hidden');
-    if (checkBtn) {
-        checkBtn.innerText = "Check Answer";
-        checkBtn.className = "flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow-md flex items-center justify-center gap-2 text-sm";
-        checkBtn.onclick = window.checkRecallAnswer;
-    }
-
     window.applyRecallUIState();
 }
 
 function flipFlashcard() {
     const qItem = flashcardQueue[currentFlashcardIndex];
+    if (!qItem) return;
     
     let baseSrs = qItem.item.srs || {};
     let srsData = {
@@ -329,7 +339,6 @@ function flipFlashcard() {
     };
 
     let isFirstReview = srsData.interval === 0 || srsData.interval === 1;
-
     let hardInt = Math.max(1, Math.round((srsData.interval || 1) * 0.5));
     let goodInt = isFirstReview ? 1 : Math.round((srsData.interval || 1) * srsData.ease);
     let easyInt = isFirstReview ? 4 : Math.round((srsData.interval || 1) * srsData.ease * 1.3);
@@ -347,49 +356,16 @@ function flipFlashcard() {
     let titleStr = String(qItem.item.title || qItem.item.term || "Untitled");
     let bodyHtml = String(qItem.item.body || qItem.item.definition || "No content.");
 
-    if ((currentFlashcardSource === 'concepts' || (currentFlashcardSource === 'all' && qItem.sourceType === 'concepts')) && qItem.item.diagram) {
+    if (qItem.item.diagram) {
         bodyHtml = `<img src="${qItem.item.diagram}" class="w-full max-h-60 object-contain rounded-md border border-slate-200 dark:border-slate-700 mb-4 bg-white dark:bg-slate-800">` + bodyHtml;
-    }
-
-    let contextHtml = '';
-    const titleToSearch = titleStr;
-    if (titleToSearch && typeof db !== 'undefined' && db.factors) {
-        const relatedFactors = db.factors.filter(f => 
-            (f.linkedConcept && String(f.linkedConcept).toLowerCase() === titleToSearch.toLowerCase()) || 
-            (f.description && String(f.description).toLowerCase().includes(titleToSearch.toLowerCase()))
-        );
-        if (relatedFactors.length > 0) {
-            contextHtml = `<div class="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800">
-                <h4 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Live Market Context</h4>
-                <div class="flex flex-col gap-3">
-                    ${relatedFactors.slice(0,3).map(f => `
-                        <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-lg p-3">
-                            <span class="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider block mb-1">${f.linkedFirm || f.workspace || "Market Factor"}</span>
-                            <p class="text-sm font-bold text-indigo-900 dark:text-indigo-200">${f.title}</p>
-                            ${f.metric ? `<p class="text-xs text-indigo-700 dark:text-indigo-300 mt-1"><strong>Metric:</strong> ${f.metric}</p>` : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            </div>`;
-        }
     }
 
     if (qItem.isReverse) {
         document.getElementById("fcBackTitle").innerText = "Term Revealed";
-        document.getElementById("fcBody").innerHTML = `<h2 class="text-3xl md:text-4xl font-extrabold text-indigo-600 dark:text-indigo-400 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">${titleStr}</h2>` + bodyHtml + contextHtml;
+        document.getElementById("fcBody").innerHTML = `<h2 class="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">${titleStr}</h2>` + bodyHtml;
     } else {
         document.getElementById("fcBackTitle").innerText = titleStr;
-        document.getElementById("fcBody").innerHTML = bodyHtml + contextHtml;
-    }
-
-    // Attach click listener on back card to unflip when clicked (outside buttons/links)
-    const backCard = document.getElementById("flashcardBack");
-    if (backCard && !backCard.dataset.flipListener) {
-        backCard.dataset.flipListener = "true";
-        backCard.addEventListener('click', (e) => {
-            if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input') || e.target.closest('textarea')) return;
-            unflipFlashcard();
-        });
+        document.getElementById("fcBody").innerHTML = bodyHtml;
     }
 
     document.getElementById("flashcardFront").classList.add("hidden");
@@ -423,16 +399,16 @@ window.unflipFlashcard = unflipFlashcard;
 
 function processFlashcardResult(rating) {
     const qItem = flashcardQueue[currentFlashcardIndex];
+    if (!qItem) return;
+
     let srsRef;
-    
     if (qItem.item.isDossier) {
-        srsRef = qItem.item.srs;
-    } else if (currentFlashcardSource === 'all') {
-        const dataSource = qItem.sourceType === 'concepts' ? db.concepts : db.dictionary;
-        srsRef = dataSource[qItem.originalIndex].srs;
+        if (!db.dossiers[qItem.item.firmName].srs) db.dossiers[qItem.item.firmName].srs = {};
+        srsRef = db.dossiers[qItem.item.firmName].srs[qItem.item.dossierKey];
+    } else if (qItem.sourceType === 'concepts') {
+        srsRef = db.concepts[qItem.originalIndex] ? db.concepts[qItem.originalIndex].srs : null;
     } else {
-        const dataSource = currentFlashcardSource === 'concepts' ? db.concepts : db.dictionary;
-        srsRef = dataSource[qItem.originalIndex].srs;
+        srsRef = db.dictionary[qItem.originalIndex] ? db.dictionary[qItem.originalIndex].srs : null;
     }
 
     let srsData = {
@@ -473,17 +449,18 @@ function processFlashcardResult(rating) {
         srsData.nextReview = new Date().getTime() + (srsData.interval * 24 * 60 * 60 * 1000);
     }
 
+    // Persist to in-memory db
     if (qItem.item.isDossier) {
         db.dossiers[qItem.item.firmName].srs[qItem.item.dossierKey] = srsData;
-    } else if (currentFlashcardSource === 'all') {
-        const dataSource = qItem.sourceType === 'concepts' ? db.concepts : db.dictionary;
-        dataSource[qItem.originalIndex].srs = srsData;
+    } else if (qItem.sourceType === 'concepts') {
+        if (db.concepts[qItem.originalIndex]) db.concepts[qItem.originalIndex].srs = srsData;
     } else {
-        const dataSource = currentFlashcardSource === 'concepts' ? db.concepts : db.dictionary;
-        dataSource[qItem.originalIndex].srs = srsData;
+        if (db.dictionary[qItem.originalIndex]) db.dictionary[qItem.originalIndex].srs = srsData;
     }
     
-    if(typeof saveDatabase === 'function') saveDatabase(); 
+    if (typeof saveDatabase === 'function') saveDatabase(); 
+    
+    // Advance to next card
     currentFlashcardIndex++;
     renderCurrentFlashcard();
 }

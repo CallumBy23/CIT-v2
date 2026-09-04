@@ -436,8 +436,8 @@ function renderStrategyRoom() {
         const fType = document.getElementById("dossierFirmType"); if(fType) fType.value = d.firmType || "";
         const loc = document.getElementById("dossierLocations"); if(loc) loc.value = d.locations || "";
         
-        if (typeof cultureQuill !== 'undefined') cultureQuill.root.innerHTML = d.culture || "";
-        if (typeof personalWhyQuill !== 'undefined') personalWhyQuill.root.innerHTML = d.personalWhy || "";
+        if (window.cultureQuill && window.cultureQuill.root) window.cultureQuill.root.innerHTML = d.culture || "";
+        if (window.personalWhyQuill && window.personalWhyQuill.root) window.personalWhyQuill.root.innerHTML = d.personalWhy || "";
 
         const pwView = document.getElementById("dossierPersonalWhyView");
         if(pwView) pwView.innerHTML = d.personalWhy || "<p class='italic text-gray-400'>No draft logged.</p>";
@@ -679,8 +679,12 @@ function toggleDossierMode(mode) {
         window.cultureQuill = window.getOrInitQuill('#dossierCultureQuill', { modules: { toolbar: '#toolbar-culture' } });
         window.personalWhyQuill = window.getOrInitQuill('#dossierPersonalWhyQuill', { modules: { toolbar: '#toolbar-personal-why' } });
 
-        if (window.cultureQuill && window.cultureQuill.root) window.cultureQuill.root.innerHTML = d.culture || "";
-        if (window.personalWhyQuill && window.personalWhyQuill.root) window.personalWhyQuill.root.innerHTML = d.personalWhy || "";
+        if (window.cultureQuill && window.cultureQuill.root) {
+            window.cultureQuill.root.innerHTML = d.culture || "";
+        }
+        if (window.personalWhyQuill && window.personalWhyQuill.root) {
+            window.personalWhyQuill.root.innerHTML = d.personalWhy || "";
+        }
 
         document.getElementById("dossierViewMode").classList.replace("block", "hidden");
         document.getElementById("dossierEditMode").classList.replace("hidden", "block");
@@ -698,11 +702,14 @@ function saveDossierData() {
     d.firmType = document.getElementById("dossierFirmType").value;
     d.locations = document.getElementById("dossierLocations").value;
     
-    if (typeof cultureQuill !== 'undefined' && cultureQuill && cultureQuill.root) {
-        d.culture = cultureQuill.root.innerHTML;
+    // Explicit window reference prevents Quill scoping errors
+    if (window.cultureQuill && window.cultureQuill.root) {
+        const cHtml = window.cultureQuill.root.innerHTML;
+        d.culture = (cHtml === "<p><br></p>") ? "" : cHtml;
     }
-    if (typeof personalWhyQuill !== 'undefined' && personalWhyQuill && personalWhyQuill.root) {
-        d.personalWhy = personalWhyQuill.root.innerHTML;
+    if (window.personalWhyQuill && window.personalWhyQuill.root) {
+        const pwHtml = window.personalWhyQuill.root.innerHTML;
+        d.personalWhy = (pwHtml === "<p><br></p>") ? "" : pwHtml;
     }
     
     const rows = document.querySelectorAll("#dossierEditSchemesContainer .scheme-edit-row");
@@ -733,6 +740,7 @@ function saveDossierData() {
     if (typeof saveDatabase === 'function') saveDatabase(); 
     toggleDossierMode('view');
     renderDossierList();
+    if (typeof showToast === 'function') showToast("Dossier profile saved.", "success");
 }
 
 window.switchDossierSubTab = function(tab) {

@@ -1,7 +1,18 @@
-// CONFIGURATION & STATE
+// CONFIGURATION & STATE (SUPABASE & MULTI-USER AUTH)
 // ==========================================
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzhB6-0rFl1pWF7w6eUXFTWMxyFKjkjaEqc07YFYy9EG4bFokxwyPB_vpXrsmXHB5FM/exec"; 
-const GEMINI_API_KEY = "AQ.Ab8RN6IZ4fFDezQbK2Hm_Zfc_6-LnDqw-9cjS_vAai9hlUDLhg"; 
+const SUPABASE_URL = "https://zrvpmyagdjtxrvgcfizt.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5QXCX2k49LhcebXthy3Nww_--7bvb0m"; 
+const GEMINI_API_KEY = "AQ.Ab8RN6IZ4fFDezQbK2Hm_Zfc_6-LnDqw-9cjS_vAai9hlUDLhg";
+
+// Persistent Auth Client Instance
+const supabaseClient = (typeof supabase !== 'undefined') ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage
+    }
+}) : null;
 
 window.currentConceptCategory = "All";
 window.currentWorkspace = "All";
@@ -13,7 +24,10 @@ let db = {
   concepts: [],
   dossiers: {},
   dictionary: [],
-  targetFirms: []
+  targetFirms: [],
+  playbooks: {},
+  macroMetrics: { history: {} },
+  vault: []
 };
 
 let uiPrefs = { intelSort: 'newest', conceptSort: 'newest', dictSort: 'az', dossierSort: 'deadline' };
@@ -35,6 +49,7 @@ let filterReviewDue = false;
 
 let currentDossierFirm = "";
 let dossierSortMode = "deadline";
+let currentPlaybook = "";
 
 let currentScenario = ""; 
 let currentCandidateAnswer = "";
