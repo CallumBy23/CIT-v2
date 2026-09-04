@@ -12,19 +12,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   
-  <!-- Fonts: Inter (UI) & Merriweather (Headings) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
 
-  <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <!-- Core Libraries -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   
-  <!-- Tailwind Bespoke Config -->
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -44,141 +39,36 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   
-  <!-- Custom Styles & Overrides -->
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/overrides.css">
   <style>
-    /* SHARP VECTOR & SUBPIXEL RENDERING */
     svg polyline, svg path, svg line, svg circle {
       shape-rendering: geometricPrecision !important;
       stroke-rendering: geometricPrecision !important;
     }
-
-    /* PREVENT TEXT CRUNCHING ON LOW FONT SIZES */
     body {
       text-rendering: geometricPrecision !important;
       -webkit-font-smoothing: antialiased !important;
       -moz-osx-font-smoothing: grayscale !important;
     }
-
-    /* BUMP CRISPNESS ON SMALL CAP LABELS */
-    .tracking-widest {
-      letter-spacing: 0.08em !important;
-    }
-
-    /* THEME ROOT TOKENS */
     :root {
       --theme-primary: #2563eb;
       --theme-primary-hover: #1d4ed8;
     }
-
-    /* GLASS ELEVATIONS & SOFT CARD STYLING */
     .glass-card {
       background: #ffffff;
       border: 1px solid rgba(226, 232, 240, 0.85);
-      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02);
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .glass-card:hover {
-      border-color: rgba(203, 213, 225, 0.95);
-      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.04), 0 8px 10px -6px rgba(15, 23, 42, 0.02);
-      transform: translateY(-1px);
     }
     .dark .glass-card {
       background: #141b2d;
       border: 1px solid rgba(51, 65, 85, 0.55);
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25);
     }
-    .dark .glass-card:hover {
-      border-color: rgba(99, 102, 241, 0.45);
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45);
-    }
-
-    /* DYNAMIC ISLAND & SAFE AREA COMPATIBILITY UTILITIES */
     .h-dvh { height: 100vh; height: 100dvh; }
-    
-    @supports (padding-top: env(safe-area-inset-top)) {
-        .pt-safe { padding-top: env(safe-area-inset-top) !important; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom) !important; }
-        .pl-safe { padding-left: env(safe-area-inset-left) !important; }
-        .pr-safe { padding-right: env(safe-area-inset-right) !important; }
-        .mt-safe { margin-top: env(safe-area-inset-top) !important; }
-        .mb-safe { margin-bottom: env(safe-area-inset-bottom) !important; }
-        .pt-safe-sidebar { padding-top: calc(1.5rem + env(safe-area-inset-top)) !important; }
-        .pb-safe-sidebar { padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important; }
-        .header-safe { height: calc(4rem + env(safe-area-inset-top)) !important; }
+    svg.lucide, i[data-lucide] {
+      stroke-width: 1.75px !important;
     }
-
-    /* ENTERPRISE UI OVERRIDES */
-    #mainTabsWrapper {
-        background-color: transparent !important;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    .dark #mainTabsWrapper { border-bottom-color: #1e293b; }
-
-    #mainTabs {
-        padding: 0 1.5rem !important;
-        gap: 1.5rem !important;
-    }
-    
-    #mainTabs button {
-        background: transparent !important;
-        box-shadow: none !important;
-    }
-
-    #cardsContainer > div, #conceptsContainer > div, #dossierNexusFeed > div, #dictionaryContainer > div, #vaultContainer > div {
-        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
-    }
-    #cardsContainer > div:hover, #conceptsContainer > div:hover, #dossierNexusFeed > div:hover, #dictionaryContainer > div:hover, #vaultContainer > div:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025) !important;
-        border-color: #cbd5e1 !important;
-    }
-
-    .dark #cardsContainer > div, 
-    .dark #conceptsContainer > div, 
-    .dark #dictionaryContainer > div, 
-    .dark #dossierNexusFeed > div,
-    .dark #vaultContainer > div {
-        background-color: #141b2d !important; 
-        border-color: #1e293b !important;
-    }
-    .dark #cardsContainer > div:hover, 
-    .dark #conceptsContainer > div:hover, 
-    .dark #dictionaryContainer > div:hover, 
-    .dark #dossierNexusFeed > div:hover,
-    .dark #vaultContainer > div:hover {
-        border-color: #334155 !important;
-        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3) !important;
-    }
-    .dark #cardsContainer > div h4, 
-    .dark #conceptsContainer > div h4, 
-    .dark #dictionaryContainer > div h4, 
-    .dark #vaultContainer > div h4 {
-        color: #f8fafc !important; 
-    }
-    .dark .nexus-body .prose, .dark .dict-highlight-target {
-        color: #cbd5e1 !important;
-    }
-
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    .dark ::-webkit-scrollbar-thumb { background: #475569; }
-    .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-
-    .sidebar-hidden { display: none !important; }
-    .sidebar-visible { display: flex !important; position: absolute; z-index: 100; height: 100%; top: 0; left: 0; box-shadow: 10px 0 25px rgba(0,0,0,0.5); }
-    
-    #mainSidebar nav button:not(.bg-indigo-600) { color: #475569 !important; background-color: transparent !important; }
-    #mainSidebar nav button:not(.bg-indigo-600):hover { background-color: #f1f5f9 !important; color: #0f172a !important; }
-    .dark #mainSidebar nav button:not(.bg-indigo-600) { color: #94a3b8 !important; background-color: transparent !important; }
-    .dark #mainSidebar nav button:not(.bg-indigo-600):hover { background-color: #1e293b !important; color: #f8fafc !important; }
-
-    .ql-container.ql-snow { border: none !important; }
-    .ql-toolbar.ql-snow { border-top: none !important; border-left: none !important; border-right: none !important; border-bottom: 1px solid #e2e8f0 !important; }
-    .dark .ql-toolbar.ql-snow { border-bottom-color: #1e293b !important; }
   </style>
   <script>
     window.currentVisibleFactorIndices = [];
@@ -194,28 +84,14 @@
             sb.classList.toggle('sidebar-visible');
         }
     };
-
-    window.togglePlaybookSidebarDesktop = function(btn) {
-        const sb = document.getElementById("playbooksSidebar");
-        if (!sb) return;
-        sb.classList.toggle("!hidden");
-        const icon = btn.querySelector('i');
-        if (icon) {
-            icon.setAttribute('data-lucide', sb.classList.contains("!hidden") ? 'panel-left' : 'panel-left-close');
-            if (window.lucide) window.lucide.createIcons();
-        }
-        if (typeof window.resetPlaybookView === 'function') setTimeout(window.resetPlaybookView, 300);
-    };
   </script>
 </head>
 <body class="text-slate-800 dark:text-slate-100 bg-[#f8f9fb] dark:bg-[#0c101a] font-sans overflow-hidden transition-colors duration-200">
 
-  <!-- THE ENTERPRISE SHELL -->
   <div class="flex h-dvh w-full overflow-hidden">
     
-    <!-- LEFT SIDEBAR (Desktop) -->
+    <!-- SIDEBAR -->
     <aside id="mainSidebar" class="w-64 bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 z-50 hidden md:flex shrink-0 pt-safe">
-        <!-- Logo -->
         <div class="h-16 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <h1 class="text-xl font-serif font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <i data-lucide="scale" class="w-5 h-5 text-indigo-600 dark:text-indigo-500"></i> Legal Nexus
@@ -223,7 +99,6 @@
             <button onclick="toggleMainSidebar()" class="md:hidden text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
         </div>
         
-        <!-- Nav Links -->
         <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1.5 custom-scrollbar">
             <button id="btnSideDashboard" onclick="switchState('DASHBOARD'); if(window.innerWidth<768) toggleMainSidebar();" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold bg-indigo-600 text-white shadow-sm transition">
                 <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
@@ -261,7 +136,6 @@
             </button>
         </nav>
         
-        <!-- Bottom Status Area & User Profile Block -->
         <div class="p-4 border-t border-slate-200 dark:border-slate-800 shrink-0 bg-slate-50 dark:bg-[#0f172a]">
             <div class="flex items-center gap-2.5 mb-3 px-1">
                 <div id="statusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
@@ -271,11 +145,10 @@
                 </div>
             </div>
 
-            <!-- Dynamic Bottom-Left User Identification -->
             <div class="flex items-center gap-3 bg-white dark:bg-slate-800/90 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700/80 cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition shadow-sm" onclick="switchState('SETTINGS'); if(window.innerWidth<768) toggleMainSidebar();">
                 <div id="userAvatar" class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-inner">LN</div>
                 <div class="flex-1 min-w-0">
-                    <p id="userFullNameDisplay" class="text-xs font-bold text-slate-900 dark:text-white truncate">Guest User</p>
+                    <p id="userFullNameDisplay" class="text-xs font-bold text-slate-900 dark:text-white truncate">Guest</p>
                     <p id="userUsernameDisplay" class="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">@guest</p>
                 </div>
                 <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
@@ -283,10 +156,9 @@
         </div>
     </aside>
 
-    <!-- RIGHT MAIN WRAPPER -->
+    <!-- MAIN VIEWPORT -->
     <div class="flex-1 flex flex-col min-w-0 bg-[#f8f9fb] dark:bg-[#0c101a] relative overflow-hidden h-full">
         
-        <!-- TOP HEADER -->
         <header id="mainTopHeader" class="pt-safe header-safe flex items-end pb-3 px-4 md:px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shrink-0 z-20 transition-colors duration-200">
             <div class="flex items-center justify-between w-full h-10">
                 <div class="flex items-center gap-4 flex-1">
@@ -315,15 +187,13 @@
             </div>
         </header>
 
-        <!-- SUB TABS CONTAINER -->
         <div id="mainTabsWrapper" class="w-full shrink-0 print:hidden hidden bg-white dark:bg-[#0f172a] shadow-sm z-10">
             <div class="flex overflow-x-auto scrollbar-hide w-full" id="mainTabs"></div>
         </div>
 
-        <!-- APP VIEWS CONTAINER -->
         <main id="mainAppWrapper" class="flex-1 flex flex-col relative w-full min-h-0 bg-[#f8f9fb] dark:bg-[#0c101a] overflow-hidden">
             
-            <!-- 1. DASHBOARD MODULE -->
+            <!-- 1. DASHBOARD -->
             <div id="appDashboard" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-200">
                 <div class="max-w-[1600px] mx-auto w-full">
                     <div class="flex justify-between items-center mb-8">
@@ -335,20 +205,14 @@
                             <i data-lucide="plus" class="w-4 h-4"></i> Log Concept
                         </button>
                     </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="dashboardGrid">
-                        <div class="col-span-1 lg:col-span-2 xl:col-span-3 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-10 text-center text-slate-500 font-bold">
-                            Dashboard Module loading...
-                        </div>
-                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="dashboardGrid"></div>
                 </div>
             </div>
 
-            <!-- 2. SETTINGS MODULE -->
-            <div id="appSettings" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-200">
-                <!-- Dynamically rendered by js/settings.js -->
-            </div>
+            <!-- 2. SETTINGS -->
+            <div id="appSettings" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-200"></div>
 
-            <!-- 3. INTERVIEW VAULT MODULE -->
+            <!-- 3. INTERVIEW VAULT -->
             <div id="appVault" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-y-auto p-4 md:p-8 transition-colors duration-200 bg-[#f8f9fb] dark:bg-[#0c101a] text-slate-800 dark:text-slate-200">
                 <div class="max-w-[1600px] mx-auto w-full">
                     <div id="vaultContainer" class="space-y-4 pb-10 w-full"></div>
@@ -398,7 +262,6 @@
 
               <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full transition-colors duration-200">
                 <div class="max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 items-start">
-                    
                     <div class="flex-1 min-w-0 space-y-6 order-2 lg:order-1 w-full">
                         <div class="print:hidden border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
                             <h2 class="text-2xl md:text-3xl font-serif font-black text-slate-900 dark:text-white mb-2">Market Intelligence</h2>
@@ -439,7 +302,6 @@
                         
                         <div class="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-[#0f172a] dark:to-[#1e293b] w-full rounded-md p-5 shadow-lg border border-slate-700 print:hidden flex flex-col gap-4 relative overflow-hidden" id="intelAIHeader">
                           <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse pointer-events-none"></div>
-                          
                           <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 relative z-10">
                             <div>
                               <h3 class="text-sm font-bold text-white uppercase tracking-widest mb-1 flex items-center gap-2"><i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i> Active Synthesis</h3>
@@ -467,108 +329,150 @@
             </div>
         </div>
 
-            <!-- 5. CORE CONCEPTS -->
+            <!-- 5. CORE CONCEPTS (CALIBRATED COMPACT LAYOUT) -->
             <div id="appConcepts" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-[#f8f9fb] dark:bg-[#0c101a]">
-                <button onclick="toggleAppSidebar('conceptLogSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Concept">
-                    <i data-lucide="plus" class="w-5 h-5"></i> <span>Log Concept</span>
-                </button>
-
+                
+                <!-- Left Log Drawer -->
                 <div id="conceptLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden flex-col shadow-xl md:shadow-none pb-24 md:pb-6 h-full md:hidden shrink-0 pt-safe-sidebar">
                     <button onclick="toggleAppSidebar('conceptLogSidebar')" class="absolute top-6 right-6 mt-safe text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
                     <h2 class="text-lg font-serif font-black text-slate-900 dark:text-white mb-4 mt-6 md:mt-0 shrink-0">Log Concept: <span id="formConceptLabel" class="text-indigo-600 dark:text-indigo-400 font-sans font-bold text-sm ml-1">Corporate</span></h2>
                     
                     <div class="space-y-4 flex-1 flex flex-col">
-                      <input type="text" id="conceptTitle" placeholder="Concept Name" spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm font-bold focus:ring-1 focus:ring-indigo-500 outline-none shrink-0 dark:bg-slate-800 dark:text-white shadow-inner">
-                      <input type="text" id="conceptSubTag" placeholder="Sub-Tag / Area (Opt)" spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none shrink-0 dark:bg-slate-800 dark:text-white shadow-inner">
-                      <div class="bg-white dark:bg-slate-900 flex flex-col flex-1 border border-slate-300 dark:border-slate-700 rounded-sm overflow-hidden min-h-[200px] shadow-sm">
+                      <input type="text" id="conceptTitle" placeholder="Concept Name" spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs font-bold focus:ring-1 focus:ring-indigo-500 outline-none shrink-0 dark:bg-slate-800 dark:text-white shadow-inner">
+                      <input type="text" id="conceptSubTag" placeholder="Sub-Tags / Areas (e.g. SPA, Leakage)" spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none shrink-0 dark:bg-slate-800 dark:text-white shadow-inner">
+                      
+                      <div class="bg-white dark:bg-slate-900 flex flex-col flex-1 border border-slate-300 dark:border-slate-700 rounded-lg overflow-hidden min-h-[220px] shadow-sm">
                         <div id="quillToolbar" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1 sticky top-0 z-[50]">
                           <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button></span>
-                          <span class="ql-formats"><select class="ql-color"></select><select class="ql-background"></select></span>
                           <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
                         </div>
-                        <div id="conceptBodyQuill" class="flex-1 dark:text-white" spellcheck="true"></div>
+                        <div id="conceptBodyQuill" class="flex-1 dark:text-white text-xs" spellcheck="true"></div>
                       </div>
-                      <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-sm p-4 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition group shrink-0" onclick="openDrawingPad('new')">
-                        <img id="newConceptDiagramPreview" class="hidden w-full max-h-40 object-contain mx-auto mb-2">
-                        <span class="text-sm font-bold text-slate-500 group-hover:text-slate-800 dark:group-hover:text-white flex justify-center items-center gap-2">
-                          <i data-lucide="pen-tool" class="w-4 h-4"></i> <span id="newConceptDiagramLabel">Add Diagram</span>
+
+                      <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-3 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition group shrink-0" onclick="openDrawingPad('new')">
+                        <img id="newConceptDiagramPreview" class="hidden w-full max-h-36 object-contain mx-auto mb-2">
+                        <span class="text-xs font-bold text-slate-500 group-hover:text-slate-800 dark:group-hover:text-white flex justify-center items-center gap-1.5">
+                          <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> <span id="newConceptDiagramLabel">Add Diagram</span>
                         </span>
                       </div>
-                      <button onclick="saveConcept();" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-sm transition shadow-sm mt-2 flex justify-center items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Save Concept</button>
+
+                      <button onclick="saveConcept();" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition shadow-sm mt-1 flex justify-center items-center gap-1.5 text-xs">
+                        <i data-lucide="save" class="w-3.5 h-3.5"></i> Save Concept
+                      </button>
                     </div>
                 </div>
 
-                <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full transition-colors duration-200">
-                    <div class="max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 items-start">
-                        <div class="flex-1 min-w-0 w-full space-y-6 order-2 lg:order-1">
-                            <div class="print:hidden border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
-                                <h2 class="text-2xl md:text-3xl font-serif font-black text-slate-900 dark:text-white mb-2">Knowledge Library</h2>
-                                <p class="text-sm text-slate-500">Your central repository of core commercial concepts and legal mechanisms.</p>
-                            </div>
-                            <h1 class="hidden print:block text-3xl font-serif font-bold mb-6 border-b pb-2 text-black">Knowledge Library: <span id="printConceptTitle">Corporate / M&A</span></h1>
-
-                            <div class="flex flex-col gap-3 w-full mb-6 print:hidden">
-                                <div class="flex items-center gap-3 w-full overflow-x-auto scrollbar-hide shrink-0">
-                                    <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest shrink-0 mr-2">Core Concepts</h2>
-                                    <div class="flex rounded-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm h-9 box-border overflow-hidden shrink-0">
-                                        <button onclick="toggleGlobalCollapse('concepts', true)" class="text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition border-r border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 h-full"><i data-lucide="chevron-down" class="w-3.5 h-3.5"></i> Expand</button>
-                                        <button onclick="toggleGlobalCollapse('concepts', false)" class="text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition flex items-center justify-center gap-1.5 h-full"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i> Collapse</button>
-                                    </div>
-                                    <button onclick="toggleAppSidebar('conceptLogSidebar')" class="md:hidden bg-indigo-600 text-white font-bold px-3 rounded-sm text-xs transition shadow-sm h-9 box-border shrink-0 flex items-center gap-1.5"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Log Concept</button>
-                                    <button onclick="massDeleteConcepts()" id="massDeleteConceptBtn" class="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 font-bold px-3 rounded-sm text-xs transition shadow-sm hidden h-9 box-border shrink-0 flex items-center gap-1.5"><i data-lucide="trash" class="w-3.5 h-3.5"></i> Delete</button>
-                                </div>
-                                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
-                                    <select id="sortConcepts" onchange="updateUIPrefs()" class="border border-slate-300 dark:border-slate-700 rounded-sm px-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 shadow-sm bg-white dark:bg-slate-900 h-9 box-border shrink-0">
-                                        <option value="newest">Newest First</option><option value="oldest">Oldest First</option><option value="az">A-Z</option><option value="za">Z-A</option>
-                                    </select>
-                                    <div class="flex w-full sm:w-auto rounded-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm h-9 box-border overflow-hidden shrink-0">
-                                        <button onclick="toggleSelectAll('concepts')" class="w-1/3 sm:w-auto flex-1 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition border-r border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 h-full whitespace-nowrap"><i data-lucide="check-square" class="w-3.5 h-3.5"></i> Select</button>
-                                        <button onclick="openFlashcardDashboard('concepts')" class="w-1/3 sm:w-auto flex-1 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition border-r border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 h-full whitespace-nowrap">
-                                            <i data-lucide="layers" class="w-3.5 h-3.5"></i> Review
-                                        </button>
-                                        <button onclick="reviewSelectedCards('concepts')" class="w-1/3 sm:w-auto flex-1 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 font-bold px-3 text-xs transition flex items-center justify-center gap-1.5 h-full whitespace-nowrap"><i data-lucide="target" class="w-3.5 h-3.5"></i> Selected</button>
-                                    </div>
-                                    <button onclick="window.toggleReverseMode()" id="fcToggleBtnConcepts" class="flex items-center justify-center gap-1.5 cursor-pointer bg-white dark:bg-slate-900 px-3 h-9 box-border rounded-sm border border-slate-300 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0 w-full sm:w-auto whitespace-nowrap">
-                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-indigo-500"></i> <span class="toggle-text">Front: Term</span>
-                                    </button>
-                                    <div class="relative flex-1">
-                                        <i data-lucide="filter" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
-                                        <input type="text" id="searchConcepts" placeholder="Filter concepts..." spellcheck="false" onkeyup="renderConcepts()" class="pl-9 border border-slate-300 dark:border-slate-700 rounded-sm pr-3 text-sm outline-none focus:ring-1 focus:ring-indigo-500 shadow-inner h-9 box-border w-full dark:bg-slate-900 dark:text-white">
-                                    </div>
-                                </div>
-                            </div>
-                            <div id="conceptAlphabetBar" class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-2 mt-1 mb-4 print:hidden w-full border-y border-slate-200 dark:border-slate-800"></div>
-
-                            <!-- Concept AI Header -->
-                            <div class="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-[#0f172a] dark:to-[#1e293b] w-full rounded-md p-5 shadow-lg border border-slate-700 print:hidden flex flex-col gap-4 relative overflow-hidden" id="conceptAIHeader">
-                              <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse pointer-events-none"></div>
-                              <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 relative z-10">
-                                <div>
-                                  <h3 class="text-sm font-bold text-white uppercase tracking-widest mb-1 flex items-center gap-2"><i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i> Technical Assessment</h3>
-                                  <p class="text-xs text-slate-400">Select concepts to generate targeted tests.</p>
-                                </div>
-                                <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                                  <select id="aiPersonaConcept" class="flex-1 md:flex-none bg-slate-900/50 border border-slate-600 text-slate-200 rounded-sm px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-400 shadow-inner">
-                                    <option value="Standard Partner">Standard Persona</option><option value="Magic Circle Partner">Magic Circle</option><option value="US Firm Partner">US Firm</option>
-                                  </select>
-                                  <label class="flex-1 md:flex-none justify-center text-xs text-slate-300 font-bold flex items-center gap-2 cursor-pointer bg-slate-900/50 px-3 py-1.5 rounded-sm border border-slate-600 hover:bg-slate-700 transition shadow-inner">
-                                    <input type="checkbox" id="pressureModeConcept" class="rounded-sm text-indigo-500 focus:ring-indigo-500 bg-slate-800 border-slate-500 w-3.5 h-3.5"> Pressure
-                                  </label>
-                                </div>
-                              </div>
-                              <div class="flex flex-wrap md:flex-nowrap gap-3 border-t border-slate-700/50 pt-4 relative z-10">
-                                <button onclick="generateConceptInterview()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Concept Interview</button>
-                                <button onclick="generateConceptDeconstructor()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="hammer" class="w-3.5 h-3.5"></i> Deconstruct</button>
-                                <button onclick="generateKnowledgeTest()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="target" class="w-3.5 h-3.5"></i> Knowledge Test</button>
-                              </div>
-                            </div>
-                            
-                            <div id="conceptsContainer" class="space-y-4 pb-10 print:space-y-6 print:pb-0 w-full"></div>
-                        </div>
+                <!-- Main Content Scroll Area -->
+                <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-32 h-full transition-colors duration-200 custom-scrollbar">
+                    <div class="max-w-[1600px] mx-auto w-full space-y-3">
                         
-                        <div class="w-full lg:w-80 xl:w-[400px] shrink-0 print:hidden relative lg:sticky lg:top-0 flex flex-col gap-6 pt-1 order-1 lg:order-2">
-                             <div id="conceptMasteryWidget" class="hidden"></div>
+                        <!-- 1. TIGHT COMPACT HEADER (Matches Market Intelligence) -->
+                        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                            <div>
+                                <h1 class="text-2xl md:text-3xl font-serif font-black text-slate-900 dark:text-white leading-tight">Knowledge Library</h1>
+                                <p class="text-xs text-slate-500 mt-0.5">Core commercial concepts, contract mechanisms, and legal structures.</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div id="conceptMasteryWidget" class="hidden sm:block"></div>
+                                <button onclick="toggleAppSidebar('conceptLogSidebar')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow-sm flex items-center gap-1.5 shrink-0">
+                                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> <span>New Concept</span>
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- 2. ACTION BUTTON CLUSTER & MASS DELETE -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 pt-0.5 print:hidden">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-0.5 shadow-sm">
+                                    <button type="button" onclick="window.toggleSelectAll('concepts')" class="px-2.5 py-1 rounded-md text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1">
+                                        <i data-lucide="check-square" class="w-3.5 h-3.5 text-indigo-500"></i> Select
+                                    </button>
+                                    <button type="button" onclick="openFlashcardDashboard('concepts')" class="px-2.5 py-1 rounded-md text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1 border-l border-slate-200 dark:border-slate-800">
+                                        <i data-lucide="layers" class="w-3.5 h-3.5 text-indigo-500"></i> Review
+                                    </button>
+                                    <button type="button" id="btnSelectedFlashcards" onclick="reviewSelectedCards('concepts')" class="px-2.5 py-1 rounded-md text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition flex items-center gap-1 border-l border-slate-200 dark:border-slate-800">
+                                        <i data-lucide="target" class="w-3.5 h-3.5 text-indigo-500"></i> Selected (0)
+                                    </button>
+                                </div>
+                                <button type="button" onclick="window.toggleReverseMode()" id="fcToggleBtnConcepts" class="flex items-center justify-center gap-1.5 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm text-xs font-bold text-slate-700 dark:text-slate-300">
+                                    <i data-lucide="refresh-cw" class="w-3 h-3 text-indigo-500"></i> <span class="toggle-text">Front: Term</span>
+                                </button>
+                            </div>
+
+                            <button type="button" onclick="window.massDeleteConcepts()" id="massDeleteConceptBtn" class="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 font-bold px-3 py-1 rounded-lg text-xs transition shadow-sm hidden flex items-center gap-1">
+                                <i data-lucide="trash" class="w-3.5 h-3.5"></i> Delete Selected
+                            </button>
+                        </div>
+
+                        <!-- 3. PRECISE FILTER TOOLBAR (Category / Practice Area / Mastery / Search / Sort) -->
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl p-2 shadow-sm print:hidden">
+                            <div class="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                                <select id="conceptFilterCategory" onchange="window.onConceptFilterChange()" class="border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm">
+                                    <option value="All">All Categories</option>
+                                </select>
+
+                                <select id="conceptFilterPracticeArea" onchange="window.onConceptFilterChange()" class="border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm">
+                                    <option value="All">All Practice Areas</option>
+                                </select>
+
+                                <select id="conceptFilterMastery" onchange="window.onConceptFilterChange()" class="border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm">
+                                    <option value="All">Mastery: All</option>
+                                    <option value="mastered">Mastered (≥80%)</option>
+                                    <option value="learning">Learning (&lt;80%)</option>
+                                    <option value="due">Review Due Now</option>
+                                </select>
+
+                                <button type="button" onclick="window.resetConceptFilters()" class="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center gap-1 shadow-sm">
+                                    <i data-lucide="filter" class="w-3.5 h-3.5 text-slate-500"></i> Filters
+                                </button>
+
+                                <div class="relative flex-1 min-w-[180px]">
+                                    <i data-lucide="search" class="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400"></i>
+                                    <input type="text" id="searchConcepts" placeholder="Filter concepts..." spellcheck="false" onkeyup="window.renderConcepts()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white shadow-inner">
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-1.5 shrink-0 border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 pt-1.5 sm:pt-0 sm:pl-2.5">
+                                <span class="text-[11px] font-bold text-slate-400 whitespace-nowrap">Sort:</span>
+                                <select id="sortConcepts" onchange="window.renderConcepts()" class="border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm">
+                                    <option value="az">A-Z</option>
+                                    <option value="za">Z-A</option>
+                                    <option value="newest">Newest</option>
+                                    <option value="oldest">Oldest</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 4. HORIZONTAL ALPHABET BAR (ALL, A-Z) -->
+                        <div id="conceptAlphabetBar" class="flex items-center gap-1 overflow-x-auto scrollbar-hide py-1 w-full print:hidden"></div>
+
+                        <!-- 5. TECHNICAL ASSESSMENT AI BOX (Strictly below the Alphabet Bar) -->
+                        <div class="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-[#0f172a] dark:to-[#1e293b] w-full rounded-xl p-3.5 shadow-md border border-slate-700 print:hidden flex flex-col gap-2.5 relative overflow-hidden" id="conceptAIHeader">
+                          <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse pointer-events-none"></div>
+                          <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 relative z-10">
+                            <div>
+                              <h3 class="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-1.5"><i data-lucide="cpu" class="w-3.5 h-3.5 text-indigo-400"></i> Technical Assessment</h3>
+                              <p class="text-[11px] text-slate-400 mt-0.5">Select concepts in the table below to generate targeted simulation scenarios.</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                              <select id="aiPersonaConcept" class="flex-1 md:flex-none bg-slate-900/50 border border-slate-600 text-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-400 shadow-inner">
+                                <option value="Standard Partner">Standard Persona</option><option value="Magic Circle Partner">Magic Circle</option><option value="US Firm Partner">US Firm</option>
+                              </select>
+                              <label class="flex-1 md:flex-none justify-center text-xs text-slate-300 font-bold flex items-center gap-1.5 cursor-pointer bg-slate-900/50 px-2.5 py-1 rounded-lg border border-slate-600 hover:bg-slate-700 transition shadow-inner">
+                                <input type="checkbox" id="pressureModeConcept" class="rounded text-indigo-500 focus:ring-indigo-500 bg-slate-800 border-slate-500 w-3.5 h-3.5"> Pressure
+                              </label>
+                            </div>
+                          </div>
+                          <div class="flex flex-wrap md:flex-nowrap gap-2 border-t border-slate-700/50 pt-2.5 relative z-10">
+                            <button onclick="generateConceptInterview()" class="w-full md:w-auto flex-1 h-8 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-lg text-xs transition flex justify-center items-center gap-1.5 shadow-sm backdrop-blur-sm"><i data-lucide="briefcase" class="w-3 h-3"></i> Concept Interview</button>
+                            <button onclick="generateConceptDeconstructor()" class="w-full md:w-auto flex-1 h-8 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-lg text-xs transition flex justify-center items-center gap-1.5 shadow-sm backdrop-blur-sm"><i data-lucide="hammer" class="w-3.5 h-3.5"></i> Deconstruct</button>
+                            <button onclick="generateKnowledgeTest()" class="w-full md:w-auto flex-1 h-8 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-lg text-xs transition flex justify-center items-center gap-1.5 shadow-sm backdrop-blur-sm"><i data-lucide="target" class="w-3.5 h-3.5"></i> Knowledge Test</button>
+                          </div>
+                        </div>
+
+                        <!-- 6. DATA TABLE WITH INTEGRATED PAGINATION FOOTER -->
+                        <div id="conceptsContainer" class="w-full"></div>
+
                     </div>
                 </div>
             </div>
@@ -712,7 +616,7 @@
                 </div>
             </div>
 
-            <!-- 7. DICTIONARY APP -->
+            <!-- 7. DICTIONARY -->
             <div id="appDictionary" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden transition-colors duration-200 bg-[#f8f9fb] dark:bg-[#0c101a]">
               <button onclick="toggleAppSidebar('dictSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Define Term">
                 <i data-lucide="plus" class="w-5 h-5"></i> <span>Add Term</span>
@@ -905,7 +809,6 @@
 
         </main>
         
-        <!-- BOTTOM NAVIGATION -->
         <div id="mobileBottomNav" class="md:hidden shrink-0 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-around items-start z-[50] print:hidden pb-safe transition-colors duration-200">
             <button onclick="switchState('DASHBOARD')" id="mobNavDashboard" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="layout-dashboard" class="w-5 h-5"></i> Home</button>
             <button onclick="switchState('INTELLIGENCE')" id="mobNavIntel" class="flex-1 pt-3 pb-2 text-[10px] md:text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white border-t-2 border-transparent flex flex-col items-center gap-1 transition -mt-px"><i data-lucide="globe" class="w-5 h-5"></i> Intel</button>
@@ -917,28 +820,107 @@
     </div>
   </div>
 
-  <!-- FLASHCARD MODAL CONTAINER (CLEAN ANKI-STYLE CARD DESIGN) -->
+  <!-- EDIT CONCEPT MODAL -->
+  <div id="editConceptModalContainer" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
+        <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <i data-lucide="edit-3" class="w-4 h-4 text-indigo-500"></i> Edit Concept
+        </h3>
+        <button type="button" onclick="document.getElementById('editConceptModalContainer').classList.add('hidden')" class="text-slate-400 hover:text-slate-800 dark:hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="editConceptIndex">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Concept Name</label>
+          <input type="text" id="editConceptTitle" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner">
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Category</label>
+            <select id="editConceptCategory" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"></select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Sub-Tags / Practice Areas</label>
+            <input type="text" id="editConceptSubTag" class="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Definition & Core Mechanics</label>
+          <div class="border border-slate-300 dark:border-slate-700 rounded-lg overflow-hidden flex flex-col bg-white dark:bg-slate-900 min-h-[220px]">
+            <div id="editConceptToolbar" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-1">
+              <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button></span>
+              <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
+            </div>
+            <div id="editConceptBodyQuill" class="flex-1 dark:text-white text-xs p-3"></div>
+          </div>
+        </div>
+
+        <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-3 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition group" onclick="openDrawingPad(document.getElementById('editConceptIndex').value)">
+          <img id="editConceptDiagramPreview" class="hidden w-full max-h-36 object-contain mx-auto mb-2">
+          <span class="text-xs font-bold text-slate-500 group-hover:text-slate-800 dark:group-hover:text-white flex justify-center items-center gap-1.5">
+            <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> <span id="editConceptDiagramLabel">Edit Diagram</span>
+          </span>
+        </div>
+
+        <div class="flex justify-end gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onclick="document.getElementById('editConceptModalContainer').classList.add('hidden')" class="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 rounded-lg transition">Cancel</button>
+          <button type="button" onclick="window.saveConceptEditFn()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 text-xs rounded-lg transition shadow flex items-center gap-1.5">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i> Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAWING MODAL -->
+  <div id="drawingModalContainer" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[220] hidden items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[94vh]">
+      <div class="flex justify-between items-center pb-3 mb-3 border-b border-slate-200 dark:border-slate-800">
+        <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+          <i data-lucide="pen-tool" class="w-4 h-4 text-indigo-500"></i> Diagram Drawing Pad
+        </h3>
+        <div class="flex items-center gap-2">
+          <button type="button" id="btnToolPen" onclick="setDrawMode('pen')" class="bg-blue-600 text-white px-3 py-1.5 rounded font-bold text-xs">Pen</button>
+          <button type="button" id="btnToolEraser" onclick="setDrawMode('eraser')" class="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded font-bold text-xs">Eraser</button>
+          <input type="color" id="drawColorPicker" value="#2563eb" class="w-7 h-7 rounded cursor-pointer border-0 bg-transparent">
+          <input type="range" id="drawLineWidth" min="1" max="10" value="3" class="w-20 cursor-pointer">
+          <button type="button" onclick="undoDraw()" class="text-xs font-bold text-slate-600 dark:text-slate-300 px-2 py-1 hover:bg-slate-100 rounded">Undo</button>
+          <button type="button" onclick="clearCanvas()" class="text-xs font-bold text-rose-600 px-2 py-1 hover:bg-rose-50 rounded">Clear</button>
+          <button type="button" onclick="closeDrawingPad()" class="text-slate-400 hover:text-slate-800 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+      </div>
+      <div class="flex-1 overflow-auto flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+        <div id="zoomWrapper" class="relative">
+          <canvas id="diagramCanvas" class="bg-white shadow-md border rounded cursor-crosshair"></canvas>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-3 mt-3 border-t border-slate-200 dark:border-slate-800">
+        <button type="button" onclick="closeDrawingPad()" class="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 rounded-lg">Cancel</button>
+        <button type="button" onclick="saveDrawing()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 text-xs rounded-lg shadow">Attach Diagram</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLASHCARD MODAL -->
   <div id="flashcardModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden">
-      
-      <!-- Modal Top Header & Mode Toggles -->
       <div class="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
         <div class="flex items-center gap-2 flex-wrap">
           <span id="flashcardCounter" class="text-xs font-mono font-bold text-slate-400 mr-1">Card 1 of 1</span>
-          
-          <!-- Recall Drill Toggle -->
           <button type="button" id="btnToggleRecallMode" onclick="window.toggleRecallDrillMode()" class="text-[10px] font-bold px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition flex items-center gap-1">
             <i data-lucide="dumbbell" class="w-3 h-3 text-indigo-500"></i> <span id="recallModeLabel">Recall Drill: OFF</span>
           </button>
-
-          <!-- Feynman AI Toggle -->
           <button type="button" id="btnToggleFeynmanMode" onclick="window.toggleFeynmanMode()" class="text-[10px] font-bold px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition flex items-center gap-1">
             <i data-lucide="sparkles" class="w-3 h-3 text-purple-500"></i> <span id="feynmanModeLabel">Feynman: OFF</span>
           </button>
         </div>
-
         <div class="flex items-center gap-2 shrink-0">
-          <!-- Push to Back of Queue Button -->
           <button type="button" onclick="window.pushCardToEndOfQueue()" class="text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 px-3 py-1 rounded-lg border border-amber-200 dark:border-amber-800 transition flex items-center gap-1" title="Push this card to the end of the active queue">
             <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Send to Back</span>
           </button>
@@ -948,90 +930,51 @@
         </div>
       </div>
 
-      <!-- Main Scrollable Card Surface -->
       <div class="flex-1 overflow-y-auto py-8 space-y-6 custom-scrollbar flex flex-col justify-center">
-        
-        <!-- FRONT OF CARD -->
         <div id="flashcardFront" class="flex flex-col items-center text-center justify-center space-y-4 cursor-pointer">
           <span id="fcCategory" class="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800">General</span>
-          
           <h2 id="fcTitle" class="text-3xl md:text-4xl font-serif font-black text-slate-900 dark:text-white max-w-xl leading-tight px-4">Card Term</h2>
           <div id="fcFrontBody" class="hidden prose prose-sm dark:prose-invert max-w-lg text-slate-700 dark:text-slate-300 px-4"></div>
-
           <p id="fcInstruction" class="text-xs text-slate-400 italic pt-1">(Tap card or press Space to reveal answer)</p>
 
-          <!-- 1. DEDICATED RECALL DRILL BOX (Only rendered when Recall Drill is ON) -->
           <div id="recallDockWrapper" class="hidden w-full max-w-lg mx-auto pt-4 text-left space-y-2 cursor-default" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                <i data-lucide="pen-tool" class="w-3 h-3"></i> Active Recall
-              </span>
-              <button type="button" id="btnRecallMic" onclick="window.toggleSpeechRecognition()" class="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                <i data-lucide="mic" class="w-3 h-3"></i> Dictate
-              </button>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1"><i data-lucide="pen-tool" class="w-3 h-3"></i> Active Recall</span>
+              <button type="button" id="btnRecallMic" onclick="window.toggleSpeechRecognition()" class="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded"><i data-lucide="mic" class="w-3 h-3"></i> Dictate</button>
             </div>
             <textarea id="recallAnswerInput" rows="2" placeholder="Type your answer before flipping..." class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"></textarea>
-            
             <div id="recallResultBanner" class="hidden"></div>
-            
-            <button type="button" id="btnRecallCheck" onclick="window.checkRecallAnswer()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5">
-              Check Answer
-            </button>
+            <button type="button" id="btnRecallCheck" onclick="window.checkRecallAnswer()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5">Check Answer</button>
           </div>
 
-          <!-- 2. DEDICATED FEYNMAN BOX (Only rendered when Feynman is ON) -->
           <div id="feynmanWrapper" class="hidden w-full max-w-lg mx-auto pt-4 text-left space-y-2 cursor-default" onclick="event.stopPropagation()">
-            <div class="flex justify-between items-center">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                <i data-lucide="sparkles" class="w-3 h-3"></i> Feynman Technique (Plain English)
-              </span>
-            </div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1"><i data-lucide="sparkles" class="w-3 h-3"></i> Feynman Technique (Plain English)</span>
             <textarea id="feynmanInput" rows="2" placeholder="Explain simply without legal jargon..." class="w-full bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/60 rounded-xl p-3 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500 shadow-inner"></textarea>
-            <button type="button" id="btnFeynmanSubmit" onclick="window.evaluateFeynman()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5">
-              Evaluate with Tutor AI
-            </button>
+            <button type="button" id="btnFeynmanSubmit" onclick="window.evaluateFeynman()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5">Evaluate with Tutor AI</button>
           </div>
-
         </div>
 
-        <!-- BACK OF CARD -->
         <div id="flashcardBack" class="hidden flex-col space-y-4 cursor-pointer">
           <div class="flex justify-between items-center">
             <span id="fcBackCategory" class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">Answer</span>
             <span class="text-[10px] text-slate-400 italic">Click card to unflip</span>
           </div>
-          
           <h3 id="fcBackTitle" class="text-2xl font-serif font-black text-slate-900 dark:text-white">Term</h3>
-          
           <div id="feynmanFeedback" class="hidden p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs text-purple-950 dark:text-purple-200 space-y-1">
             <span class="font-bold uppercase tracking-wider text-[10px] text-purple-600 dark:text-purple-400">Tutor AI Feedback:</span>
             <p id="feynmanFeedbackContent" class="leading-relaxed"></p>
           </div>
-
           <div id="fcBody" class="prose prose-sm dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 leading-relaxed border-t border-slate-100 dark:border-slate-800 pt-3"></div>
         </div>
-
       </div>
 
-      <!-- SRS GRADING FOOTER (1 to 5) -->
       <div id="flashcardControls" class="hidden grid-cols-5 gap-2 pt-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
-        <button type="button" onclick="processFlashcardResult('forgot')" class="flex flex-col items-center p-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 transition font-bold text-xs">
-          <span>Again</span><span class="text-[10px] opacity-70 mt-0.5">&lt; 1m</span>
-        </button>
-        <button type="button" onclick="processFlashcardResult('hard')" class="flex flex-col items-center p-2 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900 transition font-bold text-xs">
-          <span>Hard</span><span class="text-[10px] opacity-70 mt-0.5">1d</span>
-        </button>
-        <button type="button" onclick="processFlashcardResult('good')" class="flex flex-col items-center p-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900 transition font-bold text-xs">
-          <span>Good</span><span class="text-[10px] opacity-70 mt-0.5">3d</span>
-        </button>
-        <button type="button" onclick="processFlashcardResult('easy')" class="flex flex-col items-center p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 transition font-bold text-xs">
-          <span>Easy</span><span class="text-[10px] opacity-70 mt-0.5">7d</span>
-        </button>
-        <button type="button" onclick="processFlashcardResult('mastered')" class="flex flex-col items-center p-2 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900 transition font-bold text-xs">
-          <span>Mastered</span><span class="text-[10px] opacity-70 mt-0.5">30d+</span>
-        </button>
+        <button type="button" onclick="processFlashcardResult('forgot')" class="flex flex-col items-center p-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 transition font-bold text-xs"><span>Again</span><span class="text-[10px] opacity-70 mt-0.5">&lt; 1m</span></button>
+        <button type="button" onclick="processFlashcardResult('hard')" class="flex flex-col items-center p-2 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900 transition font-bold text-xs"><span>Hard</span><span class="text-[10px] opacity-70 mt-0.5">1d</span></button>
+        <button type="button" onclick="processFlashcardResult('good')" class="flex flex-col items-center p-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900 transition font-bold text-xs"><span>Good</span><span class="text-[10px] opacity-70 mt-0.5">3d</span></button>
+        <button type="button" onclick="processFlashcardResult('easy')" class="flex flex-col items-center p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 transition font-bold text-xs"><span>Easy</span><span class="text-[10px] opacity-70 mt-0.5">7d</span></button>
+        <button type="button" onclick="processFlashcardResult('mastered')" class="flex flex-col items-center p-2 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900 transition font-bold text-xs"><span>Mastered</span><span class="text-[10px] opacity-70 mt-0.5">30d+</span></button>
       </div>
-
     </div>
   </div>
 
@@ -1049,7 +992,6 @@
       <div id="authErrorBanner" class="hidden text-xs p-3 rounded-lg leading-relaxed font-medium bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900"></div>
 
       <form onsubmit="handleAuthSubmit(event)" class="flex flex-col gap-4">
-        <!-- Registration Full Name & Username -->
         <div id="authRegisterFields" class="hidden flex flex-col gap-3">
           <div>
             <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Full Name</label>
@@ -1092,7 +1034,6 @@
     </div>
   </div>
 
-  <!-- JAVASCRIPT LOGIC (MODULAR) -->
   <script src="js/config.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/templates.js"></script>
@@ -1113,7 +1054,6 @@
   <script src="js/dashboard.js"></script>
   <script src="js/main.js"></script>
 
-  <!-- Lucide Icon Auto-Renderer -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) window.lucide.createIcons();

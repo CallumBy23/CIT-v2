@@ -1,44 +1,14 @@
-// CONCEPTS RENDERING & KMS LOGIC
-// ==========================================
+// CONCEPTS RENDERING & KMS TABLE ENGINE (ENTERPRISE TABLE + PAGINATION + INTEGRATED CONTROLS)
+// =====================================================================
 
-window.toggleConceptCard = function(index, event) {
-    if (event) {
-        if (event.target.closest('button') || event.target.closest('a') || event.target.closest('input') || event.target.closest('.ql-editor') || event.target.closest('.dict-term')) {
-            return;
-        }
-    }
-    
-    if (!db.concepts || !db.concepts[index]) return;
-    const concept = db.concepts[index];
+window.conceptCurrentPage = 1;
+window.conceptPageSize = 10;
+window.selectedConcepts = window.selectedConcepts || new Set();
 
-    // Find the card container from the click target
-    const headerRow = event ? event.target.closest('.group') : null;
-    const card = headerRow ? headerRow.closest('div.bg-white, div.dark\\:bg-\\[\\#0f172a\\]') : null;
-    
-    if (!card) return;
-
-    const body = card.querySelector('.nexus-body');
-    const icon = card.querySelector('.nexus-icon i');
-
-    if (body) {
-        // Read directly whether it is currently hidden in the DOM
-        const isCurrentlyHidden = body.classList.contains('hidden');
-        
-        if (isCurrentlyHidden) {
-            body.classList.remove('hidden');
-            concept.isCollapsed = false;
-            if (icon) icon.setAttribute('data-lucide', 'chevron-up');
-        } else {
-            body.classList.add('hidden');
-            concept.isCollapsed = true;
-            if (icon) icon.setAttribute('data-lucide', 'chevron-down');
-        }
-
-        if (window.lucide) window.lucide.createIcons();
-    }
-
-    if (typeof saveToLocalCache === 'function') saveToLocalCache();
-};
+// Active Filter States
+window.conceptSelectedCategory = "All";
+window.conceptSelectedPracticeArea = "All";
+window.conceptSelectedMastery = "All";
 
 // --- ALPHABET FILTER STATE ---
 window.activeConceptAlpha = new Set();
@@ -46,12 +16,17 @@ window.activeDictAlpha = new Set();
 
 window.toggleAlphabetFilter = function(letter, source) {
     const set = source === 'concepts' ? window.activeConceptAlpha : window.activeDictAlpha;
-    if (set.has(letter)) set.delete(letter);
-    else set.add(letter);
+    if (letter === 'ALL') {
+        set.clear();
+    } else {
+        if (set.has(letter)) set.delete(letter);
+        else set.add(letter);
+    }
 
     window.renderAlphabetBar(source);
+    window.conceptCurrentPage = 1;
     
-    if (source === 'concepts') renderConcepts();
+    if (source === 'concepts') window.renderConcepts();
     if (source === 'dictionary' && typeof renderDictionary === 'function') renderDictionary();
 };
 
@@ -61,16 +36,356 @@ window.renderAlphabetBar = function(source) {
     if (!container) return;
     
     const set = source === 'concepts' ? window.activeConceptAlpha : window.activeDictAlpha;
-    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    const alphabet = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
     
     container.innerHTML = alphabet.map(letter => {
-        const isActive = set.has(letter);
-        const baseClass = "px-2.5 py-1 text-[11px] font-bold rounded cursor-pointer transition shrink-0 border ";
+        const isActive = letter === 'ALL' ? set.size === 0 : set.has(letter);
+        const baseClass = "px-2 py-1 text-[11px] font-bold rounded-md cursor-pointer transition shrink-0 border ";
         const activeClass = isActive 
-            ? "bg-indigo-600 text-white border-indigo-700 shadow-inner" 
-            : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white";
-        return `<button onclick="window.toggleAlphabetFilter('${letter}', '${source}')" class="${baseClass} ${activeClass}">${letter}</button>`;
+            ? "bg-indigo-600 text-white border-indigo-700 shadow-sm" 
+            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white";
+        return `<button type="button" onclick="window.toggleAlphabetFilter('${letter}', '${source}')" class="${baseClass} ${activeClass}">${letter}</button>`;
     }).join('');
+};
+
+window.onConceptFilterChange = function() {
+    const catEl = document.getElementById('conceptFilterCategory');
+    const paEl = document.getElementById('conceptFilterPracticeArea');
+    const masteryEl = document.getElementById('conceptFilterMastery');
+
+    window.conceptSelectedCategory = catEl ? catEl.value : "All";
+    window.conceptSelectedPracticeArea = paEl ? paEl.value : "All";
+    window.conceptSelectedMastery = masteryEl ? masteryEl.value : "All";
+
+    window.conceptCurrentPage = 1;
+    window.renderConcepts();
+};
+
+window.resetConceptFilters = function() {
+    const catEl = document.getElementById('conceptFilterCategory');
+    const paEl = document.getElementById('conceptFilterPracticeArea');
+    const masteryEl = document.getElementById('conceptFilterMastery');
+    const searchEl = document.getElementById('searchConcepts');
+    const sortEl = document.getElementById('sortConcepts');
+
+    if (catEl) catEl.value = "All";
+    if (paEl) paEl.value = "All";
+    if (masteryEl) masteryEl.value = "All";
+    if (searchEl) searchEl.value = "";
+    if (sortEl) sortEl.value = "az";
+
+    window.conceptSelectedCategory = "All";
+    window.conceptSelectedPracticeArea = "All";
+    window.conceptSelectedMastery = "All";
+    window.activeConceptAlpha.clear();
+
+    window.conceptCurrentPage = 1;
+    window.renderAlphabetBar('concepts');
+    window.renderConcepts();
+};
+
+window.populateConceptFilterDropdowns = function() {
+    const catEl = document.getElementById('conceptFilterCategory');
+    const paEl = document.getElementById('conceptFilterPracticeArea');
+
+    if (catEl && (!catEl.dataset.populated || catEl.children.length <= 1)) {
+        const categories = (typeof db !== 'undefined' && db.conceptCategories && db.conceptCategories.length > 0)
+            ? db.conceptCategories
+            : Array.from(new Set(((typeof db !== 'undefined' && db.concepts) || []).map(c => c.category || "General")));
+        
+        let opts = `<option value="All">All Categories</option>`;
+        categories.forEach(cat => {
+            opts += `<option value="${cat}">${cat}</option>`;
+        });
+        catEl.innerHTML = opts;
+        catEl.value = window.conceptSelectedCategory || "All";
+        catEl.dataset.populated = "true";
+    }
+
+    if (paEl) {
+        const subTags = new Set();
+        ((typeof db !== 'undefined' && db.concepts) || []).forEach(c => {
+            if (c.subTag) {
+                c.subTag.split(',').forEach(st => {
+                    const trimmed = st.trim();
+                    if (trimmed) subTags.add(trimmed);
+                });
+            }
+        });
+        
+        let paOpts = `<option value="All">All Practice Areas</option>`;
+        Array.from(subTags).sort().forEach(tag => {
+            paOpts += `<option value="${tag}">${tag}</option>`;
+        });
+        paEl.innerHTML = paOpts;
+        paEl.value = window.conceptSelectedPracticeArea || "All";
+    }
+};
+
+window.setConceptPage = function(page) {
+    window.conceptCurrentPage = page;
+    window.renderConcepts();
+};
+
+// --- DATA TABLE RENDERING ENGINE ---
+window.renderConcepts = function() {
+    const container = document.getElementById("conceptsContainer");
+    if (!container) return;
+    
+    try {
+        window.currentVisibleConceptIndices = [];
+        window.populateConceptFilterDropdowns();
+
+        // 1. Compact Header Concept Mastery Widget
+        const widgetContainer = document.getElementById("conceptMasteryWidget");
+        if (widgetContainer) {
+            const catStats = {};
+            ((typeof db !== 'undefined' && db.concepts) || []).forEach(c => {
+                if (c && c.category && c.category !== "All") {
+                    if (!catStats[c.category]) catStats[c.category] = { total: 0, mastered: 0 };
+                    catStats[c.category].total++;
+                    if (c.srs && (c.srs.mastered || c.srs.interval >= 21)) {
+                        catStats[c.category].mastered++;
+                    }
+                }
+            });
+
+            const currentCat = (typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All")
+                ? currentConceptCategory
+                : (Object.keys(catStats)[0] || "Corporate / M&A");
+            
+            const stats = catStats[currentCat] || { total: 0, mastered: 0 };
+            const pct = stats.total === 0 ? 0 : Math.round((stats.mastered / stats.total) * 100);
+
+            widgetContainer.innerHTML = `
+                <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 shadow-sm flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">${currentCat}:</span>
+                    <div class="w-16 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                        <div class="${pct >= 50 ? 'bg-emerald-500' : 'bg-indigo-600'} h-full rounded-full" style="width: ${pct}%"></div>
+                    </div>
+                    <span class="font-mono font-bold text-xs ${pct >= 50 ? 'text-emerald-600' : 'text-indigo-600'}">${pct}%</span>
+                </div>
+            `;
+            widgetContainer.classList.remove('hidden');
+        }
+
+        // 2. Filter Logic
+        const searchBox = document.getElementById("searchConcepts");
+        const term = searchBox ? String(searchBox.value || "").toLowerCase().trim() : "";
+        let rawConcepts = (typeof db !== 'undefined' && db.concepts) ? db.concepts : [];
+        let filtered = rawConcepts.slice();
+
+        // Top workspace subtab
+        if (typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All") {
+            filtered = filtered.filter(c => c.category === currentConceptCategory);
+        }
+
+        // Dropdown Category
+        if (window.conceptSelectedCategory && window.conceptSelectedCategory !== "All") {
+            filtered = filtered.filter(c => c.category === window.conceptSelectedCategory);
+        }
+
+        // Dropdown Practice Area
+        if (window.conceptSelectedPracticeArea && window.conceptSelectedPracticeArea !== "All") {
+            filtered = filtered.filter(c => {
+                const subTags = (c.subTag || "").split(',').map(s => s.trim().toLowerCase());
+                return subTags.includes(window.conceptSelectedPracticeArea.toLowerCase());
+            });
+        }
+
+        // Dropdown Mastery Status
+        if (window.conceptSelectedMastery && window.conceptSelectedMastery !== "All") {
+            const now = new Date().getTime();
+            if (window.conceptSelectedMastery === "mastered") {
+                filtered = filtered.filter(c => c.srs && (c.srs.mastered || c.srs.interval >= 21));
+            } else if (window.conceptSelectedMastery === "learning") {
+                filtered = filtered.filter(c => !c.srs || (!c.srs.mastered && (c.srs.interval || 0) < 21));
+            } else if (window.conceptSelectedMastery === "due") {
+                filtered = filtered.filter(c => c.srs && c.srs.nextReview && c.srs.nextReview <= now);
+            }
+        }
+
+        // Search box input
+        if (term) {
+            filtered = filtered.filter(c => 
+                String(c.title || "").toLowerCase().includes(term) || 
+                String(c.body || "").toLowerCase().includes(term) ||
+                String(c.subTag || "").toLowerCase().includes(term)
+            );
+        }
+
+        // Alphabet quick filter
+        if (window.activeConceptAlpha && window.activeConceptAlpha.size > 0) {
+            filtered = filtered.filter(c => {
+                const titleStr = String(c.title || "").trim();
+                if (!titleStr) return false;
+                return window.activeConceptAlpha.has(titleStr.charAt(0).toUpperCase());
+            });
+        }
+
+        let indexedConcepts = filtered.map(c => ({ concept: c, originalIndex: rawConcepts.indexOf(c) }));
+
+        // Sort Engine
+        const sortBox = document.getElementById("sortConcepts");
+        const sortMode = sortBox ? sortBox.value : "az";
+
+        if (sortMode === "newest") {
+            indexedConcepts.reverse();
+        } else if (sortMode === "az") {
+            indexedConcepts.sort((a, b) => String(a.concept.title || "").localeCompare(String(b.concept.title || "")));
+        } else if (sortMode === "za") {
+            indexedConcepts.sort((a, b) => String(b.concept.title || "").localeCompare(String(a.concept.title || "")));
+        }
+
+        // 3. Pagination
+        const totalItems = indexedConcepts.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / window.conceptPageSize));
+        if (window.conceptCurrentPage > totalPages) window.conceptCurrentPage = totalPages;
+        if (window.conceptCurrentPage < 1) window.conceptCurrentPage = 1;
+
+        const startIndex = (window.conceptCurrentPage - 1) * window.conceptPageSize;
+        const pageConcepts = indexedConcepts.slice(startIndex, startIndex + window.conceptPageSize);
+
+        if (totalItems === 0) {
+            container.innerHTML = `
+                <div class="p-8 text-center bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+                    <p class="text-xs font-medium text-slate-500">No concepts found matching your active filter criteria.</p>
+                </div>`;
+            return;
+        }
+
+        // 4. Build Table
+        let tableHTML = `
+            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-900/50 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                <th class="py-2.5 px-4 w-10 text-center">
+                                    <input type="checkbox" onchange="window.toggleSelectAll('concepts')" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                                </th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 min-w-[280px]">Concept</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-36">Category</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-28 text-center">Mastery</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-32">Last Reviewed</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 min-w-[180px]">Practice Area / Tags</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-24 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">`;
+
+        pageConcepts.forEach(({ concept, originalIndex }) => {
+            window.currentVisibleConceptIndices.push(originalIndex);
+            const isChecked = window.selectedConcepts.has(originalIndex) ? "checked" : "";
+            
+            const plainTextDesc = (concept.body || "").replace(/<[^>]*>?/gm, '').trim();
+            const subtitleExcerpt = plainTextDesc.length > 70 ? plainTextDesc.substring(0, 70) + "..." : plainTextDesc;
+
+            const srs = concept.srs || { interval: 0, nextReview: 0 };
+            const masteryPct = srs.mastered ? 100 : Math.min(100, Math.round(((srs.interval || 0) / 21) * 100));
+            const filledDots = Math.min(5, Math.ceil(masteryPct / 20));
+            
+            let dotsHTML = '';
+            for (let d = 1; d <= 5; d++) {
+                dotsHTML += `<span class="w-1.5 h-1.5 rounded-full inline-block mr-0.5 ${d <= filledDots ? (masteryPct >= 80 ? 'bg-emerald-500' : 'bg-indigo-500') : 'bg-slate-200 dark:bg-slate-700'}"></span>`;
+            }
+
+            const lastRevDate = srs.lastReviewed 
+                ? new Date(srs.lastReviewed).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                : (concept.date || "--");
+
+            const tags = (concept.subTag || "").split(',').map(t => t.trim()).filter(Boolean);
+            const tagsHTML = tags.length > 0 
+                ? tags.map(t => `<span class="inline-block text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-md mr-1 mb-0.5">${t}</span>`).join('')
+                : `<span class="text-slate-400 italic text-[11px]">None</span>`;
+
+            tableHTML += `
+                <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer" onclick="window.viewConceptDetail(${originalIndex})">
+                    <td class="py-2.5 px-4 text-center" onclick="event.stopPropagation()">
+                        <input type="checkbox" ${isChecked} onchange="window.toggleConceptSelection(${originalIndex}, event)" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                    </td>
+                    <td class="py-2.5 px-4">
+                        <div class="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition text-xs leading-snug">
+                            ${concept.title || "Untitled Concept"}
+                        </div>
+                        <div class="text-[11px] text-slate-400 dark:text-slate-500 truncate max-w-sm mt-0.5">
+                            ${subtitleExcerpt || "No definition text logged."}
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300 font-semibold whitespace-nowrap">
+                        ${concept.category || "General"}
+                    </td>
+                    <td class="py-2.5 px-4 text-center whitespace-nowrap">
+                        <div class="flex items-center justify-center gap-1.5">
+                            <span class="inline-flex">${dotsHTML}</span>
+                            <span class="font-mono font-bold text-[11px] ${masteryPct >= 80 ? 'text-emerald-600' : 'text-slate-500'}">${masteryPct}%</span>
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                        ${lastRevDate}
+                    </td>
+                    <td class="py-2.5 px-4">
+                        ${tagsHTML}
+                    </td>
+                    <td class="py-2.5 px-4 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                        <div class="inline-flex items-center gap-1">
+                            <button type="button" onclick="window.openEditConceptModal(${originalIndex})" class="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Edit Concept">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button type="button" onclick="window.viewConceptDetail(${originalIndex})" class="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Open Full Workspace">
+                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button type="button" onclick="window.deleteConcept(${originalIndex})" class="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition" title="Delete">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+
+        // 5. Pagination Buttons
+        let pageBtns = '';
+        for (let p = 1; p <= totalPages; p++) {
+            pageBtns += `
+                <button type="button" onclick="window.setConceptPage(${p})" class="w-6 h-6 rounded text-xs font-bold transition flex items-center justify-center ${p === window.conceptCurrentPage ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'}">
+                    ${p}
+                </button>`;
+        }
+
+        tableHTML += `
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer Pagination -->
+                <div class="p-3 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-slate-500">
+                    <span class="font-medium text-[11px]">Showing <strong>${startIndex + 1}</strong> to <strong>${Math.min(startIndex + window.conceptPageSize, totalItems)}</strong> of <strong>${totalItems}</strong> concepts</span>
+                    <div class="flex items-center gap-1 font-bold">
+                        <button type="button" onclick="window.setConceptPage(${window.conceptCurrentPage - 1})" ${window.conceptCurrentPage === 1 ? 'disabled class="w-6 h-6 flex items-center justify-center text-slate-300 dark:text-slate-700 cursor-not-allowed"' : 'class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"'}>&lt;</button>
+                        ${pageBtns}
+                        <button type="button" onclick="window.setConceptPage(${window.conceptCurrentPage + 1})" ${window.conceptCurrentPage === totalPages ? 'disabled class="w-6 h-6 flex items-center justify-center text-slate-300 dark:text-slate-700 cursor-not-allowed"' : 'class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"'}>&gt;</button>
+                    </div>
+                </div>
+            </div>`;
+
+        container.innerHTML = tableHTML;
+        if (window.lucide) window.lucide.createIcons();
+
+        window.updateMassDeleteConceptBtn();
+
+    } catch (err) {
+        console.error("Concepts rendering error:", err);
+        container.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl">Error loading concepts table: ${err.message}</div>`;
+    }
+};
+
+window.viewConceptDetail = function(index) {
+    if (typeof window.openConceptDetailWorkspace === 'function') {
+        window.openConceptDetailWorkspace(index);
+    } else {
+        window.openEditConceptModal(index);
+    }
 };
 
 window.saveConcept = function() {
@@ -91,218 +406,62 @@ window.saveConcept = function() {
         return;
     }
 
-    const catToSave = (!currentConceptCategory || currentConceptCategory === "All") ? (db.conceptCategories && db.conceptCategories[0] ? db.conceptCategories[0] : "General") : currentConceptCategory;
+    const catToSave = (!currentConceptCategory || currentConceptCategory === "All") 
+        ? (db.conceptCategories && db.conceptCategories[0] ? db.conceptCategories[0] : "General") 
+        : currentConceptCategory;
     
     db.concepts.push({
-      title, category: catToSave, body: htmlBody, summary: "",
+      title, 
+      category: catToSave, 
+      body: htmlBody, 
+      summary: "",
       subTag: document.getElementById("conceptSubTag").value,
       diagram: typeof diagramTempBase64 !== 'undefined' ? diagramTempBase64 : "", 
       srs: { nextReview: new Date().getTime(), interval: 0, ease: 2.5, mastered: false, lastRating: 'forgot' },
-      date: new Date().toLocaleDateString('en-GB'), isCollapsed: false, score: ""
+      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), 
+      score: ""
     });
     
-    if(typeof saveDatabase === 'function') saveDatabase(); 
-    if(typeof updateNexusDropdowns === 'function') updateNexusDropdowns(); 
-    renderConcepts();
+    if (typeof saveDatabase === 'function') saveDatabase(); 
+    if (typeof updateNexusDropdowns === 'function') updateNexusDropdowns(); 
+    
+    window.renderConcepts();
     
     document.getElementById("conceptTitle").value = ""; 
     document.getElementById("conceptSubTag").value = ""; 
     
-    if(editorEl) editorEl.innerHTML = "";
-    else if(typeof quillEditor !== 'undefined') quillEditor.setContents([]);
+    if (editorEl) editorEl.innerHTML = "";
+    else if (typeof quillEditor !== 'undefined') quillEditor.setContents([]);
     
-    if(typeof diagramTempBase64 !== 'undefined') window.diagramTempBase64 = "";
+    if (typeof diagramTempBase64 !== 'undefined') window.diagramTempBase64 = "";
     
     const preview = document.getElementById("newConceptDiagramPreview");
-    if(preview) {
+    if (preview) {
         preview.classList.add("hidden");
         preview.src = "";
     }
     const label = document.getElementById("newConceptDiagramLabel");
-    if(label) label.innerText = "Add Diagram";
+    if (label) label.innerText = "Add Diagram";
     
-    if(typeof toggleAppSidebar === 'function' && window.innerWidth < 768) {
+    if (typeof toggleAppSidebar === 'function' && window.innerWidth < 768) {
          toggleAppSidebar('conceptLogSidebar');
-    }
-};
-
-window.renderConcepts = function() {
-    const container = document.getElementById("conceptsContainer");
-    if (!container) return;
-    
-    try {
-        container.innerHTML = "";
-        currentVisibleConceptIndices = [];
-
-        const widgetContainer = document.getElementById("conceptMasteryWidget");
-        if (widgetContainer) {
-            const catStats = {};
-            
-            (db.concepts || []).forEach(c => {
-                if (c && c.category && c.category !== "All") {
-                    if (!catStats[c.category]) catStats[c.category] = { total: 0, mastered: 0 };
-                    catStats[c.category].total++;
-                    if (c.srs && (c.srs.mastered || c.srs.interval >= 21)) {
-                        catStats[c.category].mastered++;
-                    }
-                }
-            });
-
-            let masteryHTML = `<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-5 shadow-sm print:hidden w-full flex flex-col">
-                <h3 class="text-sm font-bold text-slate-900 dark:text-slate-100 mb-5 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0"><i data-lucide="target" class="w-4 h-4 text-emerald-500"></i> Concept Mastery</h3>
-                <div class="flex flex-col gap-5 max-h-[400px] overflow-y-auto pr-2 pb-10 scrollbar-hide">`;
-
-            let hasData = false;
-            for (const [cat, data] of Object.entries(catStats)) {
-                if (data.total === 0) continue;
-                hasData = true;
-                const pct = Math.round((data.mastered / data.total) * 100);
-                
-                let barColor = pct === 100 ? 'bg-amber-400' : (pct > 50 ? 'bg-emerald-400' : 'bg-indigo-500');
-                let textColor = pct === 100 ? 'text-amber-500 dark:text-amber-400' : (pct > 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-600 dark:text-indigo-400');
-
-                masteryHTML += `
-                    <div class="flex flex-col w-full">
-                        <div class="flex justify-between text-[10px] font-bold mb-2 uppercase tracking-wider">
-                            <span class="text-slate-600 dark:text-slate-400 truncate mr-2">${cat}</span>
-                            <span class="${textColor}">${pct}%</span>
-                        </div>
-                        <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden shadow-inner">
-                            <div class="${barColor} h-full rounded-full transition-all duration-700 shadow-sm" style="width: ${pct}%"></div>
-                        </div>
-                    </div>`;
-            }
-            masteryHTML += `</div></div>`;
-            
-            if (hasData) {
-                widgetContainer.innerHTML = masteryHTML;
-                widgetContainer.classList.remove('hidden');
-            } else {
-                widgetContainer.innerHTML = '';
-                widgetContainer.classList.add('hidden');
-            }
-        }
-
-        const searchBox = document.getElementById("searchConcepts");
-        const term = searchBox ? String(searchBox.value || "").toLowerCase() : "";
-        let filtered = (db.concepts || []);
-
-        if (typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All") {
-            filtered = filtered.filter(c => c.category === currentConceptCategory);
-        }
-
-        if (term) {
-            filtered = filtered.filter(c => 
-                String(c.title || "").toLowerCase().includes(term) || 
-                String(c.body || "").toLowerCase().includes(term)
-            );
-        }
-
-        if (window.activeConceptAlpha && window.activeConceptAlpha.size > 0) {
-            filtered = filtered.filter(c => {
-                const titleStr = String(c.title || "").trim();
-                if (!titleStr) return false;
-                const firstLetter = titleStr.charAt(0).toUpperCase();
-                return window.activeConceptAlpha.has(firstLetter);
-            });
-        }
-
-        if (filtered.length === 0) {
-            container.innerHTML = `<div class="p-8 text-center bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-md print:hidden"><p class="text-sm font-medium text-slate-500 dark:text-slate-400">No concepts match your search or filters.</p></div>`;
-            return;
-        }
-
-        let indexedConcepts = filtered.map(c => ({ concept: c, originalIndex: db.concepts.indexOf(c) }));
-        const sortBox = document.getElementById("sortConcepts");
-        const sortMode = sortBox ? sortBox.value : "newest";
-
-        if (sortMode === "newest") {
-            indexedConcepts.reverse();
-        } else if (sortMode === "az") {
-            indexedConcepts.sort((a, b) => String(a.concept.title || "").localeCompare(String(b.concept.title || "")));
-        } else if (sortMode === "za") {
-            indexedConcepts.sort((a, b) => String(b.concept.title || "").localeCompare(String(a.concept.title || "")));
-        }
-
-        indexedConcepts.forEach(({concept, originalIndex}) => {
-            currentVisibleConceptIndices.push(originalIndex);
-            
-            const isCollapsed = concept.isCollapsed !== false;
-            const isChecked = typeof window.selectedConcepts !== 'undefined' && window.selectedConcepts.has(originalIndex) ? "checked" : "";
-            
-            let srsBadge = '';
-            if (concept.srs && concept.srs.mastered) {
-                 srsBadge = `<span class="text-[10px] bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded font-bold border border-amber-200 dark:border-amber-800 mt-2 inline-block">🏆 Mastered</span>`;
-            } else if (!concept.srs || !concept.srs.nextReview) {
-                 srsBadge = `<span class="text-[10px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded font-bold border border-indigo-200 dark:border-indigo-800 mt-2 inline-block">✨ New Card</span>`;
-            } else {
-                const now = new Date().getTime();
-                if (concept.srs.nextReview <= now) {
-                    srsBadge = `<span class="text-[10px] bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-2 py-0.5 rounded font-bold border border-red-200 dark:border-red-800 mt-2 inline-block">⚠️ Due Review</span>`;
-                } else {
-                    const days = Math.ceil((concept.srs.nextReview - now) / (1000 * 60 * 60 * 24));
-                    srsBadge = `<span class="text-[10px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-200 dark:border-emerald-800 mt-2 inline-block">⏳ Next: ${days}d</span>`;
-                }
-            }
-
-            const subTagHTML = concept.subTag ? `<span class="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded font-bold uppercase mt-2 inline-block border border-slate-200 dark:border-slate-700 mr-2">${concept.subTag}</span>` : '';
-            const diagramHTML = concept.diagram ? `<div class="mt-4"><img src="${concept.diagram}" class="w-full max-h-64 object-contain rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"></div>` : '';
-
-            const card = document.createElement("div");
-            card.className = "bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-md p-4 md:p-5 shadow-sm print:break-inside-avoid print:border-slate-400 print:shadow-none group transition hover:border-indigo-400 dark:hover:border-indigo-500 w-full";
-            
-            card.innerHTML = `
-              <div class="flex flex-col md:flex-row justify-between md:items-start mb-3 group gap-2 cursor-pointer" onclick="window.toggleConceptCard(${originalIndex}, event)">
-                <div class="flex items-start gap-3 flex-1">
-                  <input type="checkbox" ${isChecked} onchange="window.toggleConceptSelection(${originalIndex}, event)" class="mt-1 w-4 h-4 text-indigo-600 rounded cursor-pointer print:hidden shrink-0 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500">
-                  <div class="flex flex-col min-w-0 w-full">
-                    <div class="flex justify-between items-start w-full">
-                      <h4 class="font-bold text-slate-900 dark:text-white text-sm md:text-base group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition md:pr-4 print:text-black break-words leading-snug">${concept.title || "Untitled Concept"}</h4>
-                      <div class="flex items-center gap-2 shrink-0 ml-2 mt-1 md:mt-0">
-                         <button onclick="event.stopPropagation(); window.openEditConceptModal(${originalIndex});" class="text-[10px] md:text-xs font-bold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition print:hidden flex items-center gap-1.5 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-slate-700 px-2 py-1 rounded-sm border border-slate-200 dark:border-slate-700 hover:border-indigo-200 shadow-sm"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Edit</span></button>
-                         <span class="nexus-icon text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition print:hidden"><i data-lucide="${isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-4 h-4"></i></span>
-                      </div>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-1 mt-1.5">${subTagHTML}${srsBadge}</div>
-                  </div>
-                </div>
-                <div class="flex gap-2 shrink-0 items-center justify-end w-full md:w-auto">
-                  <span class="text-[10px] md:text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-sm font-bold uppercase border border-slate-200 dark:border-slate-700 print:bg-white print:text-black print:border-slate-300 shrink-0 shadow-inner">${concept.category || "General"}</span>
-                </div>
-              </div>
-              <div class="nexus-body ${isCollapsed ? 'hidden print:block' : 'block'} border-t border-slate-100 dark:border-slate-800 pt-4 mt-4 print:border-slate-300 cursor-text" onclick="event.stopPropagation()">
-                <div class="prose prose-sm md:prose-base max-w-none text-slate-700 dark:text-slate-200 leading-relaxed mb-4 print:text-black dict-highlight-target dark:prose-invert">${concept.body || ""}</div>
-                ${diagramHTML}
-                <div class="mt-4 flex gap-3 print:hidden">
-                  <button onclick="event.stopPropagation(); window.deleteConcept(${originalIndex});" class="flex-1 md:flex-none text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 font-bold py-1.5 px-3 rounded-sm transition shadow-sm flex items-center justify-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</button>
-                </div>
-              </div>
-            `;
-            container.appendChild(card);
-        });
-        
-        if (window.lucide) window.lucide.createIcons();
-        if (typeof applyDictionaryHighlighting === 'function') applyDictionaryHighlighting("conceptsContainer");
-
-    } catch (err) {
-        console.error("Critical rendering error in concepts.js:", err);
-        container.innerHTML = `<div class="p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md print:hidden"><h3 class="text-red-700 dark:text-red-400 font-bold">Data Rendering Error</h3><p class="text-red-600 dark:text-red-300 text-sm mt-2">A corrupt record caused the page to stop drawing. Error details: ${err.message}</p></div>`;
     }
 };
 
 window.openEditConceptModal = function(index) {
     const c = db.concepts[index];
+    if (!c) return;
+    
     document.getElementById("editConceptIndex").value = index;
     document.getElementById("editConceptTitle").value = c.title || "";
     document.getElementById("editConceptSubTag").value = c.subTag || "";
     
     const catSelect = document.getElementById("editConceptCategory");
-    if(catSelect) {
-        catSelect.innerHTML = db.conceptCategories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    if (catSelect) {
+        catSelect.innerHTML = (db.conceptCategories || ["General"]).map(cat => `<option value="${cat}">${cat}</option>`).join('');
         catSelect.value = c.category || db.conceptCategories[0];
     }
     
-    // Lazy-load Edit Quill Instance
     window.editQuillEditor = window.getOrInitQuill('#editConceptBodyQuill', { 
         modules: { toolbar: '#editConceptToolbar' } 
     });
@@ -324,7 +483,11 @@ window.openEditConceptModal = function(index) {
         }
     }
 
-    document.getElementById("editConceptModalContainer").classList.remove('hidden');
+    const modal = document.getElementById("editConceptModalContainer");
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
 };
 
 window.saveConceptEditFn = function() {
@@ -350,54 +513,79 @@ window.saveConceptEditFn = function() {
         db.concepts[index].diagram = diagramTempBase64;
     }
     
-    document.getElementById("editConceptModalContainer").classList.add('hidden');
-    if(typeof saveDatabase === 'function') saveDatabase();
-    renderConcepts();
+    const modal = document.getElementById("editConceptModalContainer");
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+    if (typeof saveDatabase === 'function') saveDatabase();
+    window.renderConcepts();
 };
 
-window.selectedConcepts = window.selectedConcepts || new Set();
-
 window.toggleConceptSelection = function(index, event) {
-    event.stopPropagation();
-    if (event.target.checked) window.selectedConcepts.add(index);
-    else window.selectedConcepts.delete(index);
-    if(typeof updateMassDeleteConceptBtn === 'function') window.updateMassDeleteConceptBtn();
+    if (event) event.stopPropagation();
+    if (window.selectedConcepts.has(index)) {
+        window.selectedConcepts.delete(index);
+    } else {
+        window.selectedConcepts.add(index);
+    }
+    window.updateMassDeleteConceptBtn();
+};
+
+window.toggleSelectAll = function(module) {
+    if (module === 'concepts') {
+        const visible = window.currentVisibleConceptIndices || [];
+        const allSelected = visible.length > 0 && visible.every(idx => window.selectedConcepts.has(idx));
+        
+        if (allSelected) {
+            visible.forEach(idx => window.selectedConcepts.delete(idx));
+        } else {
+            visible.forEach(idx => window.selectedConcepts.add(idx));
+        }
+        window.renderConcepts();
+    } else if (typeof window.toggleModuleSelectAll === 'function') {
+        window.toggleModuleSelectAll(module);
+    }
 };
 
 window.updateMassDeleteConceptBtn = function() {
     const btn = document.getElementById('massDeleteConceptBtn');
-    if (!btn) return;
-    if (window.selectedConcepts.size > 0) {
-        btn.classList.remove('hidden');
-        btn.innerHTML = `<i data-lucide="trash" class="w-3.5 h-3.5"></i> Delete (${window.selectedConcepts.size})`;
-        if (window.lucide) window.lucide.createIcons();
-    } else {
-        btn.classList.add('hidden');
+    const selCountBtn = document.getElementById('btnSelectedFlashcards');
+    
+    const count = window.selectedConcepts ? window.selectedConcepts.size : 0;
+    
+    if (btn) {
+        if (count > 0) {
+            btn.classList.remove('hidden');
+            btn.innerHTML = `<i data-lucide="trash" class="w-3.5 h-3.5"></i> Delete Selected (${count})`;
+        } else {
+            btn.classList.add('hidden');
+        }
     }
+
+    if (selCountBtn) {
+        selCountBtn.innerHTML = `<i data-lucide="target" class="w-3.5 h-3.5"></i> Selected (${count})`;
+    }
+
+    if (window.lucide) window.lucide.createIcons();
 };
 
 window.massDeleteConcepts = function() {
-    if(!window.selectedConcepts || window.selectedConcepts.size === 0) return;
-    if(confirm(`Delete ${window.selectedConcepts.size} selected concept(s)?`)) {
-        
-        const statusText = document.getElementById('statusText');
-        const statusDot = document.getElementById('statusDot');
-        if (statusText) statusText.innerText = "Syncing Deletion...";
-        if (statusDot) statusDot.className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)] animate-pulse";
-
-        let sortedIndices = Array.from(window.selectedConcepts).sort((a,b)=>b-a);
+    if (!window.selectedConcepts || window.selectedConcepts.size === 0) return;
+    if (confirm(`Delete ${window.selectedConcepts.size} selected concept(s)?`)) {
+        let sortedIndices = Array.from(window.selectedConcepts).sort((a,b) => b-a);
         sortedIndices.forEach(idx => { 
             let conceptTitle = db.concepts[idx].title;
             if (db.factors) {
-                db.factors.forEach(f => { if(f && f.linkedConcept === conceptTitle) f.linkedConcept = ""; });
+                db.factors.forEach(f => { if (f && f.linkedConcept === conceptTitle) f.linkedConcept = ""; });
             }
             db.concepts.splice(idx, 1); 
         });
         window.selectedConcepts.clear();
-        if (typeof window.updateMassDeleteConceptBtn === 'function') window.updateMassDeleteConceptBtn();
-        if(typeof updateNexusDropdowns === 'function') { try { updateNexusDropdowns(); } catch(e){} }
-        if(typeof saveDatabase === 'function') saveDatabase();
-        renderConcepts();
+        window.updateMassDeleteConceptBtn();
+        if (typeof updateNexusDropdowns === 'function') { try { updateNexusDropdowns(); } catch(e){} }
+        if (typeof saveDatabase === 'function') saveDatabase();
+        window.renderConcepts();
     }
 };
 
@@ -406,14 +594,17 @@ window.deleteConcept = async function(index) {
     const concept = db.concepts[index];
     if (!concept || !confirm(`Delete concept: "${concept.title}"?`)) return;
     
-    // Remote RLS deletion
-    if (supabaseClient && window.currentUser) {
+    if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
         await supabaseClient.from('concepts')
             .delete()
             .match({ user_id: window.currentUser.id, title: concept.title });
     }
 
     db.concepts.splice(index, 1);
-    saveDatabase();
-    renderConcepts();
+    if (window.selectedConcepts.has(index)) {
+        window.selectedConcepts.delete(index);
+        window.updateMassDeleteConceptBtn();
+    }
+    if (typeof saveDatabase === 'function') saveDatabase();
+    window.renderConcepts();
 };
