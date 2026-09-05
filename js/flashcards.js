@@ -62,10 +62,49 @@ window.openUniversalFlashcardDashboard = function() {
     buildSrsQueues(allCards, now);
 };
 
-function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false) {
+function openFlashcardDashboard(source = 'concepts', useSelectedOnly = false, targetConceptIdx = null) {
     currentFlashcardSource = source;
     const now = new Date().getTime();
     let allCards = [];
+
+    // --- CASE A: Granular Concept Breakdown Flashcards ---
+    if (source === 'concept-elements') {
+        const idx = targetConceptIdx !== null ? targetConceptIdx : window.activeConceptDetailIndex;
+        if (idx === null || !db.concepts || !db.concepts[idx]) {
+            return alert("No active concept selected for review.");
+        }
+
+        const concept = db.concepts[idx];
+        concept.subSrs = concept.subSrs || (concept.srs && concept.srs.subSrs) || {};
+        const extracted = typeof window.extractConceptFlashcardCards === 'function' 
+            ? window.extractConceptFlashcardCards(concept) 
+            : [];
+
+        if (extracted.length === 0) {
+            return alert("No individual card sections found in this concept to review.");
+        }
+
+        allCards = extracted.map(card => {
+            const cardSrs = concept.subSrs[card.id] || { interval: 0, nextReview: 0, lastRating: 'forgot', mastered: false, totalReviews: 0 };
+            return {
+                item: {
+                    id: card.id,
+                    title: card.title,
+                    category: card.category || concept.category,
+                    body: card.body,
+                    srs: cardSrs,
+                    isConceptElement: true,
+                    conceptIndex: idx,
+                    subKey: card.id
+                },
+                sourceType: 'concept-elements',
+                originalIndex: idx
+            };
+        });
+
+        flashcardQueue = allCards.map(c => ({ item: c.item, sourceType: 'concept-elements', originalIndex: idx }));
+        return startQueueDirectly();
+    }
 
     if (source === 'dossiers') {
         if (!currentDossierFirm) return alert("Select a firm first.");
@@ -254,7 +293,6 @@ function setupFlashcardClickListeners() {
     }
 }
 
-// Explicit button action: Push active card to the back of this active queue
 window.pushCardToEndOfQueue = function() {
     const qItem = flashcardQueue[currentFlashcardIndex];
     if (qItem) {
@@ -278,7 +316,7 @@ function resetCardInputs() {
     if (recallBanner) recallBanner.classList.add('hidden');
     if (recallCheckBtn) {
         recallCheckBtn.innerText = "Check Answer";
-        recallCheckBtn.className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5";
+        recallCheckBtn.className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-none text-xs transition shadow flex items-center justify-center gap-1.5";
         recallCheckBtn.onclick = window.checkRecallAnswer;
     }
 }
@@ -323,7 +361,7 @@ function renderCurrentFlashcard() {
             if (title && title !== "Untitled") {
                 const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const termRegex = new RegExp(escapeRegExp(title), 'gi');
-                redactedBody = redactedBody.replace(termRegex, '<span class="bg-slate-800 text-transparent rounded px-4 mx-1 select-none">___</span>');
+                redactedBody = redactedBody.replace(termRegex, '<span class="bg-slate-800 text-transparent rounded-none px-4 mx-1 select-none">___</span>');
             }
             fcFrontBody.innerHTML = redactedBody;
         }
@@ -387,7 +425,7 @@ function flipFlashcard() {
     let bodyHtml = String(qItem.item.body || qItem.item.definition || "No content.");
 
     if (qItem.item.diagram) {
-        bodyHtml = `<img src="${qItem.item.diagram}" class="w-full max-h-60 object-contain rounded-md border border-slate-200 dark:border-slate-700 mb-4 bg-white dark:bg-slate-800">` + bodyHtml;
+        bodyHtml = `<img src="${qItem.item.diagram}" class="w-full max-h-60 object-contain rounded-none border border-slate-200 dark:border-slate-700 mb-4 bg-white dark:bg-slate-800">` + bodyHtml;
     }
 
     const fcBackTitle = document.getElementById("fcBackTitle");
@@ -439,13 +477,18 @@ function unflipFlashcard() {
 window.flipFlashcard = flipFlashcard;
 window.unflipFlashcard = unflipFlashcard;
 
-// Rating a card updates its SRS schedule and moves on — it does NOT push to the end of the queue
 function processFlashcardResult(rating) {
     const qItem = flashcardQueue[currentFlashcardIndex];
     if (!qItem) return;
 
     let srsRef;
-    if (qItem.item.isDossier) {
+    if (qItem.item.isConceptElement) {
+        const c = db.concepts[qItem.item.conceptIndex];
+        if (c) {
+            c.subSrs = c.subSrs || (c.srs && c.srs.subSrs) || {};
+            srsRef = c.subSrs[qItem.item.subKey] || null;
+        }
+    } else if (qItem.item.isDossier) {
         if (!db.dossiers[qItem.item.firmName].srs) db.dossiers[qItem.item.firmName].srs = {};
         srsRef = db.dossiers[qItem.item.firmName].srs[qItem.item.dossierKey];
     } else if (qItem.sourceType === 'concepts') {
@@ -492,7 +535,32 @@ function processFlashcardResult(rating) {
         srsData.nextReview = new Date().getTime() + (srsData.interval * 24 * 60 * 60 * 1000);
     }
 
-    if (qItem.item.isDossier) {
+    srsData.lastReviewed = new Date().getTime();
+    srsData.totalReviews = (srsData.totalReviews || 0) + 1;
+
+    if (qItem.item.isConceptElement) {
+        const c = db.concepts[qItem.item.conceptIndex];
+        if (c) {
+            c.subSrs = c.subSrs || {};
+            c.subSrs[qItem.item.subKey] = srsData;
+            
+            // Recalculate parent concept SRS based on all granular components
+            const subCards = typeof window.extractConceptFlashcardCards === 'function' ? window.extractConceptFlashcardCards(c) : [];
+            let totalSubScore = 0;
+            subCards.forEach(card => {
+                const itemSrs = c.subSrs[card.id] || { interval: 0, ease: 2.5, mastered: false };
+                totalSubScore += (itemSrs.mastered || itemSrs.interval >= 21) ? 100 : Math.min(100, Math.round(((itemSrs.interval || 0) / 21) * 100));
+            });
+            const avgPct = subCards.length > 0 ? Math.round(totalSubScore / subCards.length) : 0;
+            c.srs = c.srs || {};
+            c.srs.mastered = avgPct === 100;
+            c.srs.interval = Math.round((avgPct / 100) * 21);
+            c.srs.lastReviewed = srsData.lastReviewed;
+            c.srs.nextReview = srsData.nextReview;
+            c.srs.totalReviews = (c.srs.totalReviews || 0) + 1;
+            c.srs.subSrs = c.subSrs;
+        }
+    } else if (qItem.item.isDossier) {
         db.dossiers[qItem.item.firmName].srs[qItem.item.dossierKey] = srsData;
     } else if (qItem.sourceType === 'concepts') {
         if (db.concepts[qItem.originalIndex]) db.concepts[qItem.originalIndex].srs = srsData;
@@ -501,8 +569,11 @@ function processFlashcardResult(rating) {
     }
     
     if (typeof saveDatabase === 'function') saveDatabase(); 
+
+    if (window.activeConceptDetailIndex !== null && typeof window.renderConceptDetailView === 'function') {
+        window.renderConceptDetailView();
+    }
     
-    // Advance to next card without loop
     currentFlashcardIndex++;
     renderCurrentFlashcard();
 }
@@ -514,7 +585,12 @@ function closeFlashcards() {
         fcModal.classList.remove("flex");
     }
     
-    if (currentFlashcardSource === 'concepts' && typeof renderConcepts === 'function') {
+    if (currentFlashcardSource === 'concept-elements') {
+        if (window.activeConceptDetailIndex !== null && typeof window.renderConceptDetailView === 'function') {
+            window.renderConceptDetailView();
+        }
+        if (typeof renderConcepts === 'function') renderConcepts();
+    } else if (currentFlashcardSource === 'concepts' && typeof renderConcepts === 'function') {
         if (typeof window.selectedConcepts !== 'undefined') window.selectedConcepts.clear();
         renderConcepts();
     } else if (currentFlashcardSource === 'dictionary' && typeof renderDictionary === 'function') {
@@ -561,7 +637,6 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// --- FEYNMAN EVALUATOR & TOGGLE ---
 window.toggleFeynmanMode = function() {
     window.isFeynmanMode = !window.isFeynmanMode;
     localStorage.setItem('LEGAL_NEXUS_FEYNMAN_MODE', window.isFeynmanMode);
@@ -634,7 +709,6 @@ In 2 short sentences:
     }
 };
 
-// --- RECALL DRILL TOGGLE ---
 window.toggleRecallDrillMode = function() {
     window.isRecallDrillMode = !window.isRecallDrillMode;
     localStorage.setItem('LEGAL_NEXUS_RECALL_MODE', window.isRecallDrillMode);
@@ -730,7 +804,6 @@ function evaluateAnswerLocally(userText, modelText) {
     };
 }
 
-// Check Active Recall Answer
 window.checkRecallAnswer = async function() {
     const input = document.getElementById('recallAnswerInput');
     const banner = document.getElementById('recallResultBanner');
@@ -753,25 +826,24 @@ window.checkRecallAnswer = async function() {
     banner.classList.remove('hidden');
 
     if (evaluation.passed) {
-        banner.className = "rounded-xl p-3 border text-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800 flex flex-col gap-1";
+        banner.className = "rounded-none p-3 border text-xs bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-800 flex flex-col gap-1";
         banner.innerHTML = `<strong>Correct Recall! (${evaluation.score}% Match)</strong><span>${cleanModel}</span>`;
 
         checkBtn.innerText = "Continue to Grading";
-        checkBtn.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5";
+        checkBtn.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-none text-xs transition shadow flex items-center justify-center gap-1.5";
         checkBtn.onclick = function() {
             flipFlashcard();
         };
     } else {
-        banner.className = "rounded-xl p-3 border text-xs bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-800 flex flex-col gap-1";
+        banner.className = "rounded-none p-3 border text-xs bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-800 flex flex-col gap-1";
         banner.innerHTML = `<strong>Incorrect (${evaluation.score}% Match) — Sent to End</strong><span>Expected: ${cleanModel}</span>`;
 
-        // Recycle to the end only on failed active recall attempt
         flashcardQueue.push(qItem);
         const counterEl = document.getElementById("flashcardCounter");
         if (counterEl) counterEl.innerText = `Card ${currentFlashcardIndex + 1} of ${flashcardQueue.length}`;
 
         checkBtn.innerText = "Next Card (Recycled to End)";
-        checkBtn.className = "w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-xl text-xs transition shadow flex items-center justify-center gap-1.5";
+        checkBtn.className = "w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-none text-xs transition shadow flex items-center justify-center gap-1.5";
         checkBtn.onclick = function() {
             currentFlashcardIndex++;
             renderCurrentFlashcard();

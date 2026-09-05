@@ -173,15 +173,32 @@ window.routeToFirm = function(firmName) {
 window.routeToConcept = function(conceptName) {
     if (typeof closeOmnibar === 'function') closeOmnibar();
     const cleanSearchTerm = String(conceptName || "").trim().toLowerCase();
-    const concept = (db.concepts || []).find(c => c && String(c.title || "").trim().toLowerCase() === cleanSearchTerm);
+    
+    // Find index of concept matching by full title or substring
+    const conceptIndex = (db.concepts || []).findIndex(c => {
+        if (!c || !c.title) return false;
+        const titleClean = String(c.title).trim().toLowerCase();
+        return titleClean === cleanSearchTerm || titleClean.includes(cleanSearchTerm) || cleanSearchTerm.includes(titleClean);
+    });
 
     if (typeof currentConceptCategory !== 'undefined') currentConceptCategory = "All"; 
 
-    const searchBox = document.getElementById("searchConcepts");
-    if (searchBox) searchBox.value = concept ? concept.title : conceptName;
+    // Route to CONCEPTS workspace rather than DASHBOARD
+    switchState('CONCEPTS');
 
-    switchState('DASHBOARD');
-    if (typeof renderConcepts === 'function') renderConcepts();
+    if (conceptIndex > -1) {
+        // Open the full dedicated detail view directly
+        if (typeof window.openConceptDetailWorkspace === 'function') {
+            window.openConceptDetailWorkspace(conceptIndex);
+        } else if (typeof window.viewConceptDetail === 'function') {
+            window.viewConceptDetail(conceptIndex);
+        }
+    } else {
+        const searchBox = document.getElementById("searchConcepts");
+        if (searchBox) searchBox.value = conceptName;
+        if (typeof renderConcepts === 'function') renderConcepts();
+    }
+
     if (typeof renderTabs === 'function') renderTabs();
 };
 

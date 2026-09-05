@@ -418,3 +418,109 @@ button[onclick*="toggleDarkMode"]:disabled {
     color: inherit !important;
     text-decoration-color: currentColor !important;
 }
+
+/* ========================================================= */
+/* HIGH-DENSITY "ZOOMED OUT" CONCEPT DETAIL WORKSPACE        */
+/* ========================================================= */
+#conceptDetailWorkspaceWrapper {
+    padding: 1rem 1.5rem !important;
+    zoom: 0.88; /* Scales entire concept detail workspace to high-density view */
+}
+
+@supports not (zoom: 0.88) {
+    #conceptDetailWorkspaceWrapper > div {
+        transform: scale(0.88);
+        transform-origin: top center;
+        width: 113.6%;
+    }
+}
+
+/* Tighten outer and internal card boundaries for maximum visibility */
+#conceptDetailWorkspaceWrapper .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-y-reverse: 0;
+    margin-top: 0.875rem !important;
+    margin-bottom: 0 !important;
+}
+
+#conceptDetailWorkspaceWrapper .grid.gap-6 {
+    gap: 0.875rem !important;
+}
+
+#conceptDetailWorkspaceWrapper .p-5,
+#conceptDetailWorkspaceWrapper .p-6 {
+    padding: 0.875rem 1rem !important;
+}
+
+#conceptDetailWorkspaceWrapper h4 {
+    margin-bottom: 0.35rem !important;
+}
+
+#conceptDetailWorkspaceWrapper ul.space-y-2\.5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.35rem !important;
+}
+
+/* ========================================================= */
+/* STRICT COMPACT ZOOM & SQUARE GEOMETRY FOR CONCEPT DETAIL  */
+/* ========================================================= */
+#conceptDetailWorkspaceWrapper {
+    zoom: 0.78 !important; /* Zooms out the workspace to display ~40% more content */
+    padding: 0.75rem 1.25rem !important;
+}
+
+@supports not (zoom: 0.78) {
+    #conceptDetailWorkspaceWrapper {
+        transform: scale(0.78) !important;
+        transform-origin: top left !important;
+        width: 128.2% !important;
+    }
+}
+
+/* Force square edges across every card and button in detail workspace */
+#conceptDetailWorkspaceWrapper,
+#conceptDetailWorkspaceWrapper div,
+#conceptDetailWorkspaceWrapper button,
+#conceptDetailWorkspaceWrapper span,
+#conceptDetailWorkspaceWrapper input,
+#conceptDetailWorkspaceWrapper textarea,
+#conceptDetailWorkspaceWrapper select {
+    border-radius: 0px !important;
+}
+
+/* Seamless zero-gap tab bar */
+#conceptDetailWorkspaceTabsBar {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 0px !important;
+    margin: 0px !important;
+    padding: 0px !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+}
+
+.dark #conceptDetailWorkspaceTabsBar {
+    border-bottom-color: #1e293b !important;
+}
+
+#conceptDetailWorkspaceTabsBar button {
+    margin: 0px !important;
+    border-radius: 0px !important;
+    border-right: 1px solid #f1f5f9 !important;
+}
+
+.dark #conceptDetailWorkspaceTabsBar button {
+    border-right-color: #1e293b !important;
+}
+
+/* Tighten content spacing so cards sit compactly on screen */
+#conceptDetailWorkspaceWrapper .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem !important;
+    margin-bottom: 0px !important;
+}
+
+#conceptDetailWorkspaceWrapper .grid {
+    gap: 0.75rem !important;
+}
+
+#conceptDetailWorkspaceWrapper .p-5,
+#conceptDetailWorkspaceWrapper .p-6 {
+    padding: 0.75rem 1rem !important;
+}

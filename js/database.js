@@ -8,7 +8,7 @@ window.currentUser = null;
 // ==========================================
 // AUTHENTICATION STATE CONTROLLER
 // ==========================================
-window.authMode = 'login'; // 'login', 'signup', or 'forgot'
+window.authMode = 'login'; 
 
 window.openAuthModal = function() {
     const m = document.getElementById("authModal");
@@ -197,7 +197,6 @@ function setOnlineStatus(isOnline, errorMsg = "") {
     }
 }
 
-// --- USER PROFILE & UI DISPATCHER ---
 function updateUserUI(user) {
     const fullNameEl = document.getElementById("userFullNameDisplay");
     const usernameEl = document.getElementById("userUsernameDisplay");
@@ -219,7 +218,6 @@ function updateUserUI(user) {
     const fullName = (metadata.full_name || localProfile.full_name || (email ? email.split('@')[0] : "Candidate")).trim();
     const rawUsername = (metadata.username || localProfile.username || (email ? email.split('@')[0] : "guest")).trim();
     
-    // Extract first name only for dashboard and sidebar
     const firstName = fullName.split(/\s+/)[0] || "Candidate";
     const username = `@${rawUsername.replace(/^@/, '')}`;
 
@@ -239,81 +237,6 @@ function updateUserUI(user) {
     }
 }
 
-// --- PROFILE EDIT CONTROLLER ---
-window.updateUserProfile = async function(event) {
-    if (event) event.preventDefault();
-    
-    const btn = document.getElementById("btnSaveProfile");
-    const banner = document.getElementById("profileSaveBanner");
-    const nameInput = document.getElementById("settingsFullName");
-    const userInput = document.getElementById("settingsUsername");
-
-    const newFullName = nameInput ? nameInput.value.trim() : "";
-    const newUsername = userInput ? userInput.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '') : "";
-
-    if (!newFullName) {
-        alert("Please enter a valid name.");
-        return;
-    }
-    if (!newUsername || newUsername.length < 3) {
-        alert("Username must be at least 3 alphanumeric characters.");
-        return;
-    }
-
-    const origHtml = btn ? btn.innerHTML : "";
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `<span>⏳</span> Saving...`;
-    }
-
-    localStorage.setItem("LEGAL_NEXUS_USER_PROFILE", JSON.stringify({
-        full_name: newFullName,
-        username: newUsername
-    }));
-
-    try {
-        if (supabaseClient && window.currentUser) {
-            const { data, error } = await supabaseClient.auth.updateUser({
-                data: {
-                    full_name: newFullName,
-                    username: newUsername
-                }
-            });
-
-            if (error) throw error;
-            if (data && data.user) {
-                window.currentUser = data.user;
-            }
-        }
-
-        updateUserUI(window.currentUser);
-
-        window.isEditingProfile = false;
-        if (typeof window.renderSettingsView === 'function') {
-            window.renderSettingsView();
-        }
-
-        if (typeof showToast === 'function') {
-            showToast("Profile updated successfully!", "success");
-        }
-    } catch (err) {
-        console.error("Profile update error:", err);
-        if (banner) {
-            banner.innerText = err.message || "Failed to update profile on server.";
-            banner.className = "text-xs p-3 rounded-lg font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 block";
-            banner.classList.remove("hidden");
-        } else {
-            alert(err.message || "Failed to update profile.");
-        }
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = origHtml;
-        }
-    }
-};
-
-// --- AUTHENTICATION & DEVICE SESSION ENGINE ---
 async function initAuthSession() {
     if (!supabaseClient) {
         updateStatus("Client Missing", "red");
@@ -355,7 +278,7 @@ async function initAuthSession() {
     });
 }
 
-// 1. Data Fetch Engine
+// 1. Data Fetch Engine with Loading Deduplication
 async function loadDatabase() {
     updateStatus("Syncing...", "yellow");
 
@@ -410,31 +333,53 @@ async function loadDatabase() {
         }
 
         if (concepts && concepts.length > 0) {
-            db.concepts = concepts.map(c => ({
-                id: c.id,
-                title: c.title,
-                category: c.category || "General",
-                subTag: c.sub_tag || "",
-                body: c.body || "",
-                diagram: c.diagram || null,
-                srs: c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false }
-            }));
+            db.concepts = concepts.map(c => {
+                const loadedSrs = c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false };
+                return {
+                    id: c.id,
+                    title: c.title,
+                    category: c.category || "General",
+                    subTag: c.sub_tag || "",
+                    body: c.body || "",
+                    advantages: c.advantages || "",
+                    disadvantages: c.disadvantages || "",
+                    whenToUse: c.when_to_use || c.whenToUse || "",
+                    relatedConcepts: c.related_concepts || c.relatedConcepts || "",
+                    typicalProvisions: c.typical_provisions || c.typicalProvisions || "",
+                    commonUseCases: c.common_use_cases || c.commonUseCases || "",
+                    diagram: c.diagram || null,
+                    srs: loadedSrs,
+                    subSrs: loadedSrs.subSrs || c.sub_srs || {}
+                };
+            });
         }
 
         if (factors && factors.length > 0) {
-            db.factors = factors.map(f => ({
-                id: f.id,
-                title: f.title,
-                summary: f.summary || "",
-                description: f.description || "",
-                implications: f.implications || "",
-                metric: f.metric || "",
-                pestle: f.pestle || "Economic",
-                region: f.region || "UK Focus",
-                workspace: f.workspace || "General Market",
-                linkedConcept: f.linked_concept || "",
-                linked_firm: f.linked_firm || ""
-            }));
+            const seenFactors = new Set();
+            const uniqueFactors = [];
+
+            factors.forEach(f => {
+                const fingerprint = `${(f.title || '').trim().toLowerCase()}|${(f.summary || '').trim().toLowerCase()}|${(f.workspace || '').trim().toLowerCase()}`;
+                if (!seenFactors.has(fingerprint)) {
+                    seenFactors.add(fingerprint);
+                    uniqueFactors.push({
+                        id: f.id,
+                        title: f.title,
+                        summary: f.summary || "",
+                        description: f.description || "",
+                        implications: f.implications || "",
+                        metric: f.metric || "",
+                        pestle: f.pestle || "Economic",
+                        region: f.region || "UK Focus",
+                        workspace: f.workspace || "General Market",
+                        linkedConcept: f.linked_concept || "",
+                        linked_firm: f.linked_firm || "",
+                        date: f.date || (f.created_at ? new Date(f.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'))
+                    });
+                }
+            });
+
+            db.factors = uniqueFactors;
         }
 
         if (dictionary && dictionary.length > 0) {
@@ -466,7 +411,6 @@ async function loadDatabase() {
             db.targetFirms = Object.keys(db.dossiers);
         }
 
-        // Playbooks Deserializer with Robust JSON Parsing
         if (playbooksList && playbooksList.length > 0) {
             db.playbooks = {};
             const parseSafe = (val) => {
@@ -531,7 +475,7 @@ function renderActiveStateViews() {
     else if (appState === "SETTINGS" && typeof window.renderSettingsView === 'function') window.renderSettingsView();
 }
 
-// 2. Cloud Save Engine (Complete RLS Data Sync)
+// 2. Cloud Save Engine with Deduplicated Commit
 async function saveDatabase() {
     updateStatus("Saving...", "yellow");
     saveToLocalCache();
@@ -543,22 +487,46 @@ async function saveDatabase() {
     const uid = window.currentUser.id;
 
     try {
-        // A. Commit Concepts
+        // A. Commit Concepts with embedded subSrs
         if (Array.isArray(db.concepts) && db.concepts.length > 0) {
-            const conceptRows = db.concepts.map(c => ({
-                user_id: uid,
-                title: c.title || "Untitled Concept",
-                category: c.category || "General",
-                sub_tag: c.subTag || "",
-                body: c.body || "",
-                diagram: c.diagram || null,
-                srs: c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false }
-            }));
+            const conceptRows = db.concepts.map(c => {
+                const srsPayload = c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false };
+                srsPayload.subSrs = c.subSrs || srsPayload.subSrs || {};
+
+                return {
+                    user_id: uid,
+                    title: c.title || "Untitled Concept",
+                    category: c.category || "General",
+                    sub_tag: c.subTag || "",
+                    body: c.body || "",
+                    advantages: c.advantages || "",
+                    disadvantages: c.disadvantages || "",
+                    when_to_use: c.whenToUse || "",
+                    related_concepts: c.relatedConcepts || "",
+                    typical_provisions: c.typicalProvisions || "",
+                    common_use_cases: c.commonUseCases || "",
+                    diagram: c.diagram || null,
+                    srs: srsPayload
+                };
+            });
             await supabaseClient.from('concepts').upsert(conceptRows, { onConflict: 'user_id, title' });
         }
 
-        // B. Commit Intel (Factors)
+        // B. Commit Intel (Factors) - Deduplicated Sync
         if (Array.isArray(db.factors)) {
+            const seenFactorKeys = new Set();
+            const deduplicatedFactors = [];
+
+            db.factors.forEach(f => {
+                const fKey = `${(f.title || f.headline || '').trim().toLowerCase()}|${(f.summary || '').trim().toLowerCase()}|${(f.workspace || '').trim().toLowerCase()}`;
+                if (!seenFactorKeys.has(fKey)) {
+                    seenFactorKeys.add(fKey);
+                    deduplicatedFactors.push(f);
+                }
+            });
+
+            db.factors = deduplicatedFactors;
+
             await supabaseClient.from('factors').delete().eq('user_id', uid);
             if (db.factors.length > 0) {
                 const factorRows = db.factors.map(f => ({
@@ -598,7 +566,7 @@ async function saveDatabase() {
             { user_id: uid, key: 'macroMetrics', value: db.macroMetrics || {} }
         ], { onConflict: 'user_id, key' });
 
-        // E. Commit ALL Playbooks (Not just currentPlaybook)
+        // E. Commit Playbooks
         if (db.playbooks && typeof db.playbooks === 'object') {
             const playbookRows = Object.keys(db.playbooks).map(pbName => ({
                 user_id: uid,
@@ -613,7 +581,7 @@ async function saveDatabase() {
             }
         }
 
-        // F. Commit Active Dossier
+        // F. Commit Dossier
         if (typeof currentDossierFirm !== 'undefined' && currentDossierFirm && db.dossiers && db.dossiers[currentDossierFirm]) {
             const f = db.dossiers[currentDossierFirm];
             await supabaseClient.from('dossiers').upsert({
@@ -693,7 +661,6 @@ function handleFileUpload(event) {
     reader.readAsText(file);
 }
 
-// 3. User-Scoped Lossless Importer
 async function processImport() {
     const textarea = document.getElementById("backupTextarea");
     const rawContent = (uploadedBackupJsonString && uploadedBackupJsonString.trim()) ? uploadedBackupJsonString.trim() : (textarea ? textarea.value.trim() : "");
@@ -726,15 +693,25 @@ async function processImport() {
 
     try {
         if (Array.isArray(parsed.concepts) && parsed.concepts.length > 0) {
-            const rows = parsed.concepts.map(c => ({
-                user_id: uid,
-                title: c.title || "Untitled Concept",
-                category: c.category || "General",
-                sub_tag: c.subTag || "",
-                body: c.body || "",
-                diagram: c.diagram || null,
-                srs: c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false }
-            }));
+            const rows = parsed.concepts.map(c => {
+                const srsPayload = c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false };
+                srsPayload.subSrs = c.subSrs || srsPayload.subSrs || {};
+                return {
+                    user_id: uid,
+                    title: c.title || "Untitled Concept",
+                    category: c.category || "General",
+                    sub_tag: c.subTag || "",
+                    body: c.body || "",
+                    advantages: c.advantages || "",
+                    disadvantages: c.disadvantages || "",
+                    when_to_use: c.whenToUse || c.when_to_use || "",
+                    related_concepts: c.relatedConcepts || c.related_concepts || "",
+                    typical_provisions: c.typicalProvisions || c.typical_provisions || "",
+                    common_use_cases: c.commonUseCases || c.common_use_cases || "",
+                    diagram: c.diagram || null,
+                    srs: srsPayload
+                };
+            });
             await supabaseClient.from('concepts').upsert(rows, { onConflict: 'user_id, title' });
         }
 
@@ -925,7 +902,6 @@ function checkDailyBriefing(isManual = false) {
     }
 }
 
-// Boot with Session Check
 document.addEventListener('DOMContentLoaded', () => {
     initAuthSession();
 });

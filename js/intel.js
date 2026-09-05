@@ -166,27 +166,41 @@ if (typeof applyDictionaryHighlighting === 'function') applyDictionaryHighlighti
 }
 
 function saveManualFactor() {
-const title = document.getElementById("logHeadline").value;
-if(!title) return;
-
-const wsToSave = (!currentWorkspace || currentWorkspace === "All") ? "General Market" : currentWorkspace;
-const descriptionHtml = intelLogQuill.root.innerHTML === "<p><br></p>" ? "" : intelLogQuill.root.innerHTML;
-
-db.factors.push({ 
-    workspace: wsToSave, 
-    title, 
-    pestle: document.getElementById("logPestle").value, 
-    region: document.getElementById("logRegion").value, 
-    metric: document.getElementById("logMetric").value, 
-    summary: document.getElementById("logSummary") ? document.getElementById("logSummary").value : "", 
-    description: descriptionHtml, 
-    implications: "", 
-    linkedConcept: document.getElementById("logLinkedConcept").value, 
-    linkedFirm: document.getElementById("logLinkedFirm").value, 
-    date: new Date().toLocaleDateString('en-GB'), 
-    isCollapsed: false, 
-    score: "" 
-});
+  const title = document.getElementById("logHeadline").value.trim();
+  if(!title) return;
+  
+  const wsToSave = (!currentWorkspace || currentWorkspace === "All") ? "General Market" : currentWorkspace;
+  const descriptionHtml = (typeof intelLogQuill !== 'undefined' && intelLogQuill.root) ? (intelLogQuill.root.innerHTML === "<p><br></p>" ? "" : intelLogQuill.root.innerHTML) : "";
+  const summaryText = document.getElementById("logSummary") ? document.getElementById("logSummary").value.trim() : "";
+  
+  // Prevent immediate duplicate insertion
+  const isDuplicate = (db.factors || []).some(f => 
+      f && (f.title || "").trim().toLowerCase() === title.toLowerCase() && 
+      (f.summary || "").trim().toLowerCase() === summaryText.toLowerCase() &&
+      f.workspace === wsToSave
+  );
+  
+  if (isDuplicate) {
+      if (typeof showToast === 'function') showToast("This insight already exists.", "warning");
+      return;
+  }
+  
+  db.factors.unshift({ 
+      id: Date.now(),
+      workspace: wsToSave, 
+      title, 
+      pestle: document.getElementById("logPestle").value, 
+      region: document.getElementById("logRegion").value, 
+      metric: document.getElementById("logMetric").value, 
+      summary: summaryText, 
+      description: descriptionHtml, 
+      implications: "", 
+      linkedConcept: document.getElementById("logLinkedConcept").value, 
+      linkedFirm: document.getElementById("logLinkedFirm").value, 
+      date: new Date().toLocaleDateString('en-GB'), 
+      isCollapsed: false, 
+      score: "" 
+  });
 
 saveDatabase(); renderFeed();
 

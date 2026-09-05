@@ -1,4 +1,4 @@
-// CONCEPTS RENDERING & KMS TABLE ENGINE (ENTERPRISE TABLE + PAGINATION + INTEGRATED CONTROLS)
+// CONCEPTS RENDERING & KMS TABLE ENGINE (ENTERPRISE TABLE + DIRECT WORKSPACE)
 // =====================================================================
 
 window.conceptCurrentPage = 1;
@@ -9,6 +9,9 @@ window.selectedConcepts = window.selectedConcepts || new Set();
 window.conceptSelectedCategory = "All";
 window.conceptSelectedPracticeArea = "All";
 window.conceptSelectedMastery = "All";
+
+// Active Concept Being Edited Directly
+window.activeConceptEditIndex = null;
 
 // --- ALPHABET FILTER STATE ---
 window.activeConceptAlpha = new Set();
@@ -136,7 +139,7 @@ window.renderConcepts = function() {
         window.currentVisibleConceptIndices = [];
         window.populateConceptFilterDropdowns();
 
-        // 1. Single Dynamic Concept Mastery Widget (Active Category OR All Categories)
+        // 1. Mastery Status Summary Widget
         const widgetContainer = document.getElementById("conceptMasteryWidget");
         if (widgetContainer) {
             const rawConcepts = (typeof db !== 'undefined' && db.concepts) ? db.concepts : [];
@@ -187,17 +190,14 @@ window.renderConcepts = function() {
         let rawConcepts = (typeof db !== 'undefined' && db.concepts) ? db.concepts : [];
         let filtered = rawConcepts.slice();
 
-        // Top workspace subtab
         if (typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All") {
             filtered = filtered.filter(c => c.category === currentConceptCategory);
         }
 
-        // Dropdown Category
         if (window.conceptSelectedCategory && window.conceptSelectedCategory !== "All") {
             filtered = filtered.filter(c => c.category === window.conceptSelectedCategory);
         }
 
-        // Dropdown Practice Area
         if (window.conceptSelectedPracticeArea && window.conceptSelectedPracticeArea !== "All") {
             filtered = filtered.filter(c => {
                 const subTags = (c.subTag || "").split(',').map(s => s.trim().toLowerCase());
@@ -205,7 +205,6 @@ window.renderConcepts = function() {
             });
         }
 
-        // Dropdown Mastery Status
         if (window.conceptSelectedMastery && window.conceptSelectedMastery !== "All") {
             const now = new Date().getTime();
             if (window.conceptSelectedMastery === "mastered") {
@@ -217,16 +216,18 @@ window.renderConcepts = function() {
             }
         }
 
-        // Search box input
         if (term) {
             filtered = filtered.filter(c => 
                 String(c.title || "").toLowerCase().includes(term) || 
                 String(c.body || "").toLowerCase().includes(term) ||
-                String(c.subTag || "").toLowerCase().includes(term)
+                String(c.subTag || "").toLowerCase().includes(term) ||
+                String(c.advantages || "").toLowerCase().includes(term) ||
+                String(c.disadvantages || "").toLowerCase().includes(term) ||
+                String(c.whenToUse || "").toLowerCase().includes(term) ||
+                String(c.relatedConcepts || "").toLowerCase().includes(term)
             );
         }
 
-        // Alphabet quick filter
         if (window.activeConceptAlpha && window.activeConceptAlpha.size > 0) {
             filtered = filtered.filter(c => {
                 const titleStr = String(c.title || "").trim();
@@ -237,7 +238,6 @@ window.renderConcepts = function() {
 
         let indexedConcepts = filtered.map(c => ({ concept: c, originalIndex: rawConcepts.indexOf(c) }));
 
-        // Sort Engine
         const sortBox = document.getElementById("sortConcepts");
         const sortMode = sortBox ? sortBox.value : "az";
 
@@ -311,6 +311,13 @@ window.renderConcepts = function() {
                 ? tags.map(t => `<span class="inline-block text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-md mr-1 mb-0.5">${t}</span>`).join('')
                 : `<span class="text-slate-400 italic text-[11px]">None</span>`;
 
+            // Indicators for added tactical modules
+            const badges = [];
+            if (concept.whenToUse) badges.push(`<span class="inline-flex items-center text-[9px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1">When to Use</span>`);
+            if (concept.advantages) badges.push(`<span class="inline-flex items-center text-[9px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-1.5 py-0.5 rounded mr-1">Advantages</span>`);
+            if (concept.disadvantages) badges.push(`<span class="inline-flex items-center text-[9px] font-semibold bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 px-1.5 py-0.5 rounded mr-1">Disadvantages</span>`);
+            if (concept.relatedConcepts) badges.push(`<span class="inline-flex items-center text-[9px] font-semibold bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 px-1.5 py-0.5 rounded mr-1">Related</span>`);
+
             tableHTML += `
                 <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer" onclick="window.viewConceptDetail(${originalIndex})">
                     <td class="py-2.5 px-4 text-center" onclick="event.stopPropagation()">
@@ -323,6 +330,7 @@ window.renderConcepts = function() {
                         <div class="text-[11px] text-slate-400 dark:text-slate-500 truncate max-w-sm mt-0.5">
                             ${subtitleExcerpt || "No definition text logged."}
                         </div>
+                        ${badges.length > 0 ? `<div class="mt-1 flex flex-wrap gap-0.5">${badges.join('')}</div>` : ''}
                     </td>
                     <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300 font-semibold whitespace-nowrap">
                         ${concept.category || "General"}
@@ -341,7 +349,7 @@ window.renderConcepts = function() {
                     </td>
                     <td class="py-2.5 px-4 text-right whitespace-nowrap" onclick="event.stopPropagation()">
                         <div class="inline-flex items-center gap-1">
-                            <button type="button" onclick="window.openEditConceptModal(${originalIndex})" class="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Edit Concept">
+                            <button type="button" onclick="window.openConceptDetailWorkspace(${originalIndex})" class="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Edit Concept Directly">
                                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                             </button>
                             <button type="button" onclick="window.viewConceptDetail(${originalIndex})" class="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Open Full Workspace">
@@ -391,12 +399,120 @@ window.renderConcepts = function() {
     }
 };
 
-window.viewConceptDetail = function(index) {
-    if (typeof window.openConceptDetailWorkspace === 'function') {
-        window.openConceptDetailWorkspace(index);
-    } else {
-        window.openEditConceptModal(index);
+// --- DIRECT IN-PAGE WORKSPACE CONTROLLER ---
+window.openConceptDetailWorkspace = function(index) {
+    window.activeConceptEditIndex = index;
+    const c = db.concepts[index];
+    if (!c) return;
+
+    const tableContainer = document.getElementById("conceptsContainer");
+    const workspace = document.getElementById("conceptDetailWorkspace");
+    const tableHeaderControls = document.getElementById("conceptTableHeaderControls") || document.querySelector("#appConcepts .border-b");
+    const paginationBar = document.getElementById("conceptAlphabetBar");
+
+    if (tableContainer) tableContainer.classList.add("hidden");
+    if (tableHeaderControls) tableHeaderControls.classList.add("hidden");
+    if (paginationBar) paginationBar.classList.add("hidden");
+
+    if (workspace) {
+        workspace.classList.remove("hidden");
+        workspace.classList.add("flex");
     }
+
+    const titleEl = document.getElementById("directConceptTitle");
+    const subTagEl = document.getElementById("directConceptSubTag");
+    const whenToUseEl = document.getElementById("directConceptWhenToUse");
+    const advEl = document.getElementById("directConceptAdvantages");
+    const disadvEl = document.getElementById("directConceptDisadvantages");
+    const relEl = document.getElementById("directConceptRelated");
+    const catSelect = document.getElementById("directConceptCategory");
+
+    if (titleEl) titleEl.value = c.title || "";
+    if (subTagEl) subTagEl.value = c.subTag || "";
+    if (whenToUseEl) whenToUseEl.value = c.whenToUse || "";
+    if (advEl) advEl.value = c.advantages || "";
+    if (disadvEl) disadvEl.value = c.disadvantages || "";
+    if (relEl) relEl.value = c.relatedConcepts || "";
+
+    if (catSelect) {
+        catSelect.innerHTML = (db.conceptCategories || ["General"]).map(cat => `<option value="${cat}">${cat}</option>`).join('');
+        catSelect.value = c.category || db.conceptCategories[0];
+    }
+
+    if (typeof window.getOrInitQuill === 'function') {
+        window.directConceptQuill = window.getOrInitQuill('#directConceptBodyQuill');
+        if (window.directConceptQuill && window.directConceptQuill.root) {
+            window.directConceptQuill.root.innerHTML = c.body || "";
+        }
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.closeConceptWorkspace = function() {
+    window.activeConceptEditIndex = null;
+    const tableContainer = document.getElementById("conceptsContainer");
+    const workspace = document.getElementById("conceptDetailWorkspace");
+    const tableHeaderControls = document.getElementById("conceptTableHeaderControls") || document.querySelector("#appConcepts .border-b");
+    const paginationBar = document.getElementById("conceptAlphabetBar");
+
+    if (workspace) {
+        workspace.classList.add("hidden");
+        workspace.classList.remove("flex");
+    }
+    if (tableContainer) tableContainer.classList.remove("hidden");
+    if (tableHeaderControls) tableHeaderControls.classList.remove("hidden");
+    if (paginationBar) paginationBar.classList.remove("hidden");
+};
+
+window.saveDirectConcept = function() {
+    if (window.activeConceptEditIndex === null) return;
+    const idx = window.activeConceptEditIndex;
+    const c = db.concepts[idx];
+    if (!c) return;
+
+    const titleInput = document.getElementById("directConceptTitle");
+    const newTitle = titleInput ? titleInput.value.trim() : "";
+    if (!newTitle) {
+        alert("Concept Name cannot be empty.");
+        return;
+    }
+
+    c.title = newTitle;
+    const catEl = document.getElementById("directConceptCategory");
+    if (catEl) c.category = catEl.value;
+
+    const subTagEl = document.getElementById("directConceptSubTag");
+    if (subTagEl) c.subTag = subTagEl.value.trim();
+
+    const whenEl = document.getElementById("directConceptWhenToUse");
+    if (whenEl) c.whenToUse = whenEl.value.trim();
+
+    const advEl = document.getElementById("directConceptAdvantages");
+    if (advEl) c.advantages = advEl.value.trim();
+
+    const disadvEl = document.getElementById("directConceptDisadvantages");
+    if (disadvEl) c.disadvantages = disadvEl.value.trim();
+
+    const relEl = document.getElementById("directConceptRelated");
+    if (relEl) c.relatedConcepts = relEl.value.trim();
+
+    if (window.directConceptQuill && window.directConceptQuill.root) {
+        c.body = window.directConceptQuill.root.innerHTML;
+    }
+
+    if (typeof saveDatabase === 'function') saveDatabase();
+    window.closeConceptWorkspace();
+    window.renderConcepts();
+
+    if (typeof showToast === 'function') {
+        showToast("Concept updated directly.", "success");
+    }
+};
+
+window.viewConceptDetail = function(index) {
+    window.openConceptDetailWorkspace(index);
 };
 
 window.saveConcept = function() {
@@ -427,6 +543,10 @@ window.saveConcept = function() {
       body: htmlBody, 
       summary: "",
       subTag: document.getElementById("conceptSubTag").value,
+      advantages: "",
+      disadvantages: "",
+      whenToUse: "",
+      relatedConcepts: "",
       diagram: typeof diagramTempBase64 !== 'undefined' ? diagramTempBase64 : "", 
       srs: { nextReview: new Date().getTime(), interval: 0, ease: 2.5, mastered: false, lastRating: 'forgot' },
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), 
@@ -460,77 +580,15 @@ window.saveConcept = function() {
 };
 
 window.openEditConceptModal = function(index) {
-    const c = db.concepts[index];
-    if (!c) return;
-    
-    document.getElementById("editConceptIndex").value = index;
-    document.getElementById("editConceptTitle").value = c.title || "";
-    document.getElementById("editConceptSubTag").value = c.subTag || "";
-    
-    const catSelect = document.getElementById("editConceptCategory");
-    if (catSelect) {
-        catSelect.innerHTML = (db.conceptCategories || ["General"]).map(cat => `<option value="${cat}">${cat}</option>`).join('');
-        catSelect.value = c.category || db.conceptCategories[0];
-    }
-    
-    window.editQuillEditor = window.getOrInitQuill('#editConceptBodyQuill', { 
-        modules: { toolbar: '#editConceptToolbar' } 
-    });
-
-    if (window.editQuillEditor && window.editQuillEditor.root) {
-        window.editQuillEditor.root.innerHTML = c.body || "";
-    }
-
-    const previewImg = document.getElementById("editConceptDiagramPreview");
-    if (previewImg) {
-        if (c.diagram) {
-            previewImg.src = c.diagram;
-            previewImg.classList.remove("hidden");
-            document.getElementById("editConceptDiagramLabel").innerText = "Edit Diagram";
-        } else {
-            previewImg.src = "";
-            previewImg.classList.add("hidden");
-            document.getElementById("editConceptDiagramLabel").innerText = "Add Diagram";
-        }
-    }
-
-    const modal = document.getElementById("editConceptModalContainer");
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-    }
+    window.openConceptDetailWorkspace(index);
 };
 
 window.saveConceptEditFn = function() {
-    const indexStr = document.getElementById("editConceptIndex").value;
-    if (indexStr === "") return;
-    const index = parseInt(indexStr, 10);
-    
-    db.concepts[index].title = document.getElementById("editConceptTitle").value;
-    db.concepts[index].subTag = document.getElementById("editConceptSubTag").value;
-    db.concepts[index].category = document.getElementById("editConceptCategory").value;
-    
-    let bodyHtml = "";
-    const editorEl = document.querySelector('#editConceptBodyQuill .ql-editor');
-    if (editorEl) {
-        bodyHtml = editorEl.innerHTML;
-    } else if (window.editQuillEditor && window.editQuillEditor.root) {
-        bodyHtml = window.editQuillEditor.root.innerHTML;
+    if (typeof window.saveDirectConceptWorkspace === 'function') {
+        window.saveDirectConceptWorkspace();
+    } else if (typeof window.saveDirectConcept === 'function') {
+        window.saveDirectConcept();
     }
-    
-    db.concepts[index].body = bodyHtml === "<p><br></p>" ? "" : bodyHtml;
-    
-    if (typeof diagramTempBase64 !== 'undefined' && diagramTempBase64) {
-        db.concepts[index].diagram = diagramTempBase64;
-    }
-    
-    const modal = document.getElementById("editConceptModalContainer");
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-    if (typeof saveDatabase === 'function') saveDatabase();
-    window.renderConcepts();
 };
 
 window.toggleConceptSelection = function(index, event) {
