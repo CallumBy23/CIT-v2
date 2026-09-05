@@ -13,6 +13,33 @@ window.conceptSelectedMastery = "All";
 // Active Concept Being Edited Directly
 window.activeConceptEditIndex = null;
 
+// --- DEBOUNCED SEARCH & FAST FILTER STATE ---
+let conceptSearchDebounceTimer = null;
+
+window.onConceptSearchInput = function() {
+    clearTimeout(conceptSearchDebounceTimer);
+    conceptSearchDebounceTimer = setTimeout(() => {
+        window.conceptCurrentPage = 1;
+        window.renderConcepts();
+    }, 100);
+};
+
+// Auto-bind listener to override synchronous inline oninput calls
+window.initConceptSearchFast = function() {
+    const searchBox = document.getElementById("searchConcepts");
+    if (searchBox && !searchBox.dataset.fastBound) {
+        searchBox.dataset.fastBound = "true";
+        searchBox.removeAttribute("oninput");
+        searchBox.addEventListener("input", window.onConceptSearchInput);
+    }
+};
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", window.initConceptSearchFast);
+} else {
+    window.initConceptSearchFast();
+}
+
 // --- ALPHABET FILTER STATE ---
 window.activeConceptAlpha = new Set();
 window.activeDictAlpha = new Set();
@@ -87,14 +114,18 @@ window.resetConceptFilters = function() {
     window.renderConcepts();
 };
 
-window.populateConceptFilterDropdowns = function() {
+// Populates dropdowns only when forced or on first load (Never freezes typing)
+window.populateConceptFilterDropdowns = function(force = false) {
     const catEl = document.getElementById('conceptFilterCategory');
     const paEl = document.getElementById('conceptFilterPracticeArea');
 
-    if (catEl && (!catEl.dataset.populated || catEl.children.length <= 1)) {
-        const categories = (typeof db !== 'undefined' && db.conceptCategories && db.conceptCategories.length > 0)
+    if (catEl && (!catEl.dataset.populated || force)) {
+        const rawCategories = (typeof db !== 'undefined' && db.conceptCategories && db.conceptCategories.length > 0)
             ? db.conceptCategories
             : Array.from(new Set(((typeof db !== 'undefined' && db.concepts) || []).map(c => c.category || "General")));
+        
+        // Strictly exclude Interview Vault from categories
+        const categories = rawCategories.filter(cat => cat !== "Interview Vault");
         
         let opts = `<option value="All">All Categories</option>`;
         categories.forEach(cat => {
@@ -105,7 +136,7 @@ window.populateConceptFilterDropdowns = function() {
         catEl.dataset.populated = "true";
     }
 
-    if (paEl) {
+    if (paEl && (!paEl.dataset.populated || force)) {
         const subTags = new Set();
         ((typeof db !== 'undefined' && db.concepts) || []).forEach(c => {
             if (c.subTag) {
@@ -122,6 +153,7 @@ window.populateConceptFilterDropdowns = function() {
         });
         paEl.innerHTML = paOpts;
         paEl.value = window.conceptSelectedPracticeArea || "All";
+        paEl.dataset.populated = "true";
     }
 };
 
@@ -135,38 +167,35 @@ window.renderConcepts = function() {
     const container = document.getElementById("conceptsContainer");
     if (!container) return;
     
+    window.initConceptSearchFast();
+
     try {
         window.currentVisibleConceptIndices = [];
-        window.populateConceptFilterDropdowns();
+        window.populateConceptFilterDropdowns(false);
+
+        const rawConcepts = (typeof db !== 'undefined' && db.concepts) ? db.concepts : [];
 
         // 1. Mastery Status Summary Widget
         const widgetContainer = document.getElementById("conceptMasteryWidget");
         if (widgetContainer) {
-            const rawConcepts = (typeof db !== 'undefined' && db.concepts) ? db.concepts : [];
             const activeCat = (window.conceptSelectedCategory && window.conceptSelectedCategory !== "All")
                 ? window.conceptSelectedCategory
                 : ((typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All")
                     ? currentConceptCategory
                     : "All");
 
-            let targetConcepts = [];
-            let displayLabel = "";
-
-            if (activeCat === "All") {
-                targetConcepts = rawConcepts;
-                displayLabel = "All Concepts";
-            } else {
-                targetConcepts = rawConcepts.filter(c => c && c.category === activeCat);
-                displayLabel = activeCat;
-            }
+            let targetConcepts = activeCat === "All" 
+                ? rawConcepts 
+                : rawConcepts.filter(c => c && c.category === activeCat);
 
             const total = targetConcepts.length;
             let mastered = 0;
-            targetConcepts.forEach(c => {
+            for (let i = 0; i < total; i++) {
+                const c = targetConcepts[i];
                 if (c && c.srs && (c.srs.mastered || c.srs.interval >= 21)) {
                     mastered++;
                 }
-            });
+            }
 
             const pct = total === 0 ? 0 : Math.round((mastered / total) * 100);
             const isHighMastery = pct >= 50;
@@ -174,7 +203,7 @@ window.renderConcepts = function() {
             widgetContainer.innerHTML = `
                 <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 shadow-xs flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full ${isHighMastery ? 'bg-emerald-500' : 'bg-indigo-500'} animate-pulse shrink-0"></span>
-                    <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate max-w-[160px]">${displayLabel}:</span>
+                    <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate max-w-[160px]">${activeCat === 'All' ? 'All Concepts' : activeCat}:</span>
                     <div class="w-16 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden shrink-0">
                         <div class="${isHighMastery ? 'bg-emerald-500' : 'bg-indigo-600'} h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
                     </div>
@@ -184,11 +213,10 @@ window.renderConcepts = function() {
             widgetContainer.classList.remove('hidden');
         }
 
-        // 2. Filter Logic
+        // 2. High-Performance Filtering (Avoids synchronous regex scans on body)
         const searchBox = document.getElementById("searchConcepts");
-        const term = searchBox ? String(searchBox.value || "").toLowerCase().trim() : "";
-        let rawConcepts = (typeof db !== 'undefined' && db.concepts) ? db.concepts : [];
-        let filtered = rawConcepts.slice();
+        const term = searchBox ? searchBox.value.toLowerCase().trim() : "";
+        let filtered = rawConcepts;
 
         if (typeof currentConceptCategory !== 'undefined' && currentConceptCategory !== "All") {
             filtered = filtered.filter(c => c.category === currentConceptCategory);
@@ -199,14 +227,12 @@ window.renderConcepts = function() {
         }
 
         if (window.conceptSelectedPracticeArea && window.conceptSelectedPracticeArea !== "All") {
-            filtered = filtered.filter(c => {
-                const subTags = (c.subTag || "").split(',').map(s => s.trim().toLowerCase());
-                return subTags.includes(window.conceptSelectedPracticeArea.toLowerCase());
-            });
+            const paMatch = window.conceptSelectedPracticeArea.toLowerCase();
+            filtered = filtered.filter(c => (c.subTag || "").toLowerCase().includes(paMatch));
         }
 
         if (window.conceptSelectedMastery && window.conceptSelectedMastery !== "All") {
-            const now = new Date().getTime();
+            const now = Date.now();
             if (window.conceptSelectedMastery === "mastered") {
                 filtered = filtered.filter(c => c.srs && (c.srs.mastered || c.srs.interval >= 21));
             } else if (window.conceptSelectedMastery === "learning") {
@@ -217,25 +243,23 @@ window.renderConcepts = function() {
         }
 
         if (term) {
-            filtered = filtered.filter(c => 
-                String(c.title || "").toLowerCase().includes(term) || 
-                String(c.body || "").toLowerCase().includes(term) ||
-                String(c.subTag || "").toLowerCase().includes(term) ||
-                String(c.advantages || "").toLowerCase().includes(term) ||
-                String(c.disadvantages || "").toLowerCase().includes(term) ||
-                String(c.whenToUse || "").toLowerCase().includes(term) ||
-                String(c.relatedConcepts || "").toLowerCase().includes(term)
-            );
+            filtered = filtered.filter(c => {
+                if (c.title && c.title.toLowerCase().includes(term)) return true;
+                if (c.subTag && c.subTag.toLowerCase().includes(term)) return true;
+                if (c.summary && c.summary.toLowerCase().includes(term)) return true;
+                if (c.body && c.body.toLowerCase().includes(term)) return true;
+                return false;
+            });
         }
 
         if (window.activeConceptAlpha && window.activeConceptAlpha.size > 0) {
             filtered = filtered.filter(c => {
-                const titleStr = String(c.title || "").trim();
-                if (!titleStr) return false;
-                return window.activeConceptAlpha.has(titleStr.charAt(0).toUpperCase());
+                const titleStr = (c.title || "").trim();
+                return titleStr ? window.activeConceptAlpha.has(titleStr.charAt(0).toUpperCase()) : false;
             });
         }
 
+        // 3. Sorting
         let indexedConcepts = filtered.map(c => ({ concept: c, originalIndex: rawConcepts.indexOf(c) }));
 
         const sortBox = document.getElementById("sortConcepts");
@@ -249,7 +273,7 @@ window.renderConcepts = function() {
             indexedConcepts.sort((a, b) => String(b.concept.title || "").localeCompare(String(a.concept.title || "")));
         }
 
-        // 3. Pagination
+        // 4. Pagination
         const totalItems = indexedConcepts.length;
         const totalPages = Math.max(1, Math.ceil(totalItems / window.conceptPageSize));
         if (window.conceptCurrentPage > totalPages) window.conceptCurrentPage = totalPages;
@@ -266,32 +290,20 @@ window.renderConcepts = function() {
             return;
         }
 
-        // 4. Build Table
-        let tableHTML = `
-            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden flex flex-col">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-900/50 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                <th class="py-2.5 px-4 w-10 text-center">
-                                    <input type="checkbox" onchange="window.toggleSelectAll('concepts')" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
-                                </th>
-                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 min-w-[280px]">Concept</th>
-                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-36">Category</th>
-                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-28 text-center">Mastery</th>
-                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-32">Last Reviewed</th>
-                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 min-w-[180px]">Practice Area / Tags</th>
-                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-24 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">`;
-
-        pageConcepts.forEach(({ concept, originalIndex }) => {
+        // 5. Build Table Rows
+        let rowsHtml = '';
+        for (let i = 0; i < pageConcepts.length; i++) {
+            const { concept, originalIndex } = pageConcepts[i];
             window.currentVisibleConceptIndices.push(originalIndex);
             const isChecked = window.selectedConcepts.has(originalIndex) ? "checked" : "";
             
-            const plainTextDesc = (concept.body || "").replace(/<[^>]*>?/gm, '').trim();
-            const subtitleExcerpt = plainTextDesc.length > 70 ? plainTextDesc.substring(0, 70) + "..." : plainTextDesc;
+            let subtitleExcerpt = concept.summary || "";
+            if (!subtitleExcerpt && concept.body) {
+                subtitleExcerpt = concept.body.substring(0, 100).replace(/<[^>]*>?/gm, '').trim();
+            }
+            if (subtitleExcerpt.length > 70) {
+                subtitleExcerpt = subtitleExcerpt.substring(0, 70) + "...";
+            }
 
             const srs = concept.srs || { interval: 0, nextReview: 0 };
             const masteryPct = srs.mastered ? 100 : Math.min(100, Math.round(((srs.interval || 0) / 21) * 100));
@@ -311,14 +323,13 @@ window.renderConcepts = function() {
                 ? tags.map(t => `<span class="inline-block text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-md mr-1 mb-0.5">${t}</span>`).join('')
                 : `<span class="text-slate-400 italic text-[11px]">None</span>`;
 
-            // Indicators for added tactical modules
             const badges = [];
             if (concept.whenToUse) badges.push(`<span class="inline-flex items-center text-[9px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-1.5 py-0.5 rounded mr-1">When to Use</span>`);
             if (concept.advantages) badges.push(`<span class="inline-flex items-center text-[9px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-1.5 py-0.5 rounded mr-1">Advantages</span>`);
             if (concept.disadvantages) badges.push(`<span class="inline-flex items-center text-[9px] font-semibold bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 px-1.5 py-0.5 rounded mr-1">Disadvantages</span>`);
             if (concept.relatedConcepts) badges.push(`<span class="inline-flex items-center text-[9px] font-semibold bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 px-1.5 py-0.5 rounded mr-1">Related</span>`);
 
-            tableHTML += `
+            rowsHtml += `
                 <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer" onclick="window.viewConceptDetail(${originalIndex})">
                     <td class="py-2.5 px-4 text-center" onclick="event.stopPropagation()">
                         <input type="checkbox" ${isChecked} onchange="window.toggleConceptSelection(${originalIndex}, event)" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
@@ -361,9 +372,8 @@ window.renderConcepts = function() {
                         </div>
                     </td>
                 </tr>`;
-        });
+        }
 
-        // 5. Pagination Buttons
         let pageBtns = '';
         for (let p = 1; p <= totalPages; p++) {
             pageBtns += `
@@ -372,12 +382,29 @@ window.renderConcepts = function() {
                 </button>`;
         }
 
-        tableHTML += `
+        container.innerHTML = `
+            <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-900/50 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                <th class="py-2.5 px-4 w-10 text-center">
+                                    <input type="checkbox" onchange="window.toggleSelectAll('concepts')" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                                </th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 min-w-[280px]">Concept</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-36">Category</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-28 text-center">Mastery</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-32">Last Reviewed</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 min-w-[180px]">Practice Area / Tags</th>
+                                <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-24 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
+                            ${rowsHtml}
                         </tbody>
                     </table>
                 </div>
 
-                <!-- Footer Pagination -->
                 <div class="p-3 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-slate-500">
                     <span class="font-medium text-[11px]">Showing <strong>${startIndex + 1}</strong> to <strong>${Math.min(startIndex + window.conceptPageSize, totalItems)}</strong> of <strong>${totalItems}</strong> concepts</span>
                     <div class="flex items-center gap-1 font-bold">
@@ -388,8 +415,10 @@ window.renderConcepts = function() {
                 </div>
             </div>`;
 
-        container.innerHTML = tableHTML;
-        if (window.lucide) window.lucide.createIcons();
+        // Hydrate only newly created rows rather than scanning whole window
+        if (window.lucide) {
+            window.lucide.createIcons({ root: container });
+        }
 
         window.updateMassDeleteConceptBtn();
 
@@ -435,8 +464,9 @@ window.openConceptDetailWorkspace = function(index) {
     if (relEl) relEl.value = c.relatedConcepts || "";
 
     if (catSelect) {
-        catSelect.innerHTML = (db.conceptCategories || ["General"]).map(cat => `<option value="${cat}">${cat}</option>`).join('');
-        catSelect.value = c.category || db.conceptCategories[0];
+        const cleanCats = (db.conceptCategories || ["General"]).filter(cat => cat !== "Interview Vault");
+        catSelect.innerHTML = cleanCats.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+        catSelect.value = c.category || cleanCats[0];
     }
 
     if (typeof window.getOrInitQuill === 'function') {
@@ -496,7 +526,7 @@ window.saveDirectConcept = function() {
     if (disadvEl) c.disadvantages = disadvEl.value.trim();
 
     const relEl = document.getElementById("directConceptRelated");
-    if (relEl) c.relatedConcepts = relEl.value.trim();
+    if (relEl) relEl.value = c.relatedConcepts || "";
 
     if (window.directConceptQuill && window.directConceptQuill.root) {
         c.body = window.directConceptQuill.root.innerHTML;
@@ -515,54 +545,113 @@ window.viewConceptDetail = function(index) {
     window.openConceptDetailWorkspace(index);
 };
 
-window.saveConcept = function() {
-    const title = document.getElementById("conceptTitle").value.trim();
+window.saveConcept = async function() {
+    const titleInput = document.getElementById("conceptTitle");
+    const subTagInput = document.getElementById("conceptSubTag");
     
+    const title = titleInput ? titleInput.value.trim() : "";
+    
+    // 1. Reliably extract body HTML & clean text from Quill
     let htmlBody = "";
-    const editorEl = document.querySelector('#conceptBodyQuill .ql-editor');
+    const editorEl = document.querySelector('#conceptBodyQuill .ql-editor') || document.querySelector('.ql-editor');
     if (editorEl) {
         htmlBody = editorEl.innerHTML;
-    } else if (typeof quillEditor !== 'undefined' && quillEditor.root) {
+    } else if (typeof quillEditor !== 'undefined' && quillEditor && quillEditor.root) {
         htmlBody = quillEditor.root.innerHTML;
     }
     
-    const cleanText = htmlBody.replace(/<[^>]*>?/gm, '').trim();
+    const cleanText = htmlBody.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
     
-    if (!title || !cleanText) {
-        alert("Please enter a Concept Name and Definition before saving.");
+    if (!title) {
+        alert("Please enter a Concept Name.");
+        if (titleInput) titleInput.focus();
         return;
     }
 
-    const catToSave = (!currentConceptCategory || currentConceptCategory === "All") 
-        ? (db.conceptCategories && db.conceptCategories[0] ? db.conceptCategories[0] : "General") 
-        : currentConceptCategory;
+    if (!cleanText && htmlBody !== "") {
+        htmlBody = "<p>" + cleanText + "</p>";
+    }
     
-    db.concepts.push({
-      title, 
-      category: catToSave, 
-      body: htmlBody, 
-      summary: "",
-      subTag: document.getElementById("conceptSubTag").value,
-      advantages: "",
-      disadvantages: "",
-      whenToUse: "",
-      relatedConcepts: "",
-      diagram: typeof diagramTempBase64 !== 'undefined' ? diagramTempBase64 : "", 
-      srs: { nextReview: new Date().getTime(), interval: 0, ease: 2.5, mastered: false, lastRating: 'forgot' },
-      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), 
-      score: ""
-    });
+    if (!cleanText && !htmlBody) {
+        alert("Please enter a definition or summary in the body before saving.");
+        return;
+    }
+
+    // 2. Resolve Category (Fallback to active tab or General)
+    let catToSave = "General";
+    if (typeof currentConceptCategory !== 'undefined' && currentConceptCategory && currentConceptCategory !== "All") {
+        catToSave = currentConceptCategory;
+    } else if (typeof window.conceptSelectedCategory !== 'undefined' && window.conceptSelectedCategory && window.conceptSelectedCategory !== "All") {
+        catToSave = window.conceptSelectedCategory;
+    } else if (db.conceptCategories && db.conceptCategories.length > 0) {
+        const cleanCats = db.conceptCategories.filter(cat => cat !== "Interview Vault");
+        catToSave = cleanCats[0] || "General";
+    }
+
+    // 3. Duplicate check & update in-memory
+    const existingIdx = (db.concepts || []).findIndex(c => c && c.title && c.title.trim().toLowerCase() === title.toLowerCase());
     
-    if (typeof saveDatabase === 'function') saveDatabase(); 
-    if (typeof updateNexusDropdowns === 'function') updateNexusDropdowns(); 
+    if (existingIdx !== -1) {
+        if (!confirm(`A concept titled "${title}" already exists. Do you want to update it instead of creating a duplicate?`)) {
+            return;
+        }
+        db.concepts[existingIdx].body = htmlBody;
+        db.concepts[existingIdx].category = catToSave;
+        if (subTagInput) db.concepts[existingIdx].subTag = subTagInput.value.trim();
+        if (typeof diagramTempBase64 !== 'undefined' && diagramTempBase64) {
+            db.concepts[existingIdx].diagram = diagramTempBase64;
+        }
+    } else {
+        if (!Array.isArray(db.concepts)) db.concepts = [];
+        
+        db.concepts.push({
+            title: title, 
+            category: catToSave, 
+            body: htmlBody, 
+            summary: cleanText.substring(0, 160) + (cleanText.length > 160 ? "..." : ""),
+            subTag: subTagInput ? subTagInput.value.trim() : "",
+            advantages: "",
+            disadvantages: "",
+            whenToUse: "",
+            relatedConcepts: "",
+            documents: [],
+            diagram: (typeof diagramTempBase64 !== 'undefined' && diagramTempBase64) ? diagramTempBase64 : "", 
+            srs: { nextReview: new Date().getTime(), interval: 0, ease: 2.5, mastered: false, lastRating: 'forgot', subSrs: {}, documents: [] },
+            date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), 
+            score: ""
+        });
+    }
     
-    window.renderConcepts();
+    // 4. Persist immediately to cache and Supabase
+    try {
+        if (typeof saveDatabase === 'function') {
+            await saveDatabase();
+        }
+    } catch (err) {
+        console.warn("Database sync notice:", err);
+    }
     
-    document.getElementById("conceptTitle").value = ""; 
-    document.getElementById("conceptSubTag").value = ""; 
+    if (typeof updateNexusDropdowns === 'function') {
+        try { updateNexusDropdowns(); } catch(e){}
+    }
     
-    if (editorEl) editorEl.innerHTML = "";
-    else if (typeof quillEditor !== 'undefined') quillEditor.setContents([]);
+    // 5. Invalidate practice area dropdown cache so new tags appear
+    window.populateConceptFilterDropdowns(true);
+
+    // 6. Re-render table & widgets
+    if (typeof window.renderConcepts === 'function') {
+        window.renderConcepts();
+    }
+    
+    // 7. Clear form inputs
+    if (titleInput) titleInput.value = ""; 
+    if (subTagInput) subTagInput.value = ""; 
+    
+    if (editorEl) {
+        editorEl.innerHTML = "";
+    } else if (typeof quillEditor !== 'undefined' && quillEditor) {
+        quillEditor.setContents([]);
+    }
     
     if (typeof diagramTempBase64 !== 'undefined') window.diagramTempBase64 = "";
     
@@ -574,8 +663,13 @@ window.saveConcept = function() {
     const label = document.getElementById("newConceptDiagramLabel");
     if (label) label.innerText = "Add Diagram";
     
+    // 8. Auto-collapse sidebar on mobile
     if (typeof toggleAppSidebar === 'function' && window.innerWidth < 768) {
-         toggleAppSidebar('conceptLogSidebar');
+        toggleAppSidebar('conceptLogSidebar');
+    }
+
+    if (typeof showToast === 'function') {
+        showToast(`Concept "${title}" saved successfully.`, "success");
     }
 };
 
@@ -676,4 +770,70 @@ window.deleteConcept = async function(index) {
     }
     if (typeof saveDatabase === 'function') saveDatabase();
     window.renderConcepts();
+};
+
+/**
+ * Modernized Blank Concept Creator
+ * Opens the full-screen concept workspace in edit mode pre-filled with the active category
+ */
+window.openNewConceptWorkspace = function() {
+    if (!Array.isArray(db.concepts)) db.concepts = [];
+
+    // Fall back cleanly to active tab or first valid category (excluding Interview Vault)
+    const activeCat = (typeof currentConceptCategory !== 'undefined' && currentConceptCategory && currentConceptCategory !== "All")
+        ? currentConceptCategory
+        : (window.conceptSelectedCategory && window.conceptSelectedCategory !== "All"
+            ? window.conceptSelectedCategory
+            : ((db.conceptCategories && db.conceptCategories.filter(c => c !== "Interview Vault")[0]) || "Corporate / M&A"));
+
+    const newConcept = {
+        title: "",
+        category: activeCat,
+        subTag: "",
+        summary: "",
+        body: "",
+        advantages: "",
+        disadvantages: "",
+        whenToUse: "",
+        relatedConcepts: "",
+        typicalProvisions: "",
+        commonUseCases: "",
+        linkedPlaybook: null,
+        documents: [],
+        diagram: null,
+        srs: { 
+            nextReview: Date.now(), 
+            interval: 0, 
+            ease: 2.5, 
+            mastered: false, 
+            lastRating: 'forgot', 
+            subSrs: {}, 
+            documents: [],
+            summary: "" 
+        },
+        date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    };
+
+    // Prepend the new blank concept to the start of db.concepts
+    db.concepts.unshift(newConcept);
+    window.activeConceptDetailIndex = 0;
+    window.activeConceptDetailTab = 'overview';
+    window.isConceptDetailEditMode = true;
+
+    // Open full workspace and hide table
+    const detailWrapper = getOrCreateConceptDetailWrapper();
+    const mainTableScroll = document.querySelector("#appConcepts > div.flex-1.min-w-0");
+    if (mainTableScroll) mainTableScroll.classList.add("hidden");
+    if (detailWrapper) detailWrapper.classList.remove("hidden");
+
+    window.renderConceptDetailView();
+
+    // Auto-focus on Title input
+    setTimeout(() => {
+        const titleEl = document.getElementById("inpageConceptTitle");
+        if (titleEl) {
+            titleEl.placeholder = "Enter Concept Name (e.g. Warranties vs Indemnities)...";
+            titleEl.focus();
+        }
+    }, 100);
 };

@@ -234,15 +234,13 @@
                 </div>
             </div>
 
-            <!-- 4. MARKET INTELLIGENCE -->
+            <!-- 4. MARKET INTELLIGENCE (ENTERPRISE HIGH-DENSITY TABLE) -->
             <div id="appIntelligence" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-[#f8f9fb] dark:bg-[#0c101a]">
-              <button onclick="toggleAppSidebar('intelLogSidebar')" class="fixed bottom-20 md:bottom-8 right-6 md:right-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full px-6 py-3.5 shadow-[0_4px_14px_rgba(79,70,229,0.4)] flex items-center justify-center z-[60] print:hidden transition-all hover:-translate-y-1 gap-2" title="Log Insight">
-                <i data-lucide="plus" class="w-5 h-5"></i> <span>Log Insight</span>
-              </button>
-
-              <div id="intelLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden shadow-xl md:shadow-none pb-24 md:pb-6 h-full flex flex-col md:hidden shrink-0 pt-safe-sidebar">
+              
+              <!-- Left Log Drawer -->
+              <div id="intelLogSidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-[85%] md:w-[350px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 p-6 overflow-y-auto transition-transform duration-300 z-[70] print:hidden shadow-xl md:shadow-none pb-24 md:pb-6 h-full flex-col md:hidden shrink-0 pt-safe-sidebar">
                 <button onclick="toggleAppSidebar('intelLogSidebar')" class="absolute top-6 right-6 mt-safe text-slate-400 hover:text-slate-800 dark:hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
-                <h2 class="text-lg font-serif font-black text-slate-900 dark:text-white mb-4 mt-6 shrink-0">Log Factor: <span id="formWsLabel" class="text-indigo-600 dark:text-indigo-400 font-sans font-bold text-sm ml-1">General Market</span></h2>
+                <h2 class="text-lg font-serif font-black text-slate-900 dark:text-white mb-4 mt-6 md:mt-0 shrink-0">Log Factor: <span id="formWsLabel" class="text-indigo-600 dark:text-indigo-400 font-sans font-bold text-sm ml-1">General Market</span></h2>
                 
                 <div class="space-y-4 flex-1">
                   <input type="text" id="logHeadline" oninput="runAutoTagger(this.value)" placeholder="Headline (Type @Firm or #Concept)" spellcheck="true" class="w-full border border-slate-300 dark:border-slate-700 rounded-sm p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none dark:bg-slate-800 dark:text-white shadow-inner">
@@ -275,74 +273,110 @@
                 </div>
               </div>
 
-              <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-24 md:pb-10 h-full transition-colors duration-200">
-                <div class="max-w-[1600px] mx-auto w-full flex flex-col lg:flex-row gap-6 items-start">
-                    <div class="flex-1 min-w-0 space-y-6 order-2 lg:order-1 w-full">
-                        <div class="print:hidden border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
-                            <h2 class="text-2xl md:text-3xl font-serif font-black text-slate-900 dark:text-white mb-2">Market Intelligence</h2>
-                            <p class="text-sm text-slate-500">Aggregate, tag, and analyze commercial factors and live market events.</p>
+              <!-- Main Content Scroll Area -->
+              <div class="flex-1 min-w-0 bg-transparent p-4 md:p-6 overflow-y-auto relative print:p-0 print:bg-white print:block print:w-full print:overflow-visible pb-32 h-full transition-colors duration-200 custom-scrollbar">
+                <div class="max-w-[1600px] mx-auto w-full space-y-3">
+                    
+                    <!-- 1. COMPACT TERMINAL HEADER -->
+                    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                        <div>
+                            <h1 class="text-2xl md:text-3xl font-serif font-black text-slate-900 dark:text-white leading-tight">Market Intelligence</h1>
+                            <p class="text-xs text-slate-500 mt-0.5">Aggregate, tag, and analyze commercial factors, macro trends, and live market events.</p>
                         </div>
-                        <h1 class="hidden print:block text-3xl font-serif font-bold mb-6 border-b pb-2 text-black">Intelligence Report: <span id="printIntelTitle">General Market</span></h1>
-
-                        <div class="flex flex-col gap-3 w-full mb-6 print:hidden">
-                            <div class="flex items-center gap-3 w-full overflow-x-auto scrollbar-hide shrink-0">
-                                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest shrink-0 mr-2">Workspace Feed</h2>
-                                <div class="flex rounded-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm h-9 box-border overflow-hidden shrink-0">
-                                    <button onclick="toggleGlobalCollapse('intel', true)" class="text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition border-r border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 h-full"><i data-lucide="chevron-down" class="w-3.5 h-3.5"></i> Expand</button>
-                                    <button onclick="toggleGlobalCollapse('intel', false)" class="text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition flex items-center justify-center gap-1.5 h-full"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i> Collapse</button>
-                                </div>
-                                <button onclick="toggleAppSidebar('intelLogSidebar')" class="md:hidden bg-indigo-600 text-white font-bold px-3 rounded-sm text-xs transition shadow-sm h-9 box-border shrink-0 flex items-center gap-1.5"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Log Insight</button>
-                                <button onclick="massDeleteIntel()" id="massDeleteIntelBtn" class="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 font-bold px-3 rounded-sm text-xs transition shadow-sm hidden h-9 box-border shrink-0 flex items-center gap-1.5"><i data-lucide="trash" class="w-3.5 h-3.5"></i> Delete</button>
-                            </div>
-                            
-                            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
-                                <select id="sortFeed" onchange="updateUIPrefs()" class="border border-slate-300 dark:border-slate-700 rounded-sm px-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 shadow-sm bg-white dark:bg-slate-900 h-9 box-border shrink-0">
-                                    <option value="newest">Newest First</option><option value="oldest">Oldest First</option><option value="az">A-Z</option><option value="za">Z-A</option>
-                                </select>
-                                
-                                <div class="flex w-full sm:w-auto rounded-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm h-9 box-border overflow-hidden shrink-0">
-                                    <button onclick="toggleSelectAll('intel')" class="w-1/3 sm:w-auto flex-1 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition border-r border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 h-full whitespace-nowrap"><i data-lucide="check-square" class="w-3.5 h-3.5"></i> Select</button>
-                                    <button id="rssBtn" onclick="fetchRssNews()" class="w-1/3 sm:w-auto flex-1 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition border-r border-slate-300 dark:border-slate-700 flex items-center justify-center gap-1.5 h-full whitespace-nowrap"><i data-lucide="rss" class="w-3.5 h-3.5"></i> RSS</button>
-                                    <button onclick="autoParseText()" class="w-1/3 sm:w-auto flex-1 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold px-3 text-xs transition flex items-center justify-center gap-1.5 h-full whitespace-nowrap"><i data-lucide="clipboard-paste" class="w-3.5 h-3.5"></i> Paste</button>
-                                </div>
-
-                                <div class="relative flex-1">
-                                    <i data-lucide="filter" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
-                                    <input type="text" id="searchFeed" placeholder="Filter records..." spellcheck="false" onkeyup="renderFeed()" class="pl-9 border border-slate-300 dark:border-slate-700 rounded-sm pr-3 text-sm outline-none focus:ring-1 focus:ring-indigo-500 shadow-inner h-9 box-border w-full dark:bg-slate-900 dark:text-white">
-                                </div>
-                            </div>
+                        <div class="flex items-center gap-2">
+                          <button onclick="window.openNewIntelWorkspace()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow-sm flex items-center gap-1.5 shrink-0">
+                              <i data-lucide="plus" class="w-3.5 h-3.5"></i> <span>Log Insight</span>
+                          </button>
                         </div>
-                        
-                        <div class="flex gap-2 overflow-x-auto print:hidden scrollbar-hide empty:hidden mb-4" id="pestleFilters"></div>
-                        
-                        <div class="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-[#0f172a] dark:to-[#1e293b] w-full rounded-md p-5 shadow-lg border border-slate-700 print:hidden flex flex-col gap-4 relative overflow-hidden" id="intelAIHeader">
-                          <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse pointer-events-none"></div>
-                          <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 relative z-10">
-                            <div>
-                              <h3 class="text-sm font-bold text-white uppercase tracking-widest mb-1 flex items-center gap-2"><i data-lucide="cpu" class="w-4 h-4 text-indigo-400"></i> Active Synthesis</h3>
-                              <p class="text-xs text-slate-400">Select records via checkboxes to target AI generation.</p>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                              <select id="aiPersonaIntel" class="flex-1 md:flex-none bg-slate-900/50 border border-slate-600 text-slate-200 rounded-sm px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-400 shadow-inner">
-                                <option value="Standard Partner">Standard Persona</option><option value="Magic Circle Partner">Magic Circle</option><option value="US Firm Partner">US Firm</option>
-                              </select>
-                              <label class="flex-1 md:flex-none justify-center text-xs text-slate-300 font-bold flex items-center gap-2 cursor-pointer bg-slate-900/50 px-3 py-1.5 rounded-sm border border-slate-600 hover:bg-slate-700 transition shadow-inner">
-                                <input type="checkbox" id="pressureModeIntel" class="rounded-sm text-indigo-500 focus:ring-indigo-500 bg-slate-800 border-slate-500 w-3.5 h-3.5"> Pressure
-                              </label>
-                            </div>
-                          </div>
-                          <div class="flex flex-wrap md:flex-nowrap gap-3 border-t border-slate-700/50 pt-4 relative z-10">
-                            <button onclick="generateMockInterview()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="mic" class="w-3.5 h-3.5"></i> Mock Interview</button>
-                            <button onclick="generateRippleEffect()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="waves" class="w-3.5 h-3.5"></i> Ripple Effect</button>
-                            <button onclick="generateDeconstructor()" class="w-full md:w-auto flex-1 h-10 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-sm text-xs transition flex justify-center items-center gap-2 shadow-sm backdrop-blur-sm"><i data-lucide="hammer" class="w-3.5 h-3.5"></i> Deconstruct</button>
-                          </div>
-                        </div>
-
-                        <div id="cardsContainer" class="space-y-4 pb-10 print:space-y-6 print:pb-0 w-full"></div>
                     </div>
+
+                    <!-- 2. ACTION BUTTON CLUSTER & BATCH DELETION -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 pt-0.5 print:hidden">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <div class="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-0.5 shadow-sm">
+                                <button type="button" onclick="window.toggleSelectAllIntel()" class="px-2.5 py-1 rounded-md text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1">
+                                    <i data-lucide="check-square" class="w-3.5 h-3.5 text-indigo-500"></i> Select
+                                </button>
+                                <button type="button" id="rssBtn" onclick="fetchRssNews()" class="px-2.5 py-1 rounded-md text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1 border-l border-slate-200 dark:border-slate-800">
+                                    <i data-lucide="rss" class="w-3.5 h-3.5 text-indigo-500"></i> RSS
+                                </button>
+                                <button type="button" onclick="autoParseText()" class="px-2.5 py-1 rounded-md text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1 border-l border-slate-200 dark:border-slate-800">
+                                    <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-indigo-500"></i> Paste
+                                </button>
+                                <span id="selectedIntelCountDisplay" class="px-2.5 py-1 rounded-md text-xs font-bold text-indigo-600 dark:text-indigo-400 border-l border-slate-200 dark:border-slate-800">Selected (0)</span>
+                            </div>
+                        </div>
+
+                        <button type="button" onclick="window.massDeleteIntel()" id="massDeleteIntelBtn" class="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 font-bold px-3 py-1 rounded-lg text-xs transition shadow-sm hidden flex items-center gap-1">
+                            <i data-lucide="trash" class="w-3.5 h-3.5"></i> Delete Selected
+                        </button>
+                    </div>
+
+                    <!-- 3. PRECISE FILTER TOOLBAR -->
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl p-2 shadow-sm print:hidden">
+                        <div class="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                            <select id="intelFilterPestle" onchange="window.onIntelFilterChange()" class="border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm">
+                                <option value="All">All PESTLE</option>
+                            </select>
+
+                            <select id="intelFilterWorkspace" onchange="window.onIntelFilterChange()" class="border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm">
+                                <option value="All">All Sectors / Workspaces</option>
+                            </select>
+
+                            <button type="button" onclick="window.resetIntelFilters()" class="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center gap-1 shadow-sm">
+                                <i data-lucide="filter" class="w-3.5 h-3.5 text-slate-500"></i> Filters
+                            </button>
+
+                            <div class="relative flex-1 min-w-[180px]">
+                                <i data-lucide="search" class="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400"></i>
+                                <input type="text" id="searchFeed" placeholder="Filter intelligence records..." spellcheck="false" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white shadow-inner">
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-1.5 shrink-0 border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 pt-1.5 sm:pt-0 sm:pl-2.5">
+                            <span class="text-[11px] font-bold text-slate-400 whitespace-nowrap">Sort:</span>
+                            <select id="sortFeed" onchange="window.renderFeed()" class="border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm">
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="az">A-Z</option>
+                                <option value="za">Z-A</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 4. HORIZONTAL ALPHABET BAR -->
+                    <div id="intelAlphabetBar" class="flex items-center gap-1 overflow-x-auto scrollbar-hide py-1 w-full print:hidden"></div>
+
+                    <!-- 5. ACTIVE SYNTHESIS AI PANEL -->
+                    <div class="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-[#0f172a] dark:to-[#1e293b] w-full rounded-xl p-3.5 shadow-md border border-slate-700 print:hidden flex flex-col gap-2.5 relative overflow-hidden" id="intelAIHeader">
+                      <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-10 animate-pulse pointer-events-none"></div>
+                      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 relative z-10">
+                        <div>
+                          <h3 class="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-1.5"><i data-lucide="cpu" class="w-3.5 h-3.5 text-indigo-400"></i> Active Synthesis</h3>
+                          <p class="text-[11px] text-slate-400 mt-0.5">Select records via checkboxes to target AI generation.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                          <select id="intelPersonaSelect" class="flex-1 md:flex-none bg-slate-900/50 border border-slate-600 text-slate-200 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-indigo-400 shadow-inner">
+                            <option value="Standard Partner">Standard Persona</option><option value="Magic Circle Partner">Magic Circle</option><option value="US Firm Partner">US Firm</option>
+                          </select>
+                          <label class="flex-1 md:flex-none justify-center text-xs text-slate-300 font-bold flex items-center gap-1.5 cursor-pointer bg-slate-900/50 px-2.5 py-1 rounded-lg border border-slate-600 hover:bg-slate-700 transition shadow-inner">
+                            <input type="checkbox" id="intelPressureMode" class="rounded text-indigo-500 focus:ring-indigo-500 bg-slate-800 border-slate-500 w-3.5 h-3.5"> Pressure
+                          </label>
+                        </div>
+                      </div>
+                      <div class="flex flex-wrap md:flex-nowrap gap-2 border-t border-slate-700/50 pt-2.5 relative z-10">
+                        <button type="button" onclick="window.triggerIntelSynthesis('mock-interview')" class="w-full md:w-auto flex-1 h-8 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-lg text-xs transition flex justify-center items-center gap-1.5 shadow-sm backdrop-blur-sm"><i data-lucide="mic" class="w-3 h-3"></i> Mock Interview</button>
+                        <button type="button" onclick="window.triggerIntelSynthesis('ripple-effect')" class="w-full md:w-auto flex-1 h-8 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-lg text-xs transition flex justify-center items-center gap-1.5 shadow-sm backdrop-blur-sm"><i data-lucide="waves" class="w-3 h-3"></i> Ripple Effect</button>
+                        <button type="button" onclick="window.triggerIntelSynthesis('deconstruct')" class="w-full md:w-auto flex-1 h-8 box-border bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold px-3 rounded-lg text-xs transition flex justify-center items-center gap-1.5 shadow-sm backdrop-blur-sm"><i data-lucide="hammer" class="w-3 h-3"></i> Deconstruct</button>
+                      </div>
+                    </div>
+
+                    <!-- 6. HIGH-DENSITY INTEL TABLE CONTAINER -->
+                    <div id="feedContainer" class="w-full"></div>
+
                 </div>
+              </div>
             </div>
-        </div>
 
             <!-- 5. CORE CONCEPTS -->
             <div id="appConcepts" class="flex-1 flex-col md:flex-row hidden w-full h-full relative overflow-hidden bg-[#f8f9fb] dark:bg-[#0c101a]">
@@ -358,7 +392,7 @@
                       
                       <div class="bg-white dark:bg-slate-900 flex flex-col flex-1 border border-slate-300 dark:border-slate-700 rounded-lg overflow-hidden min-h-[220px] shadow-sm">
                         <div id="quillToolbar" class="bg-slate-50 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 p-1 sticky top-0 z-[50]">
-                          <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button></span>
+                          <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button></span>
                           <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
                         </div>
                         <div id="conceptBodyQuill" class="flex-1 dark:text-white text-xs" spellcheck="true"></div>
@@ -366,7 +400,7 @@
 
                       <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-3 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition group shrink-0" onclick="openDrawingPad('new')">
                         <img id="newConceptDiagramPreview" class="hidden w-full max-h-36 object-contain mx-auto mb-2">
-                        <span class="text-xs font-bold text-slate-500 group-hover:text-slate-800 dark:group-hover:text-white flex justify-center items-center gap-1.5">
+                        <span class="text-xs font-bold text-slate-500 group-hover:text-slate-800 dark:hover:text-white flex justify-center items-center gap-1.5">
                           <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> <span id="newConceptDiagramLabel">Add Diagram</span>
                         </span>
                       </div>
@@ -389,7 +423,7 @@
                             </div>
                             <div class="flex items-center gap-2">
                                 <div id="conceptMasteryWidget" class="hidden sm:block"></div>
-                                <button onclick="toggleAppSidebar('conceptLogSidebar')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow-sm flex items-center gap-1.5 shrink-0">
+                                <button type="button" onclick="window.openNewConceptWorkspace()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow-sm flex items-center gap-1.5 shrink-0">
                                     <i data-lucide="plus" class="w-3.5 h-3.5"></i> <span>New Concept</span>
                                 </button>
                             </div>
@@ -443,7 +477,7 @@
 
                                 <div class="relative flex-1 min-w-[180px]">
                                     <i data-lucide="search" class="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400"></i>
-                                    <input type="text" id="searchConcepts" placeholder="Filter concepts..." spellcheck="false" onkeyup="window.renderConcepts()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white shadow-inner">
+                                    <input type="text" id="searchConcepts" placeholder="Filter concepts..." spellcheck="false" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white shadow-inner">
                                 </div>
                             </div>
 
@@ -864,7 +898,7 @@
     </div>
   </div>
 
-  <!-- FLASHCARD MODAL (FIXED NO-CLIP SCROLL) -->
+  <!-- FLASHCARD MODAL -->
   <div id="flashcardModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden">
       <div class="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -1001,6 +1035,7 @@
   <script src="js/canvas.js"></script>
   <script src="js/dictionary.js"></script>
   <script src="js/intel.js"></script>
+  <script src="js/intel-detail.js"></script>
   <script src="js/concepts.js"></script>
   <script src="js/concept-detail.js"></script>
   <script src="js/flashcards.js"></script>

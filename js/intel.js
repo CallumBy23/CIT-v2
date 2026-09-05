@@ -1,497 +1,534 @@
-// INTELLIGENCE RENDERING & LOGIC
-// ==========================================
+// =========================================================================
+// MARKET INTELLIGENCE DATA TABLE ENGINE & SYNTHESIS CONTROLLER
+// =========================================================================
 
-window.toggleIntelCard = function(index, event) {
-  if (event) {
-      if (event.target.closest('button') || event.target.closest('a') || event.target.closest('input') || event.target.closest('.ql-editor') || event.target.closest('.dict-term')) {
+window.intelCurrentPage = 1;
+window.intelPageSize = 10;
+window.selectedFactors = window.selectedFactors || new Set();
+
+// Filter States
+window.intelSelectedPestle = "All";
+window.intelSelectedWorkspace = "All";
+window.activeIntelAlpha = new Set();
+
+// Debounced search timer
+let intelSearchDebounceTimer = null;
+
+window.onIntelSearchInput = function() {
+    clearTimeout(intelSearchDebounceTimer);
+    intelSearchDebounceTimer = setTimeout(() => {
+        window.intelCurrentPage = 1;
+        window.renderFeed();
+    }, 100);
+};
+
+// Bind search listener safely
+window.initIntelSearchFast = function() {
+    const searchBox = document.getElementById("searchFeed");
+    if (searchBox && !searchBox.dataset.fastBound) {
+        searchBox.dataset.fastBound = "true";
+        searchBox.removeAttribute("oninput");
+        searchBox.addEventListener("input", window.onIntelSearchInput);
+    }
+};
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", window.initIntelSearchFast);
+} else {
+    window.initIntelSearchFast();
+}
+
+// =========================================================================
+// ALPHABET FILTER BAR FOR INTELLIGENCE
+// =========================================================================
+window.toggleIntelAlphabetFilter = function(letter) {
+    if (letter === 'ALL') {
+        window.activeIntelAlpha.clear();
+    } else {
+        if (window.activeIntelAlpha.has(letter)) {
+            window.activeIntelAlpha.delete(letter);
+        } else {
+            window.activeIntelAlpha.add(letter);
+        }
+    }
+
+    window.intelCurrentPage = 1;
+    window.renderIntelAlphabetBar();
+    window.renderFeed();
+};
+
+window.renderIntelAlphabetBar = function() {
+    const container = document.getElementById("intelAlphabetBar");
+    if (!container) return;
+    
+    const alphabet = ["ALL", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
+    
+    container.innerHTML = alphabet.map(letter => {
+        const isActive = letter === 'ALL' 
+            ? window.activeIntelAlpha.size === 0 
+            : window.activeIntelAlpha.has(letter);
+        const baseClass = "px-2.5 py-1 text-[11px] font-bold rounded-md cursor-pointer transition shrink-0 border ";
+        const activeClass = isActive 
+            ? "bg-indigo-600 text-white border-indigo-700 shadow-sm" 
+            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-900 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white";
+        return `<button type="button" onclick="window.toggleIntelAlphabetFilter('${letter}')" class="${baseClass} ${activeClass}">${letter}</button>`;
+    }).join('');
+};
+
+window.setIntelPage = function(page) {
+    window.intelCurrentPage = page;
+    window.renderFeed();
+};
+
+// Filter dropdown population
+window.populateIntelFilterDropdowns = function(force = false) {
+    const pestleEl = document.getElementById('intelFilterPestle');
+    const wsEl = document.getElementById('intelFilterWorkspace');
+
+    if (pestleEl && (!pestleEl.dataset.populated || force)) {
+        const pestles = ["Political", "Economic", "Social", "Technological", "Legal", "Environmental"];
+        let opts = `<option value="All">All PESTLE</option>`;
+        pestles.forEach(p => {
+            opts += `<option value="${p}">${p}</option>`;
+        });
+        pestleEl.innerHTML = opts;
+        pestleEl.value = window.intelSelectedPestle || "All";
+        pestleEl.dataset.populated = "true";
+    }
+
+    if (wsEl && (!wsEl.dataset.populated || force)) {
+        const workspaces = (typeof db !== 'undefined' && db.workspaces && db.workspaces.length > 0)
+            ? db.workspaces
+            : ["General Market"];
+        
+        let wsOpts = `<option value="All">All Sectors / Workspaces</option>`;
+        workspaces.forEach(w => {
+            wsOpts += `<option value="${w}">${w}</option>`;
+        });
+        wsEl.innerHTML = wsOpts;
+        wsEl.value = window.intelSelectedWorkspace || "All";
+        wsEl.dataset.populated = "true";
+    }
+};
+
+window.onIntelFilterChange = function() {
+    const pestleEl = document.getElementById('intelFilterPestle');
+    const wsEl = document.getElementById('intelFilterWorkspace');
+
+    window.intelSelectedPestle = pestleEl ? pestleEl.value : "All";
+    window.intelSelectedWorkspace = wsEl ? wsEl.value : "All";
+
+    window.intelCurrentPage = 1;
+    window.renderFeed();
+};
+
+window.resetIntelFilters = function() {
+    const pestleEl = document.getElementById('intelFilterPestle');
+    const wsEl = document.getElementById('intelFilterWorkspace');
+    const searchEl = document.getElementById('searchFeed');
+    const sortEl = document.getElementById('sortFeed');
+
+    if (pestleEl) pestleEl.value = "All";
+    if (wsEl) wsEl.value = "All";
+    if (searchEl) searchEl.value = "";
+    if (sortEl) sortEl.value = "newest";
+
+    window.intelSelectedPestle = "All";
+    window.intelSelectedWorkspace = "All";
+    window.activeIntelAlpha.clear();
+
+    window.intelCurrentPage = 1;
+    window.renderIntelAlphabetBar();
+    window.renderFeed();
+};
+
+// Helper: PESTLE Style Map
+function getPestleBadge(pestle) {
+    const p = (pestle || 'Economic').toLowerCase();
+    let colorClass = "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300";
+
+    if (p.includes('econ')) colorClass = "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900";
+    else if (p.includes('pol')) colorClass = "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900";
+    else if (p.includes('soc')) colorClass = "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900";
+    else if (p.includes('tech')) colorClass = "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900";
+    else if (p.includes('leg')) colorClass = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900";
+    else if (p.includes('env')) colorClass = "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900";
+
+    return `<span class="inline-flex items-center px-2 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider border ${colorClass}">${pestle || 'General'}</span>`;
+}
+
+// =========================================================================
+// MAIN INTEL TABLE RENDERER
+// =========================================================================
+// =========================================================================
+// MAIN INTEL TABLE RENDERER (TOP TABS + WORKSPACE INTEGRATION)
+// =========================================================================
+window.renderFeed = function() {
+  const container = document.getElementById("feedContainer");
+  if (!container) return;
+
+  window.initIntelSearchFast();
+  window.renderIntelAlphabetBar();
+
+  try {
+      window.currentVisibleIntelIndices = [];
+      window.populateIntelFilterDropdowns(false);
+
+      const rawFactors = (typeof db !== 'undefined' && Array.isArray(db.factors)) ? db.factors : [];
+
+      // 1. Resolve Active Top Tab Workspace (e.g. ALL, CORPORATE/M&A, LAW FIRMS, RSS FEED)
+      const activeTopTab = (typeof currentWorkspace !== 'undefined' && currentWorkspace) 
+          ? currentWorkspace 
+          : "All";
+
+      const searchBox = document.getElementById("searchFeed");
+      const term = searchBox ? searchBox.value.toLowerCase().trim() : "";
+      let filtered = rawFactors;
+
+      // Apply Top Category Tab Filter
+      if (activeTopTab !== "All" && activeTopTab !== "ALL INTELLIGENCE") {
+          filtered = filtered.filter(f => {
+              const ws = (f.workspace || "General Market").toLowerCase();
+              return ws === activeTopTab.toLowerCase();
+          });
+      }
+
+      // Apply Inner PESTLE Filter
+      if (window.intelSelectedPestle && window.intelSelectedPestle !== "All") {
+          filtered = filtered.filter(f => (f.pestle || "").toLowerCase() === window.intelSelectedPestle.toLowerCase());
+      }
+
+      // Apply Inner Sector Filter
+      if (window.intelSelectedWorkspace && window.intelSelectedWorkspace !== "All") {
+          filtered = filtered.filter(f => (f.workspace || "").toLowerCase() === window.intelSelectedWorkspace.toLowerCase());
+      }
+
+      // Text Search
+      if (term) {
+          filtered = filtered.filter(f => {
+              const titleStr = (f.title || f.headline || "").toLowerCase();
+              const summaryStr = (f.summary || "").toLowerCase();
+              const descStr = (f.description || "").toLowerCase();
+              const firmStr = (f.linkedFirm || f.linked_firm || "").toLowerCase();
+              const conceptStr = (f.linkedConcept || f.linked_concept || "").toLowerCase();
+              return titleStr.includes(term) || summaryStr.includes(term) || descStr.includes(term) || firmStr.includes(term) || conceptStr.includes(term);
+          });
+      }
+
+      // A-Z Alphabet Filter
+      if (window.activeIntelAlpha && window.activeIntelAlpha.size > 0) {
+          filtered = filtered.filter(f => {
+              const titleStr = (f.title || f.headline || "").trim();
+              return titleStr ? window.activeIntelAlpha.has(titleStr.charAt(0).toUpperCase()) : false;
+          });
+      }
+
+      // Sorting
+      let indexedFactors = filtered.map(f => ({ factor: f, originalIndex: rawFactors.indexOf(f) }));
+      const sortBox = document.getElementById("sortFeed");
+      const sortMode = sortBox ? sortBox.value : "newest";
+
+      if (sortMode === "newest") {
+          indexedFactors.sort((a, b) => {
+              const dateA = a.factor.date ? new Date(a.factor.date).getTime() : 0;
+              const dateB = b.factor.date ? new Date(b.factor.date).getTime() : 0;
+              return dateB - dateA;
+          });
+      } else if (sortMode === "az") {
+          indexedFactors.sort((a, b) => String(a.factor.title || a.factor.headline || "").localeCompare(String(b.factor.title || b.factor.headline || "")));
+      } else if (sortMode === "za") {
+          indexedFactors.sort((a, b) => String(b.factor.title || b.factor.headline || "").localeCompare(String(a.factor.title || a.factor.headline || "")));
+      }
+
+      // Pagination
+      const totalItems = indexedFactors.length;
+      const totalPages = Math.max(1, Math.ceil(totalItems / window.intelPageSize));
+      if (window.intelCurrentPage > totalPages) window.intelCurrentPage = totalPages;
+      if (window.intelCurrentPage < 1) window.intelCurrentPage = 1;
+
+      const startIndex = (window.intelCurrentPage - 1) * window.intelPageSize;
+      const pageFactors = indexedFactors.slice(startIndex, startIndex + window.intelPageSize);
+
+      if (totalItems === 0) {
+          container.innerHTML = `
+              <div class="p-8 text-center bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-none shadow-xs">
+                  <p class="text-xs font-medium text-slate-500">No market intelligence records found matching "${activeTopTab}".</p>
+              </div>`;
           return;
       }
-  }
-  
-  if (!db.factors || !db.factors[index]) return;
-  const factor = db.factors[index];
-  
-  const card = document.getElementById(`factor-card-${index}`);
-  if (!card) return;
 
-  const body = card.querySelector('.nexus-body');
-  const icon = card.querySelector('.nexus-icon i');
-  
-  if (body) {
-      // Read directly whether it is currently hidden in the DOM
-      const isCurrentlyHidden = body.classList.contains('hidden');
-      
-      if (isCurrentlyHidden) {
-          body.classList.remove('hidden');
-          factor.isCollapsed = false;
-          if (icon) icon.setAttribute('data-lucide', 'chevron-up');
-      } else {
-          body.classList.add('hidden');
-          factor.isCollapsed = true;
-          if (icon) icon.setAttribute('data-lucide', 'chevron-down');
+      // Build Table Rows
+      let rowsHtml = '';
+      for (let i = 0; i < pageFactors.length; i++) {
+          const { factor: f, originalIndex } = pageFactors[i];
+          window.currentVisibleIntelIndices.push(originalIndex);
+          const isChecked = window.selectedFactors.has(originalIndex) ? "checked" : "";
+
+          const title = f.title || f.headline || "Untitled Intelligence";
+          let subtitle = f.summary || "";
+          if (!subtitle && f.description) {
+              subtitle = f.description.substring(0, 100).replace(/<[^>]*>?/gm, '').trim();
+          }
+          if (subtitle.length > 85) subtitle = subtitle.substring(0, 85) + "...";
+
+          const pestleBadge = getPestleBadge(f.pestle);
+          const metricTag = f.metric ? `<span class="inline-block text-[10px] font-mono font-bold bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-1.5 py-0.5 rounded-none mr-1.5">${f.metric}</span>` : '';
+          
+          const conceptsList = Array.isArray(f.linkedConcepts) && f.linkedConcepts.length > 0
+              ? f.linkedConcepts
+              : ((f.linkedConcept || f.linked_concept) ? [(f.linkedConcept || f.linked_concept)] : []);
+              
+          const firmsList = Array.isArray(f.linkedFirms) && f.linkedFirms.length > 0
+              ? f.linkedFirms
+              : ((f.linkedFirm || f.linked_firm) ? [(f.linkedFirm || f.linked_firm)] : []);
+
+          const conceptsBadges = conceptsList.map(cName => {
+              const enc = encodeURIComponent(cName);
+              return `<span class="inline-flex items-center text-[10px] font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded-none mr-1 cursor-pointer hover:underline" onclick="event.stopPropagation(); window.safeRouteToConcept ? window.safeRouteToConcept('${enc}') : window.routeToConceptTitle('${cName.replace(/'/g, "\\'")}');">${cName}</span>`;
+          }).join('');
+
+          const firmsBadges = firmsList.map(firmName => {
+              const enc = encodeURIComponent(firmName);
+              return `<span class="inline-flex items-center text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded-none mr-1 cursor-pointer hover:underline" onclick="event.stopPropagation(); window.safeRouteToFirm ? window.safeRouteToFirm('${enc}') : (switchState('DOSSIERS'), routeToFirm('${firmName.replace(/'/g, "\\'")}'));">${firmName}</span>`;
+          }).join('');
+
+          const dateStr = f.date || "--";
+
+          rowsHtml += `
+              <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer" onclick="window.viewIntelDetail(${originalIndex})">
+                  <td class="py-2.5 px-4 text-center" onclick="event.stopPropagation()">
+                      <input type="checkbox" ${isChecked} onchange="window.toggleIntelSelection(${originalIndex}, event)" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                  </td>
+                  <td class="py-2.5 px-4">
+                      <div class="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition text-xs leading-snug">
+                          ${title}
+                      </div>
+                      <div class="text-[11px] text-slate-400 dark:text-slate-500 truncate max-w-md mt-0.5">
+                          ${subtitle || "No summary text logged."}
+                      </div>
+                      <div class="mt-1 flex items-center flex-wrap gap-1">
+                          ${metricTag}
+                          ${conceptsBadges}
+                          ${firmsBadges}
+                      </div>
+                  </td>
+                  <td class="py-2.5 px-4 whitespace-nowrap">
+                      ${pestleBadge}
+                  </td>
+                  <td class="py-2.5 px-4 text-slate-600 dark:text-slate-300 font-semibold text-xs whitespace-nowrap">
+                      ${f.workspace || "General Market"}
+                  </td>
+                  <td class="py-2.5 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                      ${dateStr}
+                  </td>
+                  <td class="py-2.5 px-4 text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                      <div class="inline-flex items-center gap-1">
+                          <button type="button" onclick="window.viewIntelDetail(${originalIndex})" class="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Open Workspace">
+                              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                          </button>
+                          <button type="button" onclick="window.deleteIntelFactor(${originalIndex})" class="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition" title="Delete">
+                              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                          </button>
+                      </div>
+                  </td>
+              </tr>`;
       }
 
-      if (window.lucide) window.lucide.createIcons();
-  }
+      let pageBtns = '';
+      for (let p = 1; p <= totalPages; p++) {
+          pageBtns += `
+              <button type="button" onclick="window.setIntelPage(${p})" class="w-6 h-6 rounded text-xs font-bold transition flex items-center justify-center ${p === window.intelCurrentPage ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'}">
+                  ${p}
+              </button>`;
+      }
 
-  if (typeof saveToLocalCache === 'function') saveToLocalCache();
+      container.innerHTML = `
+          <div class="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-none shadow-xs overflow-hidden flex flex-col">
+              <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse">
+                      <thead>
+                          <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-900/50 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                              <th class="py-2.5 px-4 w-10 text-center">
+                                  <input type="checkbox" onchange="window.toggleSelectAllIntel()" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                              </th>
+                              <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 min-w-[320px]">Intelligence Record</th>
+                              <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-32">PESTLE</th>
+                              <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-36">Sector / Workspace</th>
+                              <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-32">Date Logged</th>
+                              <th class="py-2.5 px-4 font-bold text-slate-500 dark:text-slate-400 w-24 text-right">Actions</th>
+                          </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
+                          ${rowsHtml}
+                      </tbody>
+                  </table>
+              </div>
+
+              <div class="p-3 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-slate-500">
+                  <span class="font-medium text-[11px]">Showing <strong>${startIndex + 1}</strong> to <strong>${Math.min(startIndex + window.intelPageSize, totalItems)}</strong> of <strong>${totalItems}</strong> records</span>
+                  <div class="flex items-center gap-1 font-bold">
+                      <button type="button" onclick="window.setIntelPage(${window.intelCurrentPage - 1})" ${window.intelCurrentPage === 1 ? 'disabled class="w-6 h-6 flex items-center justify-center text-slate-300 dark:text-slate-700 cursor-not-allowed"' : 'class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"'}>&lt;</button>
+                      ${pageBtns}
+                      <button type="button" onclick="window.setIntelPage(${window.intelCurrentPage + 1})" ${window.intelCurrentPage === totalPages ? 'disabled class="w-6 h-6 flex items-center justify-center text-slate-300 dark:text-slate-700 cursor-not-allowed"' : 'class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"'}>&gt;</button>
+                  </div>
+              </div>
+          </div>`;
+
+      if (window.lucide) {
+          window.lucide.createIcons({ root: container });
+      }
+
+      window.updateIntelSynthesisToolbar();
+
+  } catch (err) {
+      console.error("Intel rendering error:", err);
+  }
 };
 
-function renderPestleFilters() {
-const container = document.getElementById("pestleFilters");
-container.innerHTML = "";
-PESTLE_CATEGORIES.forEach(cat => {
-  const btn = document.createElement("button");
-  btn.innerText = cat;
-  btn.className = `px-4 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap shrink-0 ${activePestleFilter === cat ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-inner' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm'}`;
-  btn.onclick = () => { activePestleFilter = cat; selectedFactors.clear(); updateMassDeleteIntelBtn(); renderPestleFilters(); renderFeed(); };
-  container.appendChild(btn);
-});
-}
-
-function renderFeed() {
-const container = document.getElementById("cardsContainer");
-
-container.innerHTML = "";
-currentVisibleFactorIndices = [];
-const term = String(document.getElementById("searchFeed").value || "").toLowerCase();
-
-let filtered = (db.factors || []).filter(f => 
-    f && 
-    (currentWorkspace === "All" || f.workspace === currentWorkspace) && 
-    (activePestleFilter === "All" || f.pestle === activePestleFilter)
-);
-
-if (term) {
-    filtered = filtered.filter(f => 
-        String(f.title || "").toLowerCase().includes(term) || 
-        String(f.summary || "").toLowerCase().includes(term) || 
-        String(f.description || "").toLowerCase().includes(term)
-    );
-}
-
-if (filtered.length === 0) {
-    container.innerHTML = `<p class="text-slate-500 italic mt-4 print:hidden">No records match.</p>`;
-    return;
-}
-
-let indexedFactors = filtered.map(f => ({ factor: f, originalIndex: db.factors.indexOf(f) }));
-const sortMode = document.getElementById("sortFeed").value;
-
-if (sortMode === "newest") {
-    indexedFactors.reverse();
-} else if (sortMode === "az") {
-    indexedFactors.sort((a, b) => String(a.factor.title || "").localeCompare(String(b.factor.title || "")));
-} else if (sortMode === "za") {
-    indexedFactors.sort((a, b) => String(b.factor.title || "").localeCompare(String(a.factor.title || "")));
-}
-
-const pestleColors = {
-    'Political': 'border-l-purple-500',
-    'Economic': 'border-l-blue-500',
-    'Social': 'border-l-pink-500',
-    'Technological': 'border-l-cyan-500',
-    'Legal': 'border-l-emerald-500',
-    'Environmental': 'border-l-green-500',
-    'Assessment': 'border-l-slate-400 dark:border-l-slate-500'
+// =========================================================================
+// SELECTION & AI ACTIVE SYNTHESIS
+// =========================================================================
+window.toggleIntelSelection = function(index, event) {
+    if (event) event.stopPropagation();
+    if (window.selectedFactors.has(index)) {
+        window.selectedFactors.delete(index);
+    } else {
+        window.selectedFactors.add(index);
+    }
+    window.updateIntelSynthesisToolbar();
 };
 
-indexedFactors.forEach(({factor, originalIndex}) => {
-  currentVisibleFactorIndices.push(originalIndex);
-  const isCollapsed = factor.isCollapsed !== false;
-  const isChecked = typeof selectedFactors !== 'undefined' && selectedFactors.has(originalIndex) ? "checked" : "";
-  
-  const safeConcept = factor.linkedConcept ? String(factor.linkedConcept).replace(/'/g, "\\'") : "";
-  const safeFirm = factor.linkedFirm ? String(factor.linkedFirm).replace(/'/g, "\\'") : "";
-  
-  const nexusBadge = factor.linkedConcept ? `<button onclick="event.stopPropagation(); routeToConcept('${safeConcept}')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold shadow-sm border border-slate-200 inline-flex items-center gap-1 transition dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 uppercase tracking-widest shrink-0"><i data-lucide="link" class="w-3 h-3"></i>${factor.linkedConcept}</button>` : '';
-  const firmBadge = factor.linkedFirm ? `<button onclick="event.stopPropagation(); routeToFirm('${safeFirm}')" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold shadow-sm border border-slate-200 inline-flex items-center gap-1 transition dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 uppercase tracking-widest shrink-0"><i data-lucide="building-2" class="w-3 h-3"></i>${factor.linkedFirm}</button>` : '';
+window.toggleSelectAllIntel = function() {
+    const visible = window.currentVisibleIntelIndices || [];
+    const allSelected = visible.length > 0 && visible.every(idx => window.selectedFactors.has(idx));
 
-  const pColor = pestleColors[factor.pestle] || 'border-l-indigo-500';
-  const dateStr = factor.date || new Date().toLocaleDateString('en-GB');
+    if (allSelected) {
+        visible.forEach(idx => window.selectedFactors.delete(idx));
+    } else {
+        visible.forEach(idx => window.selectedFactors.add(idx));
+    }
+    window.renderFeed();
+};
 
-  const summaryHtml = factor.summary ? `<p class="text-[13px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed pr-8 print:hidden">${factor.summary}</p>` : '';
+window.updateIntelSynthesisToolbar = function() {
+    const count = window.selectedFactors ? window.selectedFactors.size : 0;
+    const badge = document.getElementById("selectedIntelCountDisplay");
+    const massDelBtn = document.getElementById("massDeleteIntelBtn");
 
-  const card = document.createElement("div");
-  card.id = `factor-card-${originalIndex}`;
-  card.className = `bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 border-l-4 ${pColor} rounded-md p-4 md:p-6 shadow-sm print:break-inside-avoid print:border-slate-400 print:shadow-none transition hover:border-indigo-400 dark:hover:border-indigo-500 w-full`;
-  
-  card.innerHTML = `
-    <div class="flex items-start gap-4 w-full cursor-pointer group" onclick="window.toggleIntelCard(${originalIndex}, event)">
-      <div class="pt-0.5 shrink-0">
-        <input type="checkbox" ${isChecked} onchange="toggleFactorSelection(${originalIndex}, event)" class="w-4 h-4 text-indigo-600 rounded print:hidden cursor-pointer border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500">
-      </div>
-      <div class="flex flex-col min-w-0 w-full">
-        <div class="flex justify-between items-start w-full gap-4">
-            <div class="flex-1 min-w-0">
-                <h4 class="font-bold text-slate-900 dark:text-white text-base md:text-lg group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition print:text-black break-words leading-tight">${factor.title || "Untitled Insight"}</h4>
-                ${summaryHtml}
-            </div>
-            <div class="flex items-center gap-3 shrink-0">
-                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest hidden sm:block">${dateStr}</span>
-                <span class="nexus-icon text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition print:hidden bg-slate-100 dark:bg-slate-800 p-1.5 rounded shadow-inner border border-slate-200 dark:border-slate-700"><i data-lucide="${isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-4 h-4"></i></span>
-            </div>
-        </div>
-        
-        <div class="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 w-full">
-            <span class="text-[10px] bg-slate-800 dark:bg-slate-700 text-white px-2 py-0.5 rounded font-bold uppercase truncate max-w-[150px] shadow-sm">${factor.metric || factor.region || "Global"}</span>
-            <span class="text-[10px] bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded font-bold uppercase shadow-sm border border-indigo-200 dark:border-indigo-800">${factor.pestle || "Assessment"}</span>
-            ${nexusBadge}${firmBadge}
-        </div>
-      </div>
-    </div>
-    
-    <div class="nexus-body ${isCollapsed ? 'hidden print:block' : 'block'} border-t border-slate-100 dark:border-slate-800 pt-5 mt-5 print:border-slate-300 cursor-text" onclick="event.stopPropagation()">
-      <div class="prose prose-sm md:prose-base max-w-none text-slate-700 dark:text-slate-200 mb-5 print:text-black dict-highlight-target dark:prose-invert">${factor.description || ""}</div>
-      
-      <div class="bg-indigo-50/50 dark:bg-indigo-900/10 rounded-lg p-4 border border-indigo-100 dark:border-indigo-800/50 print:bg-white print:border-slate-300">
-        <div class="flex flex-col md:flex-row justify-between md:items-center mb-3 gap-2">
-          <span class="text-xs font-bold text-indigo-800 dark:text-indigo-400 uppercase tracking-wider print:text-black flex items-center gap-1.5"><i data-lucide="zap" class="w-3.5 h-3.5"></i> Commercial Implications</span>
-          <button onclick="synthesizeFactorAi(${originalIndex})" class="w-full md:w-auto text-[10px] bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-400 font-bold py-1.5 px-3 rounded-sm transition flex justify-center items-center gap-1.5 shadow-sm print:hidden shrink-0 border border-slate-200 dark:border-slate-700 uppercase tracking-widest"><i data-lucide="sparkles" class="w-3 h-3"></i> AI Synthesis</button>
-        </div>
-        <div class="prose prose-sm max-w-none text-slate-700 dark:text-slate-300 print:text-black dict-highlight-target dark:prose-invert" id="implication-text-${originalIndex}">${factor.implications || "<p class='italic text-slate-500'>Click 'AI Synthesis' to automatically generate strategic implications based on this record.</p>"}</div>
-      </div>
-      
-      <div class="mt-5 flex gap-3 print:hidden border-t border-slate-100 dark:border-slate-800 pt-4">
-        <button onclick="openEditModal(${originalIndex})" class="text-[10px] uppercase tracking-widest bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-bold py-2 px-4 rounded-sm transition flex justify-center items-center gap-1.5 shadow-sm border border-slate-200 dark:border-slate-700"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Record</button>
-        <button onclick="deleteFactor(${originalIndex})" class="text-[10px] uppercase tracking-widest bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-bold py-2 px-4 rounded-sm transition flex justify-center items-center gap-1.5 shadow-sm border border-red-200 dark:border-red-800"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</button>
-      </div>
-    </div>
-  `;
-  container.appendChild(card);
-});
-
-if (window.lucide) window.lucide.createIcons();
-if (typeof applyDictionaryHighlighting === 'function') applyDictionaryHighlighting("cardsContainer");
-}
-
-function saveManualFactor() {
-  const title = document.getElementById("logHeadline").value.trim();
-  if(!title) return;
-  
-  const wsToSave = (!currentWorkspace || currentWorkspace === "All") ? "General Market" : currentWorkspace;
-  const descriptionHtml = (typeof intelLogQuill !== 'undefined' && intelLogQuill.root) ? (intelLogQuill.root.innerHTML === "<p><br></p>" ? "" : intelLogQuill.root.innerHTML) : "";
-  const summaryText = document.getElementById("logSummary") ? document.getElementById("logSummary").value.trim() : "";
-  
-  // Prevent immediate duplicate insertion
-  const isDuplicate = (db.factors || []).some(f => 
-      f && (f.title || "").trim().toLowerCase() === title.toLowerCase() && 
-      (f.summary || "").trim().toLowerCase() === summaryText.toLowerCase() &&
-      f.workspace === wsToSave
-  );
-  
-  if (isDuplicate) {
-      if (typeof showToast === 'function') showToast("This insight already exists.", "warning");
-      return;
-  }
-  
-  db.factors.unshift({ 
-      id: Date.now(),
-      workspace: wsToSave, 
-      title, 
-      pestle: document.getElementById("logPestle").value, 
-      region: document.getElementById("logRegion").value, 
-      metric: document.getElementById("logMetric").value, 
-      summary: summaryText, 
-      description: descriptionHtml, 
-      implications: "", 
-      linkedConcept: document.getElementById("logLinkedConcept").value, 
-      linkedFirm: document.getElementById("logLinkedFirm").value, 
-      date: new Date().toLocaleDateString('en-GB'), 
-      isCollapsed: false, 
-      score: "" 
-  });
-
-saveDatabase(); renderFeed();
-
-document.getElementById("logHeadline").value = ""; 
-if (document.getElementById("logSummary")) document.getElementById("logSummary").value = ""; 
-document.getElementById("logMetric").value = ""; 
-intelLogQuill.setContents([]); 
-document.getElementById("logLinkedConcept").value = ""; 
-document.getElementById("logLinkedFirm").value = "";
-}
-
-function openEditModal(index) {
-  const f = db.factors[index];
-  document.getElementById("editIndex").value = index;
-  document.getElementById("editTitle").value = f.title;
-
-  const wsSelect = document.getElementById("editWorkspaceSelect");
-  wsSelect.innerHTML = db.workspaces.map(w => `<option value="${w}">${w}</option>`).join('');
-  wsSelect.value = f.workspace;
-
-  document.getElementById("editLinkedConcept").value = f.linkedConcept || "";
-  document.getElementById("editLinkedFirm").value = f.linkedFirm || "";
-  document.getElementById("editPestle").value = f.pestle;
-  document.getElementById("editMetric").value = f.metric || "";
-  if (document.getElementById("editSummary")) document.getElementById("editSummary").value = f.summary || "";
-
-  // Lazy-load Intel Edit Quills
-  window.intelEditDescQuill = window.getOrInitQuill('#editDescriptionQuill', { modules: { toolbar: '#toolbar-intel-edit-desc' } });
-  window.intelEditImplQuill = window.getOrInitQuill('#editImplicationsQuill', { modules: { toolbar: '#toolbar-intel-edit-impl' } });
-
-  if (window.intelEditDescQuill) window.intelEditDescQuill.root.innerHTML = f.description || "";
-  if (window.intelEditImplQuill) window.intelEditImplQuill.root.innerHTML = f.implications || "";
-
-  document.getElementById("editModalContainer").classList.remove('hidden');
-}
-
-function saveEdit(isSilent = false) {
-const indexStr = document.getElementById("editIndex").value;
-if (indexStr === "") return;
-const index = parseInt(indexStr, 10);
-
-db.factors[index].title = document.getElementById("editTitle").value;
-db.factors[index].workspace = document.getElementById("editWorkspaceSelect").value;
-db.factors[index].linkedConcept = document.getElementById("editLinkedConcept").value;
-db.factors[index].linkedFirm = document.getElementById("editLinkedFirm").value;
-db.factors[index].pestle = document.getElementById("editPestle").value;
-db.factors[index].metric = document.getElementById("editMetric").value;
-if (document.getElementById("editSummary")) db.factors[index].summary = document.getElementById("editSummary").value;
-
-db.factors[index].description = intelEditDescQuill.root.innerHTML === "<p><br></p>" ? "" : intelEditDescQuill.root.innerHTML;
-db.factors[index].implications = intelEditImplQuill.root.innerHTML === "<p><br></p>" ? "" : intelEditImplQuill.root.innerHTML;
-
-if(!isSilent) document.getElementById("editModalContainer").classList.add('hidden');
-saveDatabase(); 
-if(!isSilent) renderFeed();
-}
-
-let temporaryRssArticles = [];
-
-async function fetchRssNews() {
-const rssFeedUrl = 'http://feeds.bbci.co.uk/news/business/rss.xml';
-const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssFeedUrl)}`;
-
-const rssBtn = document.getElementById('rssBtn');
-const originalText = rssBtn.innerHTML;
-rssBtn.innerHTML = "⏳ <span class='hidden sm:inline'>Fetching...</span>";
-
-try {
-  const response = await fetch(apiUrl);
-  const data = await response.json();
-  
-  if (data.status !== 'ok') throw new Error("Failed to parse RSS feed.");
-  
-  temporaryRssArticles = data.items;
-  renderRssTriage();
-  
-} catch (error) {
-  alert("Error fetching feed: " + error.message);
-} finally {
-  rssBtn.innerHTML = originalText;
-}
-}
-
-function renderRssTriage() {
-const listContainer = document.getElementById('rssTriageList');
-listContainer.innerHTML = '';
-
-temporaryRssArticles.forEach((article, index) => {
-  const cleanDesc = article.description.replace(/<[^>]*>?/gm, '').substring(0, 160) + "...";
-  
-  const card = document.createElement('label');
-  card.className = "flex items-start gap-4 p-4 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-indigo-400 hover:shadow-md transition group";
-  card.innerHTML = `
-    <div class="pt-1 shrink-0">
-        <input type="checkbox" value="${index}" class="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer triage-checkbox">
-    </div>
-    <div class="flex-1 min-w-0">
-        <h4 class="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition truncate whitespace-normal line-clamp-2">${article.title}</h4>
-        <p class="text-xs text-slate-500 mt-1 line-clamp-2">${cleanDesc}</p>
-        <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold uppercase mt-2 inline-block">${new Date(article.pubDate).toLocaleDateString('en-GB')}</span>
-    </div>
-  `;
-  listContainer.appendChild(card);
-});
-
-document.getElementById('rssTriageModal').classList.remove('hidden');
-}
-
-function closeRssTriage() {
-document.getElementById('rssTriageModal').classList.add('hidden');
-temporaryRssArticles = [];
-}
-
-function importSelectedRss() {
-const checkboxes = document.querySelectorAll('.triage-checkbox:checked');
-if (checkboxes.length === 0) return alert("Please select at least one article to import.");
-
-const wsToSave = (!currentWorkspace || currentWorkspace === "All") ? "General Market" : currentWorkspace;
-
-checkboxes.forEach(box => {
-  const article = temporaryRssArticles[box.value];
-  const cleanDesc = article.description.replace(/<[^>]*>?/gm, '');
-  
-  db.factors.push({
-    workspace: wsToSave,
-    title: article.title,
-    pestle: "Assessment",
-    region: "Global",
-    metric: "News",
-    summary: cleanDesc.substring(0, 200) + "...",
-    description: "<p><strong>Source:</strong> <a href='" + article.link + "' target='_blank' class='text-indigo-600 hover:underline'>" + article.link + "</a></p>",
-    implications: "",
-    linkedConcept: "",
-    linkedFirm: "",
-    date: new Date().toLocaleDateString('en-GB'),
-    isCollapsed: false,
-    score: ""
-  });
-});
-
-saveDatabase();
-renderFeed();
-closeRssTriage();
-}
-
-async function synthesizeFactorAi(index) {
-const f = db.factors[index];
-const linkTxt = f.linkedConcept ? `(Note this connects to the core concept of ${f.linkedConcept})` : "";
-const firmTxt = f.linkedFirm ? `(Consider implications specifically for ${f.linkedFirm})` : "";
-const prompt = `Analyze this commercial development for a UK corporate law firm ${linkTxt} ${firmTxt}. \nEvent: ${f.title}\nContext: ${f.description}\nProvide 3 bullet points outlining the strategic and legal advisory implications. Keep it extremely brief and commercial.`;
-
-document.getElementById(`implication-text-${index}`).innerHTML = "<p>Generating AI synthesis...</p>";
-
-try {
-  const aiResponse = await callGeminiApi(prompt);
-  db.factors[index].implications = "<p>" + aiResponse.replace(/\n/g, '<br>') + "</p>";
-  renderFeed(); saveDatabase();
-} catch (error) { document.getElementById(`implication-text-${index}`).innerHTML = `<p>Error: ${error.message}</p>`; }
-}
-
-function toggleFactorSelection(index, event) {
-  event.stopPropagation();
-  if (selectedFactors.has(index)) selectedFactors.delete(index);
-  else selectedFactors.add(index);
-  updateMassDeleteIntelBtn();
-}
-
-function updateMassDeleteIntelBtn() {
-  const btn = document.getElementById('massDeleteIntelBtn');
-  if (selectedFactors.size > 0) {
-      btn.classList.remove('hidden');
-      btn.innerText = `🗑️ Delete (${selectedFactors.size})`;
-  } else btn.classList.add('hidden');
-}
-
-function deleteFactor(index) {
-if(!confirm("Are you sure you want to delete this record?")) return;
-
-db.factors.splice(index, 1);
-if(typeof selectedFactors !== 'undefined' && selectedFactors.has(index)) selectedFactors.delete(index);
-if (typeof updateMassDeleteIntelBtn === 'function') updateMassDeleteIntelBtn();
-saveDatabase();
-renderFeed();
-}
-
-function massDeleteIntel() {
-if(typeof selectedFactors === 'undefined' || selectedFactors.size === 0) return;
-if(confirm(`Delete ${selectedFactors.size} selected insight(s)?`)) {
-    let sortedIndices = Array.from(selectedFactors).sort((a,b) => b-a);
-    sortedIndices.forEach(idx => db.factors.splice(idx, 1));
-    selectedFactors.clear();
-    if (typeof updateMassDeleteIntelBtn === 'function') updateMassDeleteIntelBtn();
-    saveDatabase();
-    renderFeed();
-}
-}
-
-async function autoParseText() {
-const rawText = prompt("Paste the raw text of the news article here:");
-if (!rawText || rawText.trim() === "") return;
-
-document.getElementById('statusText').innerText = "Analyzing & Linking...";
-document.getElementById('statusDot').className = "w-2 h-2 md:w-3 md:h-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)] animate-pulse";
-
-try {
-    const safeText = rawText.substring(0, 15000);
-    const targetFirmsList = db.targetFirms.join(", ");
-    const conceptsList = db.concepts.map(c => c.title).join(", ");
-
-    const promptText = `Analyze the following news article text. 
-    Extract and format exactly as a JSON object with these exact keys: 
-    "headline": (a short, punchy title),
-    "pestle": (choose ONE: Political, Economic, Social, Technological, Legal, Environmental, or Assessment),
-    "summary": (a 2-3 sentence overview of the facts. Plain text.),
-    "description": (A detailed, multi-paragraph context and background of the event. Format with <p> tags.),
-    "implications": (2-3 bullet points on the legal/advisory implications for corporate law firms. Return as an array of strings),
-    "linkedFirm": (If the article explicitly mentions or involves one of these target law firms: [${targetFirmsList}], output the exact firm name. Otherwise, output an empty string ""),
-    "linkedConcept": (If the article strongly relates to one of these core legal concepts: [${conceptsList}], output the exact concept name. Otherwise, output an empty string "")
-    
-    Do not include markdown blocks like \`\`\`json, return ONLY the raw JSON.
-    Text: ${safeText}`;
-
-    const aiResponse = await callGeminiApi(promptText);
-    const parsed = JSON.parse(aiResponse.replace(/```json/gi, '').replace(/```/gi, '').trim());
-
-    const wsToSave = (!currentWorkspace || currentWorkspace === "All") ? "General Market" : currentWorkspace;
-
-    let safeImplications = "";
-    if (Array.isArray(parsed.implications)) {
-        safeImplications = "<ul>" + parsed.implications.map(item => `<li>${item}</li>`).join('') + "</ul>";
-    } else if (typeof parsed.implications === 'string') {
-        safeImplications = "<p>" + parsed.implications.replace(/\n/g, '<br>') + "</p>";
+    if (badge) {
+        badge.innerText = `Selected (${count})`;
     }
 
-    let safeSummary = typeof parsed.summary === 'string' ? parsed.summary : JSON.stringify(parsed.summary);
-    let safeDescription = typeof parsed.description === 'string' && parsed.description.trim() !== '' ? parsed.description : "<p><strong>Source:</strong> AI Parsed from pasted text.</p>";
+    if (massDelBtn) {
+        if (count > 0) {
+            massDelBtn.classList.remove("hidden");
+            massDelBtn.innerHTML = `<i data-lucide="trash" class="w-3.5 h-3.5"></i> Delete Selected (${count})`;
+        } else {
+            massDelBtn.classList.add("hidden");
+        }
+    }
 
-    db.factors.push({
-        workspace: wsToSave,
-        title: parsed.headline || "Untitled Insight",
-        pestle: parsed.pestle || "Assessment",
-        region: "Global",
-        metric: "AI Parsed",
-        summary: safeSummary,
-        description: safeDescription,
-        implications: safeImplications,
-        linkedConcept: parsed.linkedConcept || "",
-        linkedFirm: parsed.linkedFirm || "",
-        date: new Date().toLocaleDateString('en-GB'),
-        isCollapsed: false,
-        score: ""
+    if (window.lucide) window.lucide.createIcons();
+};
+
+// Trigger AI synthesis simulation modes using selected intel
+window.triggerIntelSynthesis = function(mode) {
+    if (!window.selectedFactors || window.selectedFactors.size === 0) {
+        alert("Please select at least one intelligence record in the table first.");
+        return;
+    }
+
+    const selectedList = Array.from(window.selectedFactors).map(idx => db.factors[idx]).filter(Boolean);
+    const personaEl = document.getElementById("intelPersonaSelect");
+    const pressureEl = document.getElementById("intelPressureMode");
+
+    const persona = personaEl ? personaEl.value : "Standard Partner";
+    const isPressure = pressureEl ? pressureEl.checked : false;
+
+    if (typeof openAIAssessmentModal === 'function') {
+        openAIAssessmentModal({
+            mode: mode,
+            records: selectedList,
+            persona: persona,
+            pressure: isPressure,
+            contextType: 'INTELLIGENCE'
+        });
+    } else {
+        alert(`Launching ${mode.toUpperCase()} synthesis with ${selectedList.length} records under ${persona} (Pressure: ${isPressure ? 'ON' : 'OFF'}).`);
+    }
+};
+
+// =========================================================================
+// ROUTING & ACTIONS
+// =========================================================================
+window.viewIntelDetail = function(index) {
+    if (typeof window.openIntelDetailWorkspace === 'function') {
+        window.openIntelDetailWorkspace(index);
+    } else {
+        const f = db.factors[index];
+        alert(`Opening ${f.title || f.headline}\n\n${f.summary || f.description || ''}`);
+    }
+};
+
+window.routeToConceptTitle = function(conceptTitle) {
+    if (!conceptTitle) return;
+    const cleanTitle = conceptTitle.trim().toLowerCase();
+    const idx = (db.concepts || []).findIndex(c => c && c.title && c.title.trim().toLowerCase() === cleanTitle);
+    
+    if (idx !== -1) {
+        switchState('CONCEPTS');
+        setTimeout(() => {
+            if (typeof window.openConceptDetailWorkspace === 'function') {
+                window.openConceptDetailWorkspace(idx);
+            }
+        }, 150);
+    } else {
+        alert(`Concept "${conceptTitle}" not found in your Knowledge Library.`);
+    }
+};
+
+window.deleteIntelFactor = async function(index) {
+    index = parseInt(index, 10);
+    const f = db.factors[index];
+    if (!f || !confirm(`Delete intelligence record: "${f.title || f.headline}"?`)) return;
+
+    if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser) {
+        await supabaseClient.from('factors')
+            .delete()
+            .match({ user_id: window.currentUser.id, title: f.title || f.headline });
+    }
+
+    db.factors.splice(index, 1);
+    if (window.selectedFactors.has(index)) {
+        window.selectedFactors.delete(index);
+        window.updateIntelSynthesisToolbar();
+    }
+
+    if (typeof saveDatabase === 'function') saveDatabase();
+    window.renderFeed();
+};
+
+window.massDeleteIntel = async function() {
+    if (!window.selectedFactors || window.selectedFactors.size === 0) return;
+    if (!confirm(`Delete ${window.selectedFactors.size} selected intelligence record(s)?`)) return;
+
+    const sortedIndices = Array.from(window.selectedFactors).sort((a, b) => b - a);
+    const titlesToDelete = sortedIndices.map(idx => db.factors[idx] && (db.factors[idx].title || db.factors[idx].headline)).filter(Boolean);
+
+    if (typeof supabaseClient !== 'undefined' && supabaseClient && window.currentUser && titlesToDelete.length > 0) {
+        await supabaseClient.from('factors')
+            .delete()
+            .eq('user_id', window.currentUser.id)
+            .in('title', titlesToDelete);
+    }
+
+    sortedIndices.forEach(idx => {
+        db.factors.splice(idx, 1);
     });
 
-    saveDatabase();
-    renderFeed();
-    setOnlineStatus(true);
-    
-    if (typeof showToast === 'function') {
-        showToast(`Article parsed successfully!\nLinked Firm: ${parsed.linkedFirm || 'None'}\nLinked Concept: ${parsed.linkedConcept || 'None'}`, "success");
-    }
-    
-} catch (error) {
-    setOnlineStatus(true);
-    if (typeof showToast === 'function') {
-        showToast(`Parsing failed. Ensure you pasted valid article text. Error: ${error.message}`, "error");
-    }
-}
-}
+    window.selectedFactors.clear();
+    window.updateIntelSynthesisToolbar();
 
-window.routeToIntelFactor = function(originalIndex) {
-if (typeof switchState === 'function') switchState('INTELLIGENCE');
-
-window.currentWorkspace = 'All';
-window.activePestleFilter = 'All';
-
-if (db.factors && db.factors[originalIndex]) {
-    db.factors[originalIndex].isCollapsed = false;
-}
-
-if (typeof renderTabs === 'function') renderTabs();
-if (typeof renderPestleFilters === 'function') renderPestleFilters();
-if (typeof renderFeed === 'function') renderFeed();
-
-setTimeout(() => {
-    const targetCard = document.getElementById(`factor-card-${originalIndex}`);
-    if (targetCard) {
-        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        targetCard.classList.add('ring-2', 'ring-indigo-500', 'dark:ring-indigo-400');
-        setTimeout(() => {
-            targetCard.classList.remove('ring-2', 'ring-indigo-500', 'dark:ring-indigo-400');
-        }, 2500);
-    }
-}, 150);
+    if (typeof saveDatabase === 'function') saveDatabase();
+    window.renderFeed();
 };

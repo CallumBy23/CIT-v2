@@ -35,53 +35,112 @@ window.massDeleteDictionary = function() {
     }
 };
 
-function applyDictionaryHighlighting(containerId) {
-    if (!db.dictionary || db.dictionary.length === 0) return;
-    const container = document.getElementById(containerId);
-    if (!container) return;
+// =========================================================================
+// HIGH-PERFORMANCE DICTIONARY REGEX CACHE & TEXT SCANNER
+// =========================================================================
+let cachedDictRegex = null;
+let cachedDictSignature = "";
 
-    // BUG FIX: Prevent crash on undefined dictionary terms
-    const sortedTerms = [...db.dictionary].filter(d => d && d.term).sort((a, b) => String(b.term).length - String(a.term).length);
-    
-    const termsRegexStr = sortedTerms.map(d => d.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    if (!termsRegexStr) return;
-    
-    const regex = new RegExp(`\\b(${termsRegexStr})\\b`, 'gi');
+function getCachedDictRegex() {
+    if (!db.dictionary || db.dictionary.length === 0) return null;
 
-    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
-    const textNodes = [];
-    let node;
-    
-    while (node = walker.nextNode()) {
-        if (node.parentNode && node.parentNode.nodeName !== 'SPAN' && node.parentNode.nodeName !== 'SCRIPT' && node.parentNode.nodeName !== 'STYLE') {
-            if(!node.parentNode.classList.contains('dict-term')) textNodes.push(node);
-        }
+    const currentSignature = db.dictionary.length + "_" + (db.dictionary[0]?.term || "");
+    if (cachedDictRegex && cachedDictSignature === currentSignature) {
+        return cachedDictRegex;
     }
 
-    textNodes.forEach(textNode => {
-        const match = textNode.nodeValue.match(regex);
-        if (match) {
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = textNode.nodeValue.replace(regex, (matched) => {
+    const sortedTerms = [...db.dictionary]
+        .filter(d => d && d.term && d.term.trim().length > 2)
+        .sort((a, b) => String(b.term).length - String(a.term).length);
+
+    if (sortedTerms.length === 0) return null;
+
+    const termsRegexStr = sortedTerms
+        .map(d => d.term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|');
+
+    cachedDictRegex = new RegExp(`\\b(${termsRegexStr})\\b`, 'gi');
+    cachedDictSignature = currentSignature;
+    return cachedDictRegex;
+}
+
+function applyDictionaryHighlighting(containerId) {
+    const container = typeof containerId === 'string' 
+        ? document.getElementById(containerId) 
+        : containerId;
+    if (!container) return;
+
+    if (container.id === "conceptDetailWorkspaceWrapper") {
+        const proseContainers = container.querySelectorAll(".dict-highlight-target");
+        proseContainers.forEach(el => applyDictionaryHighlighting(el));
+        return;
+    }
+
+    const regex = getCachedDictRegex();
+    if (!regex) return;
+
+    if (!regex.test(container.textContent)) return;
+    regex.lastIndex = 0;
+
+    const walker = document.createTreeWalker(
+        container,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: function(node) {
+                if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+                const parent = node.parentNode;
+                if (!parent) return NodeFilter.FILTER_REJECT;
+                const tag = parent.nodeName;
+                if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'BUTTON' || tag === 'A') {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                if (parent.classList && (parent.classList.contains('dict-term') || parent.classList.contains('no-dict'))) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        },
+        false
+    );
+
+    const textNodes = [];
+    let curr;
+    while (curr = walker.nextNode()) {
+        textNodes.push(curr);
+    }
+
+    for (let i = 0; i < textNodes.length; i++) {
+        const textNode = textNodes[i];
+        const val = textNode.nodeValue;
+        regex.lastIndex = 0;
+
+        if (regex.test(val)) {
+            regex.lastIndex = 0;
+            const span = document.createElement('span');
+            span.innerHTML = val.replace(regex, (matched) => {
                 return `<span class="dict-term" data-term="${matched.replace(/"/g, '&quot;')}">${matched}</span>`;
             });
-            
-            const children = tempDiv.querySelectorAll('.dict-term');
-            children.forEach(child => {
+
+            span.querySelectorAll('.dict-term').forEach(child => {
                 const term = child.getAttribute('data-term');
                 const entry = db.dictionary.find(d => d && d.term && d.term.toLowerCase() === term.toLowerCase());
                 if (entry) {
                     child.setAttribute('data-def', entry.definition || "");
-                    child.onmouseenter = function(e) { if(window.innerWidth > 768) showTooltip(e, this.getAttribute('data-term'), this.getAttribute('data-def')); };
-                    child.onmouseleave = function(e) { if(window.innerWidth > 768) hideTooltip(); };
-                    child.onclick = function(e) { handleDictClick(e, this.getAttribute('data-term'), this.getAttribute('data-def')); };
+                    child.onmouseenter = function(e) { 
+                        if (window.innerWidth > 768) showTooltip(e, this.getAttribute('data-term'), this.getAttribute('data-def')); 
+                    };
+                    child.onmouseleave = function() { 
+                        if (window.innerWidth > 768) hideTooltip(); 
+                    };
+                    child.onclick = function(e) { 
+                        handleDictClick(e, this.getAttribute('data-term'), this.getAttribute('data-def')); 
+                    };
                 }
             });
 
-            while (tempDiv.firstChild) { textNode.parentNode.insertBefore(tempDiv.firstChild, textNode); }
-            textNode.parentNode.removeChild(textNode);
+            textNode.parentNode.replaceChild(span, textNode);
         }
-    });
+    }
 }
 
 function handleDictClick(event, term, definition) {
@@ -127,6 +186,9 @@ function saveDictionaryTerm() {
     const editIdxStr = document.getElementById("editDictIndex").value;
     
     if (!term || !definition) return;
+    
+    // Invalidate cached regex when dictionary terms change
+    cachedDictRegex = null;
     
     if (editIdxStr !== "") {
         const idx = parseInt(editIdxStr);
@@ -246,12 +308,10 @@ function renderDictionary() {
     
     let filtered = [...(db.dictionary || [])].filter(d => d != null);
     
-    // 1. Filter by Active Category
     if (window.currentDictCategory && window.currentDictCategory !== "All") {
         filtered = filtered.filter(d => (d.category || "General") === window.currentDictCategory);
     }
 
-    // 2. Filter by Search Box
     if (termFilter) {
         filtered = filtered.filter(d => 
             String(d.term || "").toLowerCase().includes(termFilter) || 
@@ -259,7 +319,6 @@ function renderDictionary() {
         );
     }
 
-    // 3. Filter by Active A-Z Alphabet
     if (window.activeDictAlpha && window.activeDictAlpha.size > 0) {
         filtered = filtered.filter(d => {
             const t = String(d.term || "").trim();
@@ -271,7 +330,6 @@ function renderDictionary() {
     
     let indexedDict = filtered.map((d) => ({ dict: d, originalIndex: db.dictionary.indexOf(d) }));
 
-    // SAFE SORTING: Casts to string to prevent crashes
     if (sortMode === "az") {
         indexedDict.sort((a, b) => String(a.dict.term || "").localeCompare(String(b.dict.term || "")));
     } else if (sortMode === "za") {
@@ -370,6 +428,7 @@ window.deleteDictTerm = async function(term) {
     const idx = db.dictionary.findIndex(d => d.term === term);
     if (idx > -1) {
         db.dictionary.splice(idx, 1);
+        cachedDictRegex = null;
     }
     saveDatabase();
     renderDictionary();

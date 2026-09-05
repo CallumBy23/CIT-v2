@@ -4,6 +4,7 @@
 
 let uploadedBackupJsonString = "";
 window.currentUser = null;
+window.deletedDossierFirms = new Set();
 
 // ==========================================
 // AUTHENTICATION STATE CONTROLLER
@@ -333,25 +334,44 @@ async function loadDatabase() {
         }
 
         if (concepts && concepts.length > 0) {
-            db.concepts = concepts.map(c => {
-                const loadedSrs = c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false };
-                return {
-                    id: c.id,
-                    title: c.title,
-                    category: c.category || "General",
-                    subTag: c.sub_tag || "",
-                    body: c.body || "",
-                    advantages: c.advantages || "",
-                    disadvantages: c.disadvantages || "",
-                    whenToUse: c.when_to_use || c.whenToUse || "",
-                    relatedConcepts: c.related_concepts || c.relatedConcepts || "",
-                    typicalProvisions: c.typical_provisions || c.typicalProvisions || "",
-                    commonUseCases: c.common_use_cases || c.commonUseCases || "",
-                    diagram: c.diagram || null,
-                    srs: loadedSrs,
-                    subSrs: loadedSrs.subSrs || c.sub_srs || {}
-                };
+            const seenConceptTitles = new Set();
+            const uniqueConcepts = [];
+
+            concepts.forEach(c => {
+                const normTitle = (c.title || '').trim().toLowerCase();
+                if (!seenConceptTitles.has(normTitle)) {
+                    seenConceptTitles.add(normTitle);
+
+                    const loadedSrs = c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false };
+                    const linkedPlaybookVal = loadedSrs.linkedPlaybook || c.linked_playbook || c.linkedPlaybook || null;
+                    const loadedDocuments = Array.isArray(loadedSrs.documents) 
+                        ? loadedSrs.documents 
+                        : (Array.isArray(c.documents) ? c.documents : []);
+                    const loadedSummary = c.summary || loadedSrs.summary || "";
+
+                    uniqueConcepts.push({
+                        id: c.id,
+                        title: c.title,
+                        category: c.category || "General",
+                        subTag: c.sub_tag || "",
+                        summary: loadedSummary,
+                        body: c.body || "",
+                        advantages: c.advantages || "",
+                        disadvantages: c.disadvantages || "",
+                        whenToUse: c.when_to_use || c.whenToUse || "",
+                        relatedConcepts: c.related_concepts || c.relatedConcepts || "",
+                        typicalProvisions: c.typical_provisions || c.typicalProvisions || "",
+                        commonUseCases: c.common_use_cases || c.commonUseCases || "",
+                        linkedPlaybook: linkedPlaybookVal,
+                        documents: loadedDocuments,
+                        diagram: c.diagram || null,
+                        srs: loadedSrs,
+                        subSrs: loadedSrs.subSrs || c.sub_srs || {}
+                    });
+                }
             });
+
+            db.concepts = uniqueConcepts;
         }
 
         if (factors && factors.length > 0) {
@@ -362,6 +382,10 @@ async function loadDatabase() {
                 const fingerprint = `${(f.title || '').trim().toLowerCase()}|${(f.summary || '').trim().toLowerCase()}|${(f.workspace || '').trim().toLowerCase()}`;
                 if (!seenFactors.has(fingerprint)) {
                     seenFactors.add(fingerprint);
+
+                    const rawConceptStr = f.linked_concept || f.linkedConcept || "";
+                    const rawFirmStr = f.linked_firm || f.linkedFirm || "";
+
                     uniqueFactors.push({
                         id: f.id,
                         title: f.title,
@@ -372,8 +396,10 @@ async function loadDatabase() {
                         pestle: f.pestle || "Economic",
                         region: f.region || "UK Focus",
                         workspace: f.workspace || "General Market",
-                        linkedConcept: f.linked_concept || "",
-                        linked_firm: f.linked_firm || "",
+                        linkedConcept: rawConceptStr,
+                        linkedConcepts: rawConceptStr ? rawConceptStr.split(',').map(s => s.trim()).filter(Boolean) : [],
+                        linkedFirm: rawFirmStr,
+                        linkedFirms: rawFirmStr ? rawFirmStr.split(',').map(s => s.trim()).filter(Boolean) : [],
                         date: f.date || (f.created_at ? new Date(f.created_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB'))
                     });
                 }
@@ -445,7 +471,9 @@ async function loadDatabase() {
 
         (metadata || []).forEach(m => {
             if (m.key === 'workspaces' && Array.isArray(m.value)) db.workspaces = m.value;
-            if (m.key === 'conceptCategories' && Array.isArray(m.value)) db.conceptCategories = m.value;
+            if (m.key === 'conceptCategories' && Array.isArray(m.value)) {
+                db.conceptCategories = m.value.filter(cat => cat !== "Interview Vault");
+            }
             if (m.key === 'dictCategories' && Array.isArray(m.value)) db.dictCategories = m.value;
             if (m.key === 'macroMetrics' && typeof m.value === 'object') db.macroMetrics = m.value;
         });
@@ -475,7 +503,239 @@ function renderActiveStateViews() {
     else if (appState === "SETTINGS" && typeof window.renderSettingsView === 'function') window.renderSettingsView();
 }
 
-// 2. Cloud Save Engine with Deduplicated Commit
+// -------------------------------------------------------------
+// INSTANT SINGLE-CONCEPT SAVE (Captures Supabase Row ID)
+// -------------------------------------------------------------
+window.saveSingleConcept = async function(index) {
+    if (index === null || index === undefined || !db.concepts || !db.concepts[index]) {
+        return false;
+    }
+    
+    updateStatus("Saving...", "yellow");
+    saveToLocalCache();
+
+    if (!supabaseClient) {
+        updateStatus("Saved Locally", "yellow");
+        return true;
+    }
+
+    let uid = window.currentUser ? window.currentUser.id : null;
+    if (!uid) {
+        try {
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (user) {
+                window.currentUser = user;
+                uid = user.id;
+            }
+        } catch(e){}
+    }
+
+    if (!uid) {
+        updateStatus("Saved Locally", "yellow");
+        return true;
+    }
+
+    const c = db.concepts[index];
+
+    try {
+        const srsPayload = c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false };
+        srsPayload.subSrs = c.subSrs || srsPayload.subSrs || {};
+        srsPayload.linkedPlaybook = c.linkedPlaybook || (c.srs && c.srs.linkedPlaybook) || null;
+        srsPayload.documents = Array.isArray(c.documents) ? c.documents.slice(0, 5) : [];
+        srsPayload.summary = c.summary || "";
+
+        const row = {
+            user_id: uid,
+            title: c.title || "Untitled Concept",
+            category: c.category || "General",
+            sub_tag: c.subTag || "",
+            body: c.body || "",
+            advantages: c.advantages || "",
+            disadvantages: c.disadvantages || "",
+            when_to_use: c.whenToUse || "",
+            related_concepts: c.relatedConcepts || "",
+            typical_provisions: c.typicalProvisions || "",
+            common_use_cases: c.commonUseCases || "",
+            diagram: c.diagram || null,
+            srs: srsPayload
+        };
+
+        if (c.id) {
+            row.id = c.id;
+        }
+
+        const { data, error } = await supabaseClient
+            .from('concepts')
+            .upsert(row, { onConflict: 'user_id, title' })
+            .select('id');
+        
+        if (error) {
+            console.error("Single Concept Upsert Error:", error);
+            updateStatus("Sync Error", "red");
+            return false;
+        }
+
+        if (data && data[0] && data[0].id) {
+            c.id = data[0].id;
+            saveToLocalCache();
+        }
+
+        updateStatus("Synced", "green");
+        return true;
+    } catch (err) {
+        console.error("Single concept save failed:", err);
+        updateStatus("Sync Error", "red");
+        return false;
+    }
+};
+
+// -------------------------------------------------------------
+// DIRECT SUPABASE CONCEPT DELETION ENGINE
+// -------------------------------------------------------------
+window.deleteConceptFromSupabase = async function(target) {
+    if (!target || !supabaseClient) return false;
+
+    let uid = window.currentUser ? window.currentUser.id : null;
+    if (!uid) {
+        try {
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (user) {
+                window.currentUser = user;
+                uid = user.id;
+            }
+        } catch(e){}
+    }
+
+    if (!uid) return false;
+
+    try {
+        let error = null;
+        const conceptId = typeof target === 'object' ? target.id : null;
+        const conceptTitle = (typeof target === 'object' ? target.title : target)?.trim();
+
+        if (conceptId) {
+            const res = await supabaseClient.from('concepts').delete().eq('id', conceptId);
+            error = res.error;
+        }
+        
+        if (!conceptId || error) {
+            if (conceptTitle) {
+                const res = await supabaseClient
+                    .from('concepts')
+                    .delete()
+                    .eq('user_id', uid)
+                    .eq('title', conceptTitle);
+                error = res.error;
+                
+                if (error) {
+                    await supabaseClient
+                        .from('concepts')
+                        .delete()
+                        .eq('user_id', uid)
+                        .ilike('title', conceptTitle);
+                }
+            }
+        }
+
+        return true;
+    } catch (err) {
+        console.error("Remote concept delete exception:", err);
+        return false;
+    }
+};
+
+// -------------------------------------------------------------
+// FIRM DOSSIER DELETION ENGINE (LOCAL & REMOTE SUPABASE)
+// -------------------------------------------------------------
+window.deleteFirmDossier = async function(firmName) {
+    if (!firmName) return false;
+
+    let exactName = firmName;
+    if (db.dossiers && !db.dossiers[firmName]) {
+        const match = Object.keys(db.dossiers).find(k => k.toLowerCase() === firmName.toLowerCase());
+        if (match) exactName = match;
+    }
+
+    if (!confirm(`Permanently delete dossier for "${exactName}"? This action cannot be undone.`)) {
+        return false;
+    }
+
+    updateStatus("Saving...", "yellow");
+
+    window.deletedDossierFirms.add(exactName);
+
+    // 1. Explicit remote delete
+    if (supabaseClient) {
+        try {
+            let uid = window.currentUser ? window.currentUser.id : null;
+            if (!uid) {
+                const { data: { user } } = await supabaseClient.auth.getUser();
+                if (user) {
+                    window.currentUser = user;
+                    uid = user.id;
+                }
+            }
+
+            if (uid) {
+                const { error } = await supabaseClient
+                    .from('dossiers')
+                    .delete()
+                    .eq('user_id', uid)
+                    .eq('firm_name', exactName);
+
+                if (error) {
+                    console.error("Dossier Supabase Delete Error:", error);
+                    await supabaseClient
+                        .from('dossiers')
+                        .delete()
+                        .eq('user_id', uid)
+                        .ilike('firm_name', exactName);
+                }
+            }
+        } catch (err) {
+            console.error("Remote dossier delete exception:", err);
+        }
+    }
+
+    // 2. Remove in-memory
+    if (db.dossiers) {
+        delete db.dossiers[exactName];
+    }
+    db.targetFirms = Object.keys(db.dossiers || {});
+
+    if (typeof currentDossierFirm !== 'undefined' && (currentDossierFirm === exactName || currentDossierFirm === firmName)) {
+        currentDossierFirm = db.targetFirms[0] || "";
+    }
+
+    // 3. Clean up references in intelligence factors
+    if (Array.isArray(db.factors)) {
+        db.factors.forEach(f => {
+            if (f.linkedFirm === exactName) f.linkedFirm = "";
+            if (Array.isArray(f.linkedFirms)) {
+                f.linkedFirms = f.linkedFirms.filter(name => name !== exactName);
+            }
+        });
+    }
+
+    saveToLocalCache();
+    updateStatus("Synced", "green");
+
+    // 4. Update views
+    if (typeof renderDossierList === 'function') renderDossierList();
+    if (typeof renderDossierView === 'function') renderDossierView();
+    if (typeof updateNexusDropdowns === 'function') updateNexusDropdowns();
+    if (typeof showToast === 'function') showToast(`Dossier "${exactName}" deleted.`, "info");
+
+    return true;
+};
+
+// Aliases for compatibility with any legacy handlers
+window.deleteDossier = window.deleteFirmDossier;
+window.deleteFirm = window.deleteFirmDossier;
+window.deleteDossierFirm = window.deleteFirmDossier;
+window.deleteTargetFirm = window.deleteFirmDossier;
+
+// 2. Cloud Save Engine with Automatic Deletion Reconciliation
 async function saveDatabase() {
     updateStatus("Saving...", "yellow");
     saveToLocalCache();
@@ -487,13 +747,16 @@ async function saveDatabase() {
     const uid = window.currentUser.id;
 
     try {
-        // A. Commit Concepts with embedded subSrs
+        // A. Commit Concepts with embedded subSrs, linkedPlaybook, documents, and summary in JSONB
         if (Array.isArray(db.concepts) && db.concepts.length > 0) {
             const conceptRows = db.concepts.map(c => {
                 const srsPayload = c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false };
                 srsPayload.subSrs = c.subSrs || srsPayload.subSrs || {};
+                srsPayload.linkedPlaybook = c.linkedPlaybook || (c.srs && c.srs.linkedPlaybook) || null;
+                srsPayload.documents = Array.isArray(c.documents) ? c.documents.slice(0, 5) : [];
+                srsPayload.summary = c.summary || "";
 
-                return {
+                const r = {
                     user_id: uid,
                     title: c.title || "Untitled Concept",
                     category: c.category || "General",
@@ -508,11 +771,47 @@ async function saveDatabase() {
                     diagram: c.diagram || null,
                     srs: srsPayload
                 };
+                if (c.id) r.id = c.id;
+                return r;
             });
-            await supabaseClient.from('concepts').upsert(conceptRows, { onConflict: 'user_id, title' });
+            const { error: upsertErr } = await supabaseClient.from('concepts').upsert(conceptRows, { onConflict: 'user_id, title' });
+            if (upsertErr) {
+                console.error("Concepts Supabase Upsert Error:", upsertErr);
+            }
         }
 
-        // B. Commit Intel (Factors) - Deduplicated Sync
+        // B. Reconcile & Purge Deleted Concepts from Supabase
+        if (Array.isArray(db.concepts)) {
+            const localTitles = new Set(db.concepts.map(c => (c.title || '').trim().toLowerCase()));
+            const localIds = new Set(db.concepts.map(c => c.id).filter(Boolean));
+            
+            const { data: remoteConcepts } = await supabaseClient
+                .from('concepts')
+                .select('id, title')
+                .eq('user_id', uid);
+
+            if (remoteConcepts && remoteConcepts.length > 0) {
+                const toRemove = remoteConcepts.filter(rc => {
+                    const hasTitle = localTitles.has((rc.title || '').trim().toLowerCase());
+                    const hasId = rc.id && localIds.has(rc.id);
+                    return !hasTitle && !hasId;
+                });
+
+                if (toRemove.length > 0) {
+                    const removeIds = toRemove.map(rc => rc.id).filter(Boolean);
+                    const removeTitles = toRemove.map(rc => rc.title).filter(Boolean);
+
+                    if (removeIds.length > 0) {
+                        await supabaseClient.from('concepts').delete().in('id', removeIds);
+                    }
+                    if (removeTitles.length > 0) {
+                        await supabaseClient.from('concepts').delete().eq('user_id', uid).in('title', removeTitles);
+                    }
+                }
+            }
+        }
+
+        // C. Commit Intel (Factors) - Deduplicated Sync with Multiple Cross-Links Support
         if (Array.isArray(db.factors)) {
             const seenFactorKeys = new Set();
             const deduplicatedFactors = [];
@@ -529,24 +828,33 @@ async function saveDatabase() {
 
             await supabaseClient.from('factors').delete().eq('user_id', uid);
             if (db.factors.length > 0) {
-                const factorRows = db.factors.map(f => ({
-                    user_id: uid,
-                    title: f.title || f.headline || "Untitled Factor",
-                    summary: f.summary || "",
-                    description: f.description || "",
-                    implications: f.implications || "",
-                    metric: f.metric || "",
-                    pestle: f.pestle || "Economic",
-                    region: f.region || "UK Focus",
-                    workspace: f.workspace || "General Market",
-                    linked_concept: f.linkedConcept || "",
-                    linked_firm: f.linkedFirm || ""
-                }));
+                const factorRows = db.factors.map(f => {
+                    const conceptStr = Array.isArray(f.linkedConcepts) && f.linkedConcepts.length > 0 
+                        ? f.linkedConcepts.join(', ') 
+                        : (f.linkedConcept || "");
+                    const firmStr = Array.isArray(f.linkedFirms) && f.linkedFirms.length > 0 
+                        ? f.linkedFirms.join(', ') 
+                        : (f.linkedFirm || "");
+
+                    return {
+                        user_id: uid,
+                        title: f.title || f.headline || "Untitled Factor",
+                        summary: f.summary || "",
+                        description: f.description || "",
+                        implications: f.implications || "",
+                        metric: f.metric || "",
+                        pestle: f.pestle || "Economic",
+                        region: f.region || "UK Focus",
+                        workspace: f.workspace || "General Market",
+                        linked_concept: conceptStr,
+                        linked_firm: firmStr
+                    };
+                });
                 await supabaseClient.from('factors').insert(factorRows);
             }
         }
 
-        // C. Commit Dictionary
+        // D. Commit Dictionary
         if (Array.isArray(db.dictionary) && db.dictionary.length > 0) {
             const dictRows = db.dictionary.map(d => ({
                 user_id: uid,
@@ -558,7 +866,7 @@ async function saveDatabase() {
             await supabaseClient.from('dictionary').upsert(dictRows, { onConflict: 'user_id, term' });
         }
 
-        // D. Commit App Metadata
+        // E. Commit App Metadata
         await supabaseClient.from('app_metadata').upsert([
             { user_id: uid, key: 'workspaces', value: db.workspaces },
             { user_id: uid, key: 'conceptCategories', value: db.conceptCategories },
@@ -566,7 +874,7 @@ async function saveDatabase() {
             { user_id: uid, key: 'macroMetrics', value: db.macroMetrics || {} }
         ], { onConflict: 'user_id, key' });
 
-        // E. Commit Playbooks
+        // F. Commit Playbooks
         if (db.playbooks && typeof db.playbooks === 'object') {
             const playbookRows = Object.keys(db.playbooks).map(pbName => ({
                 user_id: uid,
@@ -581,24 +889,49 @@ async function saveDatabase() {
             }
         }
 
-        // F. Commit Dossier
-        if (typeof currentDossierFirm !== 'undefined' && currentDossierFirm && db.dossiers && db.dossiers[currentDossierFirm]) {
-            const f = db.dossiers[currentDossierFirm];
-            await supabaseClient.from('dossiers').upsert({
-                user_id: uid,
-                firm_name: currentDossierFirm,
-                firm_type: f.firmType || f.type || "",
-                locations: f.locations || "",
-                culture: f.culture || "",
-                personal_why: f.personalWhy || "",
-                practice: f.practice || [],
-                clients: f.clients || [],
-                competencies: f.competencies || [],
-                schemes: f.schemes || [],
-                srs: f.srs || {},
-                applied: f.applied || false,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'user_id, firm_name' });
+        // G. Reconcile & Purge Deleted Dossiers from Supabase
+        if (window.deletedDossierFirms && window.deletedDossierFirms.size > 0) {
+            const firmsToDelete = Array.from(window.deletedDossierFirms);
+            await supabaseClient.from('dossiers').delete().eq('user_id', uid).in('firm_name', firmsToDelete);
+            window.deletedDossierFirms.clear();
+        }
+
+        if (db.dossiers && typeof db.dossiers === 'object') {
+            const localFirms = Object.keys(db.dossiers);
+            const { data: remoteDossiers } = await supabaseClient
+                .from('dossiers')
+                .select('firm_name')
+                .eq('user_id', uid);
+
+            if (remoteDossiers && remoteDossiers.length > 0) {
+                const toRemove = remoteDossiers
+                    .filter(rd => !localFirms.includes(rd.firm_name))
+                    .map(rd => rd.firm_name);
+
+                if (toRemove.length > 0) {
+                    await supabaseClient.from('dossiers').delete().eq('user_id', uid).in('firm_name', toRemove);
+                }
+            }
+
+            // Upsert current active firm
+            if (typeof currentDossierFirm !== 'undefined' && currentDossierFirm && db.dossiers[currentDossierFirm]) {
+                const f = db.dossiers[currentDossierFirm];
+                await supabaseClient.from('dossiers').upsert({
+                    user_id: uid,
+                    firm_name: currentDossierFirm,
+                    firm_type: f.firmType || f.type || "",
+                    locations: f.locations || "",
+                    culture: f.culture || "",
+                    personal_why: f.personalWhy || "",
+                    practice: f.practice || [],
+                    clients: f.clients || [],
+                    competencies: f.competencies || [],
+                    schemes: f.schemes || [],
+                    srs: f.srs || {},
+                    applied: f.applied || false,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id, firm_name' });
+            }
         }
 
         updateStatus("Synced", "green");
@@ -696,6 +1029,10 @@ async function processImport() {
             const rows = parsed.concepts.map(c => {
                 const srsPayload = c.srs || { interval: 0, nextReview: 0, lastRating: "forgot", mastered: false };
                 srsPayload.subSrs = c.subSrs || srsPayload.subSrs || {};
+                srsPayload.linkedPlaybook = c.linkedPlaybook || (c.srs && c.srs.linkedPlaybook) || null;
+                srsPayload.documents = Array.isArray(c.documents) ? c.documents.slice(0, 5) : [];
+                srsPayload.summary = c.summary || "";
+
                 return {
                     user_id: uid,
                     title: c.title || "Untitled Concept",
@@ -727,8 +1064,8 @@ async function processImport() {
                 pestle: f.pestle || "Economic",
                 region: f.region || "UK Focus",
                 workspace: f.workspace || "General Market",
-                linked_concept: f.linkedConcept || "",
-                linked_firm: f.linkedFirm || ""
+                linked_concept: Array.isArray(f.linkedConcepts) ? f.linkedConcepts.join(', ') : (f.linkedConcept || ""),
+                linked_firm: Array.isArray(f.linkedFirms) ? f.linkedFirms.join(', ') : (f.linkedFirm || "")
             }));
             await supabaseClient.from('factors').insert(rows);
         }

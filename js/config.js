@@ -18,9 +18,9 @@ window.currentConceptCategory = "All";
 window.currentWorkspace = "All";
 
 let db = { 
-  workspaces: ["General Market", "Interview Vault"], 
+  workspaces: ["General Market"], 
   factors: [],
-  conceptCategories: ["Corporate / M&A", "Capital Markets", "Intellectual Property", "Commercial Contracts", "Dispute Resolution", "Interview Vault"],
+  conceptCategories: ["Corporate / M&A", "Capital Markets", "Intellectual Property", "Commercial Contracts", "Dispute Resolution"],
   concepts: [],
   dossiers: {},
   dictionary: [],

@@ -82,6 +82,15 @@ window.switchConceptDetailTab = function(tabKey) {
  * Toggle Edit Mode
  */
 window.toggleConceptEditMode = function(enable) {
+    if (enable === false && window.activeConceptDetailIndex !== null) {
+        const c = db.concepts[window.activeConceptDetailIndex];
+        // If it was a newly created concept with no title or body, discard it
+        if (c && !c.title && !c.body) {
+            db.concepts.splice(window.activeConceptDetailIndex, 1);
+            window.closeConceptDetailWorkspace();
+            return;
+        }
+    }
     window.isConceptDetailEditMode = enable !== undefined ? enable : !window.isConceptDetailEditMode;
     window.renderConceptDetailView();
 };
@@ -89,7 +98,7 @@ window.toggleConceptEditMode = function(enable) {
 /**
  * Import a playbook structure directly into this concept
  */
-window.importPlaybookToCurrentConcept = function() {
+window.importPlaybookToCurrentConcept = async function() {
     if (window.activeConceptDetailIndex === null) return;
     const playbooks = Object.keys(db.playbooks || {});
     if (playbooks.length === 0) {
@@ -101,16 +110,24 @@ window.importPlaybookToCurrentConcept = function() {
     if (!selectedPb || !selectedPb.trim()) return;
     const cleanName = selectedPb.trim();
 
-    if (!db.playbooks[cleanName]) {
+    const matchedKey = Object.keys(db.playbooks).find(k => k.toLowerCase() === cleanName.toLowerCase());
+
+    if (!matchedKey || !db.playbooks[matchedKey]) {
         alert(`Playbook "${cleanName}" not found.`);
         return;
     }
 
     const c = db.concepts[window.activeConceptDetailIndex];
-    c.linkedPlaybook = cleanName;
-    if (typeof saveDatabase === 'function') saveDatabase();
+    c.linkedPlaybook = matchedKey;
+    
+    window.activeConceptDetailTab = 'structure';
+
+    if (typeof saveDatabase === 'function') {
+        await saveDatabase();
+    }
+    
     window.renderConceptDetailView();
-    if (typeof showToast === 'function') showToast(`Linked Playbook "${cleanName}" to concept!`, "success");
+    if (typeof showToast === 'function') showToast(`Linked Playbook "${matchedKey}" to concept!`, "success");
 };
 
 /**
@@ -168,7 +185,7 @@ window.syncDirectInputsToMemory = function() {
     if (summaryEl) c.summary = summaryEl.value.trim();
     if (tagsEl) c.subTag = tagsEl.value.trim();
     if (whenEl) c.whenToUse = whenEl.value.trim();
-    if (advEl) c.advantages = advEl.value.trim();
+    if (advEl) advEl.value = advEl.value.trim();
     if (disadvEl) c.disadvantages = disadvEl.value.trim();
     if (relEl) c.relatedConcepts = relEl.value.trim();
     if (provEl) c.typicalProvisions = provEl.value.trim();
@@ -187,18 +204,49 @@ window.syncDirectInputsToMemory = function() {
 /**
  * Save in-page changes and immediately revert to clean view mode
  */
+/**
+ * Save in-page changes immediately (Optimistic UI with Cloud Failsafe)
+ */
 window.saveDirectConceptWorkspace = async function() {
+    const targetIdx = window.activeConceptDetailIndex;
+    if (targetIdx === null) return;
+
+    // 1. Sync inputs into memory and switch off edit mode
     window.syncDirectInputsToMemory();
     window.isConceptDetailEditMode = false;
     
-    if (typeof saveDatabase === 'function') {
-        await saveDatabase();
-    }
-    
+    // 2. Instant Optimistic Render (Zero UI latency)
     window.renderConceptDetailView();
-    
     if (typeof showToast === 'function') {
-        showToast("Changes saved successfully.", "success");
+        showToast("Changes saved locally.", "success");
+    }
+
+    // 3. Background Cloud Commit with User Failsafe
+    try {
+        let success = false;
+        if (typeof window.saveSingleConcept === 'function') {
+            success = await window.saveSingleConcept(targetIdx);
+        } else if (typeof saveDatabase === 'function') {
+            await saveDatabase();
+            success = true;
+        }
+
+        if (!success) {
+            const warningMsg = "Notice: Saved to device cache, but cloud sync failed. Check your internet connection.";
+            if (typeof showToast === 'function') {
+                showToast(warningMsg, "error");
+            } else {
+                alert(warningMsg);
+            }
+        }
+    } catch (err) {
+        console.error("Cloud commit failsafe triggered:", err);
+        const warningMsg = "Notice: Cloud sync error. Changes are saved locally on this device.";
+        if (typeof showToast === 'function') {
+            showToast(warningMsg, "error");
+        } else {
+            alert(warningMsg);
+        }
     }
 };
 
@@ -369,10 +417,24 @@ window.initConceptPlaybookVis = function(playbookName) {
     const nodes = (pb.nodes || []).map(n => ({
         ...n,
         shape: 'box',
-        margin: 12,
-        color: n.color || { background: '#2563eb', border: '#1d4ed8' },
-        font: { color: '#ffffff', face: 'Inter, sans-serif', size: 14, bold: true },
-        shadow: { enabled: true, color: 'rgba(0,0,0,0.15)', size: 4, x: 0, y: 2 }
+        margin: { top: 10, bottom: 10, left: 14, right: 14 },
+        widthConstraint: {
+            minimum: 120,
+            maximum: 170
+        },
+        color: n.color || { 
+            background: '#2563eb', 
+            border: '#1d4ed8',
+            highlight: { background: '#1d4ed8', border: '#1e40af' }
+        },
+        font: { 
+            color: '#ffffff', 
+            face: 'Inter, sans-serif', 
+            size: 13, 
+            bold: true,
+            multi: true
+        },
+        shadow: { enabled: true, color: 'rgba(0,0,0,0.12)', size: 4, x: 0, y: 2 }
     }));
 
     const edges = (pb.edges || []).map(e => ({
@@ -393,26 +455,35 @@ window.initConceptPlaybookVis = function(playbookName) {
             hierarchical: {
                 direction: 'UD',
                 sortMethod: 'directed',
-                levelSeparation: 85,
-                nodeSpacing: 180
+                levelSeparation: 110,
+                nodeSpacing: 260,
+                treeSpacing: 280,
+                blockShifting: true,
+                edgeMinimization: true,
+                parentCentralization: true
             }
         },
         interaction: {
             hover: true,
             zoomView: true,
             dragView: true,
+            dragNodes: false,
             multiselect: false
         },
         physics: false
     };
 
-    window.conceptPlaybookNetwork = new vis.Network(container, data, options);
-    
-    window.conceptPlaybookNetwork.once("afterDrawing", () => {
-        window.conceptPlaybookNetwork.fit({
-            animation: { duration: 600, easingFunction: 'easeInOutQuad' }
+    try {
+        window.conceptPlaybookNetwork = new vis.Network(container, data, options);
+        
+        window.conceptPlaybookNetwork.once("afterDrawing", () => {
+            window.conceptPlaybookNetwork.fit({
+                animation: { duration: 600, easingFunction: 'easeInOutQuad' }
+            });
         });
-    });
+    } catch (err) {
+        console.error("Vis.js flowchart mount error:", err);
+    }
 };
 
 /**
@@ -431,6 +502,9 @@ window.renderConceptDetailView = function() {
     const idx = window.activeConceptDetailIndex;
     const c = db.concepts && db.concepts[idx];
     if (!c) return;
+
+    // Ensure documents is a solid reference array
+    if (!Array.isArray(c.documents)) c.documents = [];
 
     // --- 1. Calculate Internal Concept Component Mastery & SRS Schedule ---
     c.subSrs = c.subSrs || (c.srs && c.srs.subSrs) || {};
@@ -466,7 +540,6 @@ window.renderConceptDetailView = function() {
         ? Math.round(totalSubScore / subCards.length) 
         : (defaultSrs.mastered ? 100 : Math.min(100, Math.round(((defaultSrs.interval || 0) / 21) * 100)));
 
-    // Enlarged Progress Circle Geometry (Radius 48 on 120x120 viewBox)
     const radius = 48;
     const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference - (masteryPct / 100) * circumference;
@@ -486,10 +559,12 @@ window.renderConceptDetailView = function() {
     const conceptCode = `CON-${String(idx + 1).padStart(6, '0')}`;
 
     // --- 2. Tags ---
+    // --- 2. Tags with Interactive Remove (x) Button ---
     const tags = (c.subTag || "").split(',').map(t => t.trim()).filter(Boolean);
-    const tagBadgesHtml = tags.map(tag => `
-        <span class="inline-flex items-center px-2 py-0.5 rounded-none text-xs font-semibold bg-slate-100/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700">
-            ${tag}
+    const tagBadgesHtml = tags.map((tag, tIdx) => `
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-sm text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700">
+            <span>${tag}</span>
+            <button type="button" onclick="event.stopPropagation(); window.removeConceptTag(${idx}, ${tIdx});" class="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition font-bold leading-none p-0.5 cursor-pointer" title="Remove tag">&times;</button>
         </span>
     `).join('');
 
@@ -560,9 +635,11 @@ window.renderConceptDetailView = function() {
         .filter(obj => obj.originalIndex !== idx && (obj.item.category === c.category || relatedParsed.includes(obj.item.title)))
         .slice(0, 6);
 
-    const docs = Array.isArray(c.documents) ? c.documents : [];
+    const docs = c.documents;
+    const maxDocs = 5;
+    const isDocLimitReached = docs.length >= maxDocs;
 
-    // --- 4. Sub-Tab Definitions (Seamless Strip with Zero Button Gaps) ---
+    // --- 4. Sub-Tab Definitions ---
     const tabs = [
         { key: 'overview', label: 'Overview' },
         { key: 'structure', label: `Structure & Flow ${c.linkedPlaybook || c.diagram ? '✓' : ''}` },
@@ -770,7 +847,6 @@ window.renderConceptDetailView = function() {
                 </div>
 
                 ${hasLinkedPlaybook ? `
-                    <!-- Dynamic Vis.js Network Canvas Container (Zoomable & Readable) -->
                     <div class="relative w-full h-[580px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 overflow-hidden">
                         <div id="conceptPlaybookVisContainer" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
                         
@@ -807,19 +883,62 @@ window.renderConceptDetailView = function() {
         tabContentHtml = `
             <div class="bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800 rounded-none p-4 shadow-xs space-y-3">
                 <div class="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">Precedent Documents (${docs.length})</h3>
-                    <button type="button" onclick="window.addConceptDocumentRow(${idx})" class="text-xs text-indigo-600 font-bold hover:underline">+ Add Document</button>
+                    <div>
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">Precedent Documents (${docs.length}/${maxDocs})</h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Attach links to Google Drive, OneDrive, or legal precedent templates.</p>
+                    </div>
+                    ${!isDocLimitReached ? `
+                        <button type="button" onclick="window.addConceptDocumentRow(${idx})" class="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1 cursor-pointer">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Precedent Link
+                        </button>
+                    ` : `
+                        <button type="button" disabled class="text-xs text-slate-400 font-bold opacity-50 cursor-not-allowed flex items-center gap-1" title="Limit of 5 documents reached">
+                            <i data-lucide="lock" class="w-3.5 h-3.5"></i> Add Precedent Link (Limit 5/5)
+                        </button>
+                    `}
                 </div>
                 ${docs.length > 0 ? `
-                    <div class="space-y-1.5">
-                        ${docs.map((d) => `
-                            <div class="flex items-center justify-between p-2.5 rounded-none border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                                <span class="text-xs font-bold text-slate-700 dark:text-slate-200">${d.name}</span>
-                                <span class="text-[10px] font-mono text-slate-400">${d.type || 'DOCX'}</span>
-                            </div>
-                        `).join('')}
+                    <div class="space-y-2">
+                        ${docs.map((d, dIdx) => {
+                            const isLink = Boolean(d.url && d.url.trim());
+                            const safeUrl = isLink ? d.url.trim() : '#';
+                            const docType = (d.type || 'LINK').toUpperCase();
+                            
+                            return `
+                                <div class="flex items-center justify-between p-3 rounded-none border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-indigo-300 dark:hover:border-indigo-600 transition group">
+                                    <div class="flex items-center gap-2.5 min-w-0 flex-1 mr-3">
+                                        <div class="w-7 h-7 rounded-none bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 border border-indigo-100 dark:border-indigo-900">
+                                            <i data-lucide="${docType.includes('DOC') ? 'file-text' : (docType.includes('XLS') ? 'file-spreadsheet' : 'external-link')}" class="w-4 h-4"></i>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">${d.name}</span>
+                                                <span class="text-[9px] font-mono px-1.5 py-0.2 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold shrink-0">${docType}</span>
+                                            </div>
+                                            ${isLink ? `
+                                                <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-[11px] text-blue-600 dark:text-blue-400 hover:underline truncate block mt-0.5" title="${safeUrl}">
+                                                    ${safeUrl}
+                                                </a>
+                                            ` : `
+                                                <span class="text-[10px] text-slate-400 italic">No URL provided</span>
+                                            `}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        ${isLink ? `
+                                            <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1 shadow-xs" title="Open Link">
+                                                Open <i data-lucide="arrow-up-right" class="w-3 h-3"></i>
+                                            </a>
+                                        ` : ''}
+                                        <button type="button" onclick="event.stopPropagation(); window.removeConceptDocumentRow(${idx}, ${dIdx});" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:hover:border-rose-900 transition cursor-pointer" title="Remove Link">
+                                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
-                ` : `<p class="text-xs text-slate-400 italic py-3 text-center">No precedent documents attached.</p>`}
+                ` : `<p class="text-xs text-slate-400 italic py-6 text-center">No precedent documents attached yet. Click "+ Add Precedent Link" above.</p>`}
             </div>
         `;
     } else if (window.activeConceptDetailTab === 'related') {
@@ -902,7 +1021,6 @@ window.renderConceptDetailView = function() {
     detailWrapper.innerHTML = `
         <div class="max-w-[1700px] mx-auto w-full space-y-2.5">
             
-            <!-- Top Navigation & Prominent Back Button (Pinned Header) -->
             <div class="flex items-center justify-between gap-3 pb-1 border-b border-slate-200/60 dark:border-slate-800/80">
                 <div class="flex items-center gap-2 text-[11px] text-slate-400 font-medium overflow-hidden">
                     <button type="button" onclick="window.closeConceptDetailWorkspace()" class="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition shrink-0 cursor-pointer rounded-none">
@@ -924,9 +1042,6 @@ window.renderConceptDetailView = function() {
                     ` : `
                         <div class="flex items-center gap-2">
                             <h1 class="text-xl md:text-2xl font-serif font-black text-slate-900 dark:text-white tracking-tight">${c.title || 'Untitled Concept'}</h1>
-                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-600 text-white" title="Verified Concept">
-                                <i data-lucide="check" class="w-2.5 h-2.5 stroke-[3]"></i>
-                            </span>
                         </div>
                     `}
                     
@@ -934,8 +1049,8 @@ window.renderConceptDetailView = function() {
                         ${c.summary || (c.body ? c.body.replace(/<[^>]*>?/gm, ' ').substring(0, 140) + '...' : 'Tracked commercial legal concept.')}
                     </p>
 
-                    <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-none text-xs font-semibold bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900">
+                    <div class="flex items-center gap-1.5 flex-wrap pt-0.5 pb-2 mb-2">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-sm text-xs font-semibold bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-900">
                             ${c.category || 'General'}
                         </span>
                         ${tagBadgesHtml}
@@ -951,7 +1066,7 @@ window.renderConceptDetailView = function() {
             </div>
 
             <!-- Zero-Gap Continuous Sub-Tab Strip -->
-            <div id="conceptDetailWorkspaceTabsBar" class="overflow-x-auto scrollbar-hide pt-1">
+            <div id="conceptDetailWorkspaceTabsBar" class="overflow-x-auto scrollbar-hide pt-2 mt-3 border-b-2 border-slate-200 dark:border-slate-800">
                 ${tabNavHtml}
             </div>
 
@@ -968,7 +1083,7 @@ window.renderConceptDetailView = function() {
 
                 <div class="lg:col-span-4 space-y-3">
                     
-                    <!-- Mastery & Review Card (Expanded SVG Ring without Label Clipping) -->
+                    <!-- Mastery & Review Card -->
                     <div class="bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800 rounded-none p-4 shadow-xs flex flex-col">
                         <div class="flex justify-between items-center mb-3">
                             <h3 class="text-xs font-bold text-slate-800 dark:text-white">Mastery & Review</h3>
@@ -1069,42 +1184,37 @@ window.renderConceptDetailView = function() {
                         </div>
                     </div>
 
+                    <!-- Precedent Documents Sidebar Widget -->
                     <div class="bg-white dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800 rounded-none p-4 shadow-xs space-y-2">
                         <div class="flex justify-between items-center mb-0.5">
-                            <h3 class="text-xs font-bold text-slate-800 dark:text-white">Documents (${docs.length || 3})</h3>
-                            <button type="button" onclick="window.addConceptDocumentRow(${idx})" class="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline">View all &rarr;</button>
+                            <h3 class="text-xs font-bold text-slate-800 dark:text-white">Documents (${docs.length}/${maxDocs})</h3>
+                            ${!isDocLimitReached ? `
+                                <button type="button" onclick="window.addConceptDocumentRow(${idx})" class="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">+ Add</button>
+                            ` : `
+                                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Locked</span>
+                            `}
                         </div>
                         <div class="divide-y divide-slate-100 dark:divide-slate-800">
-                            ${docs.length > 0 ? docs.slice(0, 3).map(d => `
-                                <div class="flex items-center justify-between py-1.5 text-xs">
-                                    <div class="flex items-center gap-2 truncate">
-                                        <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
-                                        <span class="text-slate-700 dark:text-slate-300 font-medium truncate">${d.name}</span>
+                            ${docs.length > 0 ? docs.map(d => {
+                                const hasUrl = Boolean(d.url && d.url.trim());
+                                const targetUrl = hasUrl ? d.url.trim() : '#';
+                                return `
+                                    <div class="flex items-center justify-between py-1.5 text-xs group">
+                                        <div class="flex items-center gap-2 truncate flex-1 mr-2">
+                                            <i data-lucide="external-link" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
+                                            ${hasUrl ? `
+                                                <a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="text-slate-700 dark:text-slate-300 font-medium truncate hover:text-blue-600 dark:hover:text-blue-400 transition" title="${d.name}">
+                                                    ${d.name}
+                                                </a>
+                                            ` : `
+                                                <span class="text-slate-700 dark:text-slate-300 font-medium truncate">${d.name}</span>
+                                            `}
+                                        </div>
+                                        <span class="text-[9px] font-mono text-slate-400 shrink-0 uppercase">${d.type || 'LINK'}</span>
                                     </div>
-                                    <span class="text-[10px] font-mono text-slate-400 shrink-0">${d.type || 'DOCX'}</span>
-                                </div>
-                            `).join('') : `
-                                <div class="flex items-center justify-between py-2 text-xs">
-                                    <div class="flex items-center gap-2 truncate">
-                                        <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-500 shrink-0"></i>
-                                        <span class="text-slate-700 dark:text-slate-300 font-medium">Sample Asset Purchase Agreement</span>
-                                    </div>
-                                    <span class="text-[10px] font-mono text-slate-400">DOCX</span>
-                                </div>
-                                <div class="flex items-center justify-between py-2 text-xs">
-                                    <div class="flex items-center gap-2 truncate">
-                                        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-500 shrink-0"></i>
-                                        <span class="text-slate-700 dark:text-slate-300 font-medium">Excluded Assets & Liabilities Schedule</span>
-                                    </div>
-                                    <span class="text-[10px] font-mono text-slate-400">XLSX</span>
-                                </div>
-                                <div class="flex items-center justify-between py-2 text-xs">
-                                    <div class="flex items-center gap-2 truncate">
-                                        <i data-lucide="file" class="w-3.5 h-3.5 text-rose-500 shrink-0"></i>
-                                        <span class="text-slate-700 dark:text-slate-300 font-medium">Novation Agreement Precedent</span>
-                                    </div>
-                                    <span class="text-[10px] font-mono text-slate-400">PDF</span>
-                                </div>
+                                `;
+                            }).join('') : `
+                                <p class="text-xs text-slate-400 italic py-2">No precedent links added.</p>
                             `}
                         </div>
                     </div>
@@ -1117,9 +1227,14 @@ window.renderConceptDetailView = function() {
 
     // Instantiate interactive Vis.js network if on the structure tab with a linked playbook
     if (window.activeConceptDetailTab === 'structure' && c.linkedPlaybook) {
-        setTimeout(() => {
-            window.initConceptPlaybookVis(c.linkedPlaybook);
-        }, 50);
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                const container = document.getElementById("conceptPlaybookVisContainer");
+                if (container && typeof window.initConceptPlaybookVis === 'function') {
+                    window.initConceptPlaybookVis(c.linkedPlaybook);
+                }
+            }, 100);
+        });
     }
 
     // Instantiate Quill editor if in edit mode
@@ -1152,15 +1267,61 @@ window.promptAddConceptTag = function(index) {
     }
 };
 
+/**
+ * Add Precedent Link with Strict Cap of 5 (Appends without overwriting)
+ */
 window.addConceptDocumentRow = function(conceptIdx) {
-    const name = prompt("Document name (e.g. Schedule 4 - Excluded Assets):");
-    if (!name || !name.trim()) return;
-    const type = prompt("Type (e.g. DOCX, PDF, Clause):", "DOCX");
     const c = db.concepts[conceptIdx];
+    if (!c) return;
     if (!Array.isArray(c.documents)) c.documents = [];
-    c.documents.push({ name: name.trim(), type: type || 'DOCX' });
+
+    if (c.documents.length >= 5) {
+        alert("You have reached the maximum limit of 5 precedent links for this concept. Delete an existing link to add a new one.");
+        return;
+    }
+
+    const name = prompt("Precedent Name (e.g., Seller-Friendly Asset Purchase Agreement):");
+    if (!name || !name.trim()) return;
+
+    let url = prompt("Google Drive / OneDrive / Cloud Link URL:\n(Leave blank if pending)");
+    if (url && url.trim()) {
+        url = url.trim();
+        if (!/^https?:\/\//i.test(url)) {
+            url = "https://" + url;
+        }
+    } else {
+        url = "";
+    }
+
+    const type = prompt("File format / tag (e.g. DOCX, PDF, Clause, Template):", "DOCX");
+
+    // Push as a new discrete object entry
+    c.documents.push({
+        id: "doc_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+        name: name.trim(),
+        url: url,
+        type: (type && type.trim()) ? type.trim().toUpperCase() : "LINK"
+    });
+
     if (typeof saveDatabase === 'function') saveDatabase();
     window.renderConceptDetailView();
+    if (typeof showToast === 'function') showToast("Precedent document link added.", "success");
+};
+
+/**
+ * Remove Precedent Link with Event Isolation
+ */
+window.removeConceptDocumentRow = function(conceptIdx, docIdx) {
+    const c = db.concepts[conceptIdx];
+    if (!c || !Array.isArray(c.documents) || !c.documents[docIdx]) return;
+
+    const docName = c.documents[docIdx].name || "this precedent";
+    if (confirm(`Remove "${docName}" from this concept?`)) {
+        c.documents.splice(docIdx, 1);
+        if (typeof saveDatabase === 'function') saveDatabase();
+        window.renderConceptDetailView();
+        if (typeof showToast === 'function') showToast("Precedent link removed.", "info");
+    }
 };
 
 /**
@@ -1169,5 +1330,23 @@ window.addConceptDocumentRow = function(conceptIdx) {
 window.startSingleConceptReview = function(conceptIdx) {
     if (typeof openFlashcardDashboard === 'function') {
         openFlashcardDashboard('concept-elements', false, conceptIdx);
+    }
+};
+
+window.removeConceptTag = function(index, tagIdx) {
+    const concept = db.concepts[index];
+    if (!concept) return;
+
+    let tags = (concept.subTag || "").split(',').map(t => t.trim()).filter(Boolean);
+    if (tagIdx >= 0 && tagIdx < tags.length) {
+        const removed = tags.splice(tagIdx, 1);
+        concept.subTag = tags.join(', ');
+        
+        if (typeof saveDatabase === 'function') saveDatabase();
+        window.renderConceptDetailView();
+        if (typeof window.populateConceptFilterDropdowns === 'function') {
+            window.populateConceptFilterDropdowns(true);
+        }
+        if (typeof showToast === 'function') showToast(`Removed tag "${removed}"`, "info");
     }
 };

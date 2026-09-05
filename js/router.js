@@ -351,7 +351,7 @@ function renderTabs() {
       btn.ondragleave = (e) => handleTabDragLeave(e);
       btn.ondrop = (e) => handleTabDrop(e, ws);
 
-      if (ws === currentWorkspace && !["General Market", "Interview Vault"].includes(ws)) {
+      if (ws === currentWorkspace && !["General Market"].includes(ws)) {
         btn.innerHTML = `<div class="flex items-center gap-2"><span>${ws}</span><span onclick="manageWorkspace('${ws.replace(/'/g, "\\'")}', event, 'intel')" class="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-sm print:hidden transition">⚙️</span></div>`;
       } else { 
         btn.innerHTML = `<span>${ws}</span>`; 
@@ -421,7 +421,7 @@ function renderTabs() {
       btn.ondragleave = (e) => handleTabDragLeave(e);
       btn.ondrop = (e) => handleTabDrop(e, cat);
 
-      if (cat === currentConceptCategory && cat !== "Interview Vault") {
+      if (cat === currentConceptCategory) {
         btn.innerHTML = `<div class="flex items-center gap-2"><span>${cat}</span><span onclick="manageWorkspace('${cat.replace(/'/g, "\\'")}', event, 'concept')" class="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 hover:bg-indigo-200 rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-sm print:hidden transition">⚙️</span></div>`;
       } else { 
         btn.innerHTML = `<span>${cat}</span>`; 
